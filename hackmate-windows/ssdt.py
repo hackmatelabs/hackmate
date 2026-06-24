@@ -216,16 +216,12 @@ def generate(
         if results_dir.exists():
             shutil.rmtree(str(results_dir))
 
-        stdin = f"{dsdt}\n{choice}\n"
-        if "EC" in ssdt:
-            stdin += "1\n"
-        stdin += "\nQ\n"  # blank Enter for "Press [enter] to return to main menu..."
+        stdin = f"D\n{dsdt}\n{choice}\n\n\nQ\n"
 
         try:
-            _run(script, stdin, timeout=60)
+            _run(script, stdin, timeout=30)
         except subprocess.TimeoutExpired:
-            results[ssdt] = "ERROR: SSDTTime timed out"
-            continue
+            pass  # SSDT may already be written; check below
         except Exception as e:
             results[ssdt] = f"ERROR: {e}"
             continue
