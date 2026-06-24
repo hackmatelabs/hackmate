@@ -202,17 +202,18 @@ def generate(
     cb(f"  {len(menu_map)} menu options detected: {', '.join(menu_map.keys())}")
 
     # ── 4. Build input sequence ──────────────────────────────────────────────
-    input_lines = [str(dsdt)]
-    scheduled: list[str] = []  # SSDTs we actually sent a menu choice for
+    # SSDTTime flow per SSDT: show menu → pick number → ask DSDT path → generate
+    input_lines = []
+    scheduled: list[str] = []
 
     for ssdt in doable:
         choice = menu_map.get(ssdt)
         if choice:
-            input_lines.append(choice)
+            input_lines.append(choice)       # menu selection
+            input_lines.append(str(dsdt))    # DSDT path (asked after each choice)
             scheduled.append(ssdt)
-            # After EC-related choices, SSDTTime may ask "Which EC?" — default 1
             if "EC" in ssdt:
-                input_lines.append("1")
+                input_lines.append("1")      # "Which EC?" prompt — default 1
         else:
             results[ssdt] = f"SKIP: '{ssdt}' not found in this SSDTTime version"
 

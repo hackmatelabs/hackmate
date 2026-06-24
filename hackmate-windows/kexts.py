@@ -471,7 +471,7 @@ def _get_latest_release(repo: str) -> Optional[dict]:
 def _find_asset(assets: list, pattern: str) -> Optional[dict]:
     for asset in assets:
         name = asset["name"].lower()
-        if pattern.lower() in name and name.endswith(".zip") and "debug" not in name and "devel" not in name:
+        if pattern.lower() in name and name.endswith(".zip") and "debug" not in name and "devel" not in name and "dsym" not in name:
             return asset
     for asset in assets:
         name = asset["name"].lower()

@@ -583,7 +583,7 @@ class InstallScreen(Screen):
             log("", "info")
             log("── EFI Sanity Check ──────────────────────────────", "header")
             from efi_check import check as efi_check
-            issues = efi_check(efi_root, profile)
+            issues = efi_check(efi, profile)
             errors   = [m for lvl, m in issues if lvl == "error"]
             warnings = [m for lvl, m in issues if lvl == "warn"]
             oks      = [m for lvl, m in issues if lvl == "ok"]
