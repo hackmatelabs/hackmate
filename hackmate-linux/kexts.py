@@ -15,6 +15,7 @@ class KextEntry:
     repo: str
     asset_pattern: str
     note: str = ""
+    bundle_name: str = ""  # actual .kext bundle name if different from name
 
 
 # ─── Master kext database ─────────────────────────────────────────────────────
@@ -76,7 +77,7 @@ DB: dict[str, KextEntry] = {
     "VoodooRMI":         KextEntry("VoodooRMI",        "1Revenger1/VoodooRMI",        "VoodooRMI-",         "Synaptics RMI4 trackpad (better than PS2 on some laptops)"),
 
     # ── Ethernet ──────────────────────────────────────────────────────────────
-    "IntelMausiEthernet":KextEntry("IntelMausiEthernet","acidanthera/IntelMausi",        "IntelMausi-",        "Intel I219/I218/I217 Ethernet"),
+    "IntelMausiEthernet":KextEntry("IntelMausiEthernet","acidanthera/IntelMausi",        "IntelMausi-",        "Intel I219/I218/I217 Ethernet", bundle_name="IntelMausi"),
     "AppleIGC":          KextEntry("AppleIGC",         "SongXiaoXi/AppleIGC",         "AppleIGC-",          "Intel I225-V / I226-V 2.5GbE"),
     "AppleIntelE1000e":  KextEntry("AppleIntelE1000e", "chris1111/AppleIntelE1000e",  "AppleIntelE1000e-",  "Intel 82578/82577/82574/82567 Ethernet"),
     "AppleIntelI210Ethernet":KextEntry("AppleIntelI210Ethernet","donatengit/AppleIntelI210Ethernet","AppleIntelI210-","Intel I211/I210 Ethernet"),
@@ -485,10 +486,11 @@ def download_kexts(kexts: list[KextEntry], dest: Path, progress_cb=None) -> dict
             z.extractall(str(extract_dir))
 
         kext_name = f"{kext.name}.kext"
-        base = kext.name.lower()
+        bundle = kext.bundle_name or kext.name
+        base = bundle.lower()
         all_kexts = [p for p in extract_dir.rglob("*.kext") if p.is_dir()]
         found = (
-            next((p for p in all_kexts if p.name.lower() == kext_name.lower()), None) or
+            next((p for p in all_kexts if p.name.lower() == f"{base}.kext"), None) or
             next((p for p in all_kexts if p.name.lower().startswith(base + "_") or p.name.lower().startswith(base + "-")), None) or
             next((p for p in all_kexts if base in p.name.lower()), None)
         )

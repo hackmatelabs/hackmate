@@ -201,69 +201,46 @@ def generate(
 
     cb(f"  {len(menu_map)} menu options detected: {', '.join(menu_map.keys())}")
 
-    # ── 4. Build input sequence ──────────────────────────────────────────────
-    # SSDTTime flow: menu → choice → DSDT path (once only) → generate → menu → choice → ...
-    input_lines = []
-    scheduled: list[str] = []
-    dsdt_sent = False
+    # ── 4. Run SSDTTime once per SSDT ────────────────────────────────────────
+    # SSDTTime flow per run: ask DSDT path → show menu → pick choice → generate → show menu → Q
+    acpi_dir.mkdir(parents=True, exist_ok=True)
+    results_dir = script.parent / "Results"
 
     for ssdt in doable:
         choice = menu_map.get(ssdt)
-        if choice:
-            input_lines.append(choice)
-            if not dsdt_sent:
-                input_lines.append(str(dsdt))  # DSDT path only asked after first choice
-                dsdt_sent = True
-            scheduled.append(ssdt)
-            if "EC" in ssdt:
-                input_lines.append("1")
-        else:
+        if not choice:
             results[ssdt] = f"SKIP: '{ssdt}' not found in this SSDTTime version"
+            continue
 
-    input_lines.append("Q")
+        cb(f"Generating {ssdt}...")
+        if results_dir.exists():
+            shutil.rmtree(str(results_dir))
 
-    if not scheduled:
-        return results
+        stdin = f"{dsdt}\n{choice}\n"
+        if "EC" in ssdt:
+            stdin += "1\n"
+        stdin += "Q\n"
 
-    # ── 5. Clear previous Results folder ─────────────────────────────────────
-    results_dir = script.parent / "Results"
-    if results_dir.exists():
-        shutil.rmtree(str(results_dir))
+        try:
+            _run(script, stdin, timeout=60)
+        except subprocess.TimeoutExpired:
+            results[ssdt] = "ERROR: SSDTTime timed out"
+            continue
+        except Exception as e:
+            results[ssdt] = f"ERROR: {e}"
+            continue
 
-    # ── 6. Generation run ─────────────────────────────────────────────────────
-    cb(f"Generating {len(scheduled)} SSDTs...")
-    try:
-        gen_out = _run(script, "\n".join(input_lines) + "\n", timeout=120)
-    except subprocess.TimeoutExpired:
-        for n in scheduled:
-            results[n] = "ERROR: SSDTTime timed out during generation"
-        return results
-    except Exception as e:
-        for n in scheduled:
-            results[n] = f"ERROR: SSDTTime generation failed: {e}"
-        return results
+        found_amls = []
+        if results_dir.exists():
+            for aml in sorted(results_dir.rglob("*.aml")):
+                dst = acpi_dir / aml.name
+                shutil.copy2(str(aml), str(dst))
+                found_amls.append(aml.stem.upper())
+                cb(f"  {aml.name}")
+            shutil.rmtree(str(results_dir))
 
-    # ── 7. Collect .aml files ─────────────────────────────────────────────────
-    acpi_dir.mkdir(parents=True, exist_ok=True)
-    found_amls: list[str] = []
-
-    if results_dir.exists():
-        for aml in sorted(results_dir.rglob("*.aml")):
-            dst = acpi_dir / aml.name
-            shutil.copy2(str(aml), str(dst))
-            found_amls.append(aml.stem.upper())
-            cb(f"  {aml.name}")
-        shutil.rmtree(str(results_dir))
-
-    # ── 8. Match output files back to requested SSDTs ────────────────────────
-    for ssdt in scheduled:
-        stem = ssdt.upper()  # e.g. "SSDT-PLUG"
-        # Direct match or partial (e.g. "SSDT-EC-USBX" → any aml with "EC")
-        matched = any(
-            stem in aml or ssdt.split("-")[1] in aml
-            for aml in found_amls
-        )
-        if ssdt not in results:
-            results[ssdt] = "OK" if matched else "ERROR: SSDTTime ran but .aml not produced"
+        stem = ssdt.upper()
+        matched = any(stem in a or ssdt.split("-")[1] in a for a in found_amls)
+        results[ssdt] = "OK" if matched else "ERROR: SSDTTime ran but .aml not produced"
 
     return results
