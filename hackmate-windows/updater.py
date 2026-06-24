@@ -16,6 +16,7 @@ VERSION_FILE = Path(__file__).parent / ".version"
 FILES = [
     "hackmate.py", "hardware.py", "kexts.py", "config_gen.py",
     "smbios.py", "recovery.py", "ssdt.py", "ai_fallback.py", "updater.py",
+    "efi_check.py",
 ]
 
 

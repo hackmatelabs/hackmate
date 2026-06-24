@@ -75,40 +75,24 @@ def _ensure_ssdttime() -> Path:
 
 
 def _get_dsdt(tmp: Path) -> Optional[Path]:
-    """Dump DSDT on Windows using acpidump.exe from ACPICA tools."""
-    import urllib.request, zipfile, subprocess as sp
-    acpidump = tmp / "acpidump.exe"
-    if not acpidump.exists():
-        url = "https://acpica.org/sites/acpica/files/acpica-win-20230628.zip"
-        zip_path = tmp / "acpica.zip"
-        try:
-            req = urllib.request.Request(url, headers={"User-Agent": "HackMate/1.0"})
-            with urllib.request.urlopen(req, timeout=30) as r:
-                zip_path.write_bytes(r.read())
-            with zipfile.ZipFile(str(zip_path)) as z:
-                for name in z.namelist():
-                    if name.lower().endswith("acpidump.exe"):
-                        z.extract(name, str(tmp))
-                        extracted = tmp / name
-                        extracted.rename(acpidump)
-                        break
-        except Exception:
-            return None
-
-    dst = tmp / "DSDT.aml"
+    """Dump DSDT using the Windows GetSystemFirmwareTable API — no external tools needed."""
+    import ctypes, struct
     try:
-        result = sp.run(
-            [str(acpidump), "-b", "-n", "DSDT", "-z"],
-            capture_output=True, cwd=str(tmp), timeout=30
-        )
-        # acpidump -b writes DSDT.dat in cwd
-        dat = tmp / "DSDT.dat"
-        if dat.exists():
-            dat.rename(dst)
-            return dst
+        provider = struct.unpack('<I', b'ACPI')[0]
+        table_id = struct.unpack('<I', b'DSDT')[0]
+        k32 = ctypes.windll.kernel32
+        size = k32.GetSystemFirmwareTable(provider, table_id, None, 0)
+        if not size:
+            return None
+        buf = ctypes.create_string_buffer(size)
+        read = k32.GetSystemFirmwareTable(provider, table_id, buf, size)
+        if not read:
+            return None
+        dst = tmp / "DSDT.aml"
+        dst.write_bytes(bytes(buf[:read]))
+        return dst
     except Exception:
-        pass
-    return None
+        return None
 
 
 def _parse_menu(output: str) -> dict[str, str]:
