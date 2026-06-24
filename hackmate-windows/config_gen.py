@@ -390,7 +390,12 @@ def _kernel_section(profile: HardwareProfile, kexts: list[KextEntry]) -> dict:
 
 def _dmi_vendor() -> str:
     try:
-        return Path("/sys/class/dmi/id/sys_vendor").read_text().strip().lower()
+        import subprocess
+        return subprocess.run(
+            ["powershell", "-NoProfile", "-Command",
+             "(Get-WmiObject Win32_ComputerSystem).Manufacturer"],
+            capture_output=True, text=True, timeout=8
+        ).stdout.strip().lower()
     except Exception:
         return ""
 

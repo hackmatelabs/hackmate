@@ -3,7 +3,7 @@ Automated SSDT generation via SSDTTime (corpnewt/SSDTTime).
 
 Flow:
   1. Download SSDTTime repo ZIP (includes bundled iasl for Linux)
-  2. Copy DSDT from /sys/firmware/acpi/tables/DSDT
+  2. Dump DSDT via acpidump.exe (Windows) or /sys/firmware/acpi/tables/DSDT (Linux)
   3. Probe run (DSDT path + Q) to capture and parse the menu
   4. Generation run (DSDT path + choices + Q) to produce .aml files
   5. Copy Results/*.aml to acpi_dir
@@ -66,21 +66,49 @@ def _ensure_ssdttime() -> Path:
         shutil.move(str(item), str(dest))
     extracted.rmdir()
 
-    # Make bundled iasl executable
-    for iasl in (SSDTTIME_DIR / "Scripts").rglob("iasl*"):
-        iasl.chmod(iasl.stat().st_mode | 0o111)
+    # chmod is a no-op on Windows but harmless
+    if hasattr(os, "chmod"):
+        for iasl in (SSDTTIME_DIR / "Scripts").rglob("iasl*"):
+            iasl.chmod(iasl.stat().st_mode | 0o111)
 
     return script
 
 
 def _get_dsdt(tmp: Path) -> Optional[Path]:
-    """Copy DSDT binary from the running kernel's ACPI tables."""
-    src = Path("/sys/firmware/acpi/tables/DSDT")
-    if not src.exists():
-        return None
+    """Dump DSDT on Windows using acpidump.exe from ACPICA tools."""
+    import urllib.request, zipfile, subprocess as sp
+    acpidump = tmp / "acpidump.exe"
+    if not acpidump.exists():
+        url = "https://acpica.org/sites/acpica/files/acpica-win-20230628.zip"
+        zip_path = tmp / "acpica.zip"
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "HackMate/1.0"})
+            with urllib.request.urlopen(req, timeout=30) as r:
+                zip_path.write_bytes(r.read())
+            with zipfile.ZipFile(str(zip_path)) as z:
+                for name in z.namelist():
+                    if name.lower().endswith("acpidump.exe"):
+                        z.extract(name, str(tmp))
+                        extracted = tmp / name
+                        extracted.rename(acpidump)
+                        break
+        except Exception:
+            return None
+
     dst = tmp / "DSDT.aml"
-    shutil.copy2(str(src), str(dst))
-    return dst
+    try:
+        result = sp.run(
+            [str(acpidump), "-b", "-n", "DSDT", "-z"],
+            capture_output=True, cwd=str(tmp), timeout=30
+        )
+        # acpidump -b writes DSDT.dat in cwd
+        dat = tmp / "DSDT.dat"
+        if dat.exists():
+            dat.rename(dst)
+            return dst
+    except Exception:
+        pass
+    return None
 
 
 def _parse_menu(output: str) -> dict[str, str]:
@@ -146,7 +174,7 @@ def generate(
         return results
 
     # ── 2. Copy DSDT ─────────────────────────────────────────────────────────
-    cb("Copying DSDT from /sys/firmware/acpi/tables/DSDT...")
+    cb("Dumping DSDT via acpidump.exe...")
     dsdt = _get_dsdt(tmp)
     if not dsdt:
         for n in doable:
