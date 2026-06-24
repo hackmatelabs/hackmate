@@ -75,12 +75,17 @@ def _ensure_ssdttime() -> Path:
 
 
 def _get_dsdt(tmp: Path) -> Optional[Path]:
-    """Dump DSDT using the Windows GetSystemFirmwareTable API — no external tools needed."""
-    import ctypes, struct
+    """Dump DSDT using the Windows GetSystemFirmwareTable API."""
+    import ctypes
     try:
-        provider = struct.unpack('<I', b'ACPI')[0]
-        table_id = struct.unpack('<I', b'DSDT')[0]
+        # Windows expects 4-char ASCII signatures as big-endian DWORDs
+        provider = int.from_bytes(b'ACPI', 'big')  # 0x41435049
+        table_id = int.from_bytes(b'DSDT', 'big')  # 0x44534454
         k32 = ctypes.windll.kernel32
+        k32.GetSystemFirmwareTable.restype = ctypes.c_uint32
+        k32.GetSystemFirmwareTable.argtypes = [
+            ctypes.c_uint32, ctypes.c_uint32, ctypes.c_void_p, ctypes.c_uint32
+        ]
         size = k32.GetSystemFirmwareTable(provider, table_id, None, 0)
         if not size:
             return None

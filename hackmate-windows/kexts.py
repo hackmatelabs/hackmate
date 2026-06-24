@@ -128,7 +128,7 @@ DB: dict[str, KextEntry] = {
     "ACPIBatteryManager":KextEntry("ACPIBatteryManager","RehabMan/OS-X-ACPI-Battery-Driver","ACPIBatteryManager-","battery (legacy, use ECEnabler instead on modern OC)"),
 
     # ── USB ───────────────────────────────────────────────────────────────────
-    "USBToolBox":        KextEntry("USBToolBox",       "USBToolBox/USBToolBox",       "USBToolBox.kext",    "USB port mapping tool"),
+    "USBToolBox":        KextEntry("USBToolBox",       "USBToolBox/USBToolBox",       "USBToolBox-",        "USB port mapping tool"),
     "UTBMap":            KextEntry("UTBMap",           "USBToolBox/UTBMap",           "UTBMap-",            "USB port map (user-generated, companion to USBToolBox)"),
     "USBInjectAll":      KextEntry("USBInjectAll",     "Sniki/OS-X-USB-Inject-All",   "USBInjectAll-",      "inject all USB ports (use only during mapping, not final EFI)"),
     "GenericUSBXHCI":    KextEntry("GenericUSBXHCI",   "RattletraPM/GenericUSBXHCI",  "GenericUSBXHCI-",    "AMD USB 3.x controller support"),
@@ -335,9 +335,11 @@ def select_kexts(profile: HardwareProfile) -> list[KextEntry]:
             add("SMCAMDProcessor")
 
     # ── Audio ─────────────────────────────────────────────────────────────────
-    add("AppleALC")
-    # VoodooHDA as fallback when codec is unknown/unsupported
-    if profile.audio_codec and profile.audio_codec not in ALC_LAYOUTS and "alc" not in profile.audio_codec.lower():
+    codec = profile.audio_codec.lower()
+    alc_supported = any(k.lower() in codec for k in ALC_LAYOUTS)
+    if alc_supported or not profile.audio_codec:
+        add("AppleALC")
+    else:
         add("VoodooHDA")
     # CodecCommander (EAPD sleep fix) is handled by AppleALC on modern systems
 
@@ -419,7 +421,8 @@ def select_kexts(profile: HardwareProfile) -> list[KextEntry]:
         add("CtlnaAHCIPort")
 
     # ── USB ───────────────────────────────────────────────────────────────────
-    add("USBToolBox")
+    # USBToolBox is a post-install tool — run it inside macOS to generate UTBMap.kext
+    # USB works without it during initial install
     if profile.cpu_generation <= 3:
         add("XHCI-unsupported")
 
@@ -515,9 +518,14 @@ def download_kexts(kexts: list[KextEntry], dest: Path, progress_cb=None) -> dict
             z.extractall(str(extract_dir))
 
         kext_name = f"{kext.name}.kext"
-        # Case-insensitive search across all .kext directories in extracted zip
+        base = kext.name.lower()
         all_kexts = [p for p in extract_dir.rglob("*.kext") if p.is_dir()]
-        found = next((p for p in all_kexts if p.name.lower() == kext_name.lower()), None)
+        # 1. exact match, 2. versioned (itlwm_v2.3.0_stable.kext), 3. any containing base name
+        found = (
+            next((p for p in all_kexts if p.name.lower() == kext_name.lower()), None) or
+            next((p for p in all_kexts if p.name.lower().startswith(base + "_") or p.name.lower().startswith(base + "-")), None) or
+            next((p for p in all_kexts if base in p.name.lower()), None)
+        )
         if found:
             kext_dest = dest / kext_name
             if kext_dest.exists():
