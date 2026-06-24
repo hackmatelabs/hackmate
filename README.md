@@ -1,41 +1,59 @@
 # HackMate
 Automates the entire process of creating a bootable OpenCore hackintosh USB. No manual config.plist editing, no hunting down kexts, no macrecovery commands.
 
-## Requirements
-- Linux (any distro)
-- Python 3.10+
-- Root access
+## Platforms
 
-## Install & Run
+| Platform | Folder |
+|----------|--------|
+| Linux (any distro) | `hackmate-linux/` |
+| Windows 10/11 | `hackmate-windows/` |
+
+---
+
+## Linux
+
+**Requirements:** Python 3.10+, root access
 
 ```bash
 git clone https://github.com/riftaway7-code/hackmate.git
-cd hackmate
+cd hackmate/hackmate-linux
 pip install textual
 sudo python3 hackmate.py
 ```
 
-That's it. Everything else (macrecovery, SSDTTime, kexts, OpenCore) is downloaded automatically at
-runtime.
+## Windows
+
+**Requirements:** Python 3.10+, administrator access
+
+```powershell
+git clone https://github.com/riftaway7-code/hackmate.git
+cd hackmate\hackmate-windows
+pip install textual
+# Right-click → Run as Administrator, or from an admin terminal:
+python hackmate.py
+```
+
+---
 
 ## What it does
 1. Scans your hardware (CPU, GPU, audio, ethernet, WiFi, touchpad, NVMe, Thunderbolt)
-2. Shows compatible macOS versions
+2. Shows compatible macOS versions based on your hardware
 3. You pick a USB drive (internal disks are hidden)
 4. Fully automated from there:
    - Formats USB as FAT32 and creates EFI structure
-   - Downloads macOS recovery direc
+   - Downloads macOS recovery directly from Apple
    - Generates SMBIOS (serial, MLB, UUID, ROM)
-   - Generates config.plist with core
-   - Downloads kexts from GitHub releases (104 kexts in database)
-   - Downloads latest OpenCore rele
+   - Generates config.plist
+   - Downloads kexts from GitHub releases
+   - Downloads latest OpenCore release
    - Generates SSDTs using SSDTTime from your actual DSDT
 
 ## After install
-- Run USBToolBox inside macOS to ma
+- Run USBToolBox inside macOS to map USB ports
 - Replace the placeholder USBMap.kext with your generated one
 
 ## Notes
-- macOS is sourced directly from Ap installer
+- macOS is sourced directly from Apple
 - Uses the same tools recommended by the Dortania guide (macrecovery, SSDTTime)
-- Tested on ThinkPad T480s (i5-83509, Intel 8265 WiFi)
+- Tested on ThinkPad T480s (i5-8350U, Intel 8265 WiFi)
+- Auto-updates itself on launch via GitHub
