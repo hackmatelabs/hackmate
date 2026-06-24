@@ -621,9 +621,12 @@ class InstallScreen(Screen):
 
 # ─── App ──────────────────────────────────────────────────────────────────────
 
+VERSION = "v1.0 Windows"
+
 class HackMate(App):
     CSS = CSS
-    TITLE = "HackMate — OpenCore EFI Builder"
+    TITLE = "HackMate"
+    SUB_TITLE = VERSION
     BINDINGS = [("q", "quit", "Quit")]
 
     def on_mount(self) -> None:

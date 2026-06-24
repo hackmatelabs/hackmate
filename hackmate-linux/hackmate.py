@@ -629,10 +629,12 @@ class InstallScreen(Screen):
 
 # ─── App ──────────────────────────────────────────────────────────────────────
 
+VERSION = "v1.0 Linux"
+
 class HackMate(App):
     CSS = CSS
     TITLE = "HackMate"
-    SUB_TITLE = "OpenCore EFI Builder"
+    SUB_TITLE = VERSION
 
     profile:      HardwareProfile | None = None
     macos_version: MacOSVersion   | None = None
