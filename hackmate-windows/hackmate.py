@@ -265,6 +265,7 @@ class USBScreen(Screen):
     def __init__(self):
         super().__init__()
         self.drives = get_usb_drives()
+        self.skip_format = False
 
     def compose(self) -> ComposeResult:
         version = self.app.macos_version
@@ -280,20 +281,22 @@ class USBScreen(Screen):
                 Static(""),
                 ListView(*items, id="usb-list"),
                 Static(""),
-                Button("Build & Install EFI", id="install", classes="primary"),
-                Button("← Back",              id="back",    classes="back"),
+                Button("Build & Install EFI  (format for me)",        id="install",     classes="primary"),
+                Button("Already FAT32 — skip format",                  id="install-skip", classes="primary"),
+                Button("← Back",                                        id="back",         classes="back"),
                 classes="screen-inner"
             )
         )
         yield Footer()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "install":
+        if event.button.id in ("install", "install-skip"):
             lv = self.query_one("#usb-list", ListView)
             idx = lv.index
             if idx is not None and self.drives:
                 selected = self.drives[idx][0]
-                self.app.push_screen(InstallScreen(selected))
+                skip = event.button.id == "install-skip"
+                self.app.push_screen(InstallScreen(selected, skip_format=skip))
         elif event.button.id == "back":
             self.app.pop_screen()
 
@@ -301,9 +304,10 @@ class USBScreen(Screen):
 # ─── Install ──────────────────────────────────────────────────────────────────
 
 class InstallScreen(Screen):
-    def __init__(self, drive_letter: str):
+    def __init__(self, drive_letter: str, skip_format: bool = False):
         super().__init__()
         self.drive_letter = drive_letter
+        self.skip_format = skip_format
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -408,14 +412,19 @@ class InstallScreen(Screen):
 
         try:
             # ── 1. Format USB ────────────────────────────────────────────────
-            ui(2, f"Formatting {drive} as FAT32...")
-            log(f"── Formatting {drive}... (will mount as {MOUNT_LETTER}:)", "header")
-            self.app.call_from_thread(self._cmd_log, ["diskpart", "/s", "format_usb.txt"])
-            fmt_ok = _format_usb_diskpart(drive)
-            if not fmt_ok:
-                raise RuntimeError(f"Failed to format {drive}")
-            mount = f"{MOUNT_LETTER}:"
-            log(f"  Formatted and mounted as {mount}", "ok")
+            if self.skip_format:
+                ui(2, f"Skipping format — using {drive} as-is")
+                log(f"── Skipping format, writing directly to {drive}", "header")
+                mount = drive
+            else:
+                ui(2, f"Formatting {drive} as FAT32...")
+                log(f"── Formatting {drive}... (will mount as {MOUNT_LETTER}:)", "header")
+                self.app.call_from_thread(self._cmd_log, ["diskpart", "/s", "format_usb.txt"])
+                fmt_ok = _format_usb_diskpart(drive)
+                if not fmt_ok:
+                    raise RuntimeError(f"Failed to format {drive}")
+                mount = f"{MOUNT_LETTER}:"
+                log(f"  Formatted and mounted as {mount}", "ok")
 
             # ── 2. Create EFI structure ───────────────────────────────────────
             ui(8, "Creating EFI structure...")
