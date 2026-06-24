@@ -219,7 +219,7 @@ def generate(
         stdin = f"{dsdt}\n{choice}\n"
         if "EC" in ssdt:
             stdin += "1\n"
-        stdin += "Q\n"
+        stdin += "\nQ\n"  # blank Enter for "Press [enter] to return to main menu..."
 
         try:
             _run(script, stdin, timeout=60)
