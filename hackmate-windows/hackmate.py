@@ -451,7 +451,7 @@ class InstallScreen(Screen):
 
             ui(28, "Copying recovery to USB...")
             log("── Copying recovery to USB...", "header")
-            com_apple = Path(f"{drive}\\com.apple.recovery.boot")
+            com_apple = Path(f"{mount}\\com.apple.recovery.boot")
             if com_apple.exists():
                 shutil.rmtree(str(com_apple))
             com_apple.mkdir(parents=True)
