@@ -113,11 +113,19 @@ def _run(script: Path, input_text: str, timeout: int = 60) -> str:
     return result.stdout + result.stderr
 
 
+def _pnlf_uid(cpu_generation: int) -> str:
+    if cpu_generation in (2, 3): return "14"   # Sandy/Ivy Bridge
+    if cpu_generation in (4, 5): return "15"   # Haswell/Broadwell
+    if cpu_generation in (6, 7): return "16"   # Skylake/Kaby Lake
+    return "19"                                 # Coffee Lake and newer / AMD
+
+
 def generate(
     needed: list[str],
     acpi_dir: Path,
     tmp: Path,
     progress_cb=None,
+    cpu_generation: int = 0,
 ) -> dict[str, str]:
     """
     Generate SSDTs for every name in `needed`, copy .aml files to `acpi_dir`.
@@ -199,9 +207,12 @@ def generate(
         if results_dir.exists():
             shutil.rmtree(str(results_dir))
 
-        # D → load DSDT, dsdt path, choice, blank (absorbs USBX config or extra prompts),
-        # blank (absorbs "Press [enter] to return..."), Q → exits main menu
-        stdin = f"D\n{dsdt}\n{choice}\n\n\nQ\n"
+        # D → load DSDT, dsdt path, choice; PNLF needs _UID before it generates;
+        # two blanks absorb config prompts and "press enter to return"; Q exits
+        stdin = f"D\n{dsdt}\n{choice}\n"
+        if ssdt == "SSDT-PNLF":
+            stdin += f"{_pnlf_uid(cpu_generation)}\n"
+        stdin += "\n\nQ\n"
 
         try:
             _run(script, stdin, timeout=30)

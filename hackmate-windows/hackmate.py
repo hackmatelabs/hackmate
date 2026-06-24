@@ -587,16 +587,30 @@ class InstallScreen(Screen):
                 acpi_dir=acpi_dir,
                 tmp=tmp,
                 progress_cb=lambda m: self.app.call_from_thread(self._log, f"  {m}", "info"),
+                cpu_generation=profile.cpu_generation,
             )
-            for n, s in ssdt_results.items():
-                if s == "OK":
-                    log(f"  {n}.aml", "ok")
-                elif s.startswith("SKIP"):
-                    log(f"  {n} — manual install needed", "warn")
-                else:
-                    log(f"  {n} — {s}", "error")
+            ok_ssdts   = [n for n, s in ssdt_results.items() if s == "OK"]
+            skip_ssdts = [n for n, s in ssdt_results.items() if s.startswith("SKIP")]
+            err_ssdts  = [n for n, s in ssdt_results.items() if s.startswith("ERROR")]
 
-            manual = [n for n, s in ssdt_results.items() if not s.startswith("OK")]
+            for n in ok_ssdts:
+                log(f"  {n}.aml", "ok")
+            for n in skip_ssdts:
+                log(f"  {n} — manual install needed", "warn")
+            for n in err_ssdts:
+                log(f"  {n} — {ssdt_results[n]}", "error")
+
+            # Remove failed/skipped SSDTs from config.plist so it doesn't reference missing files
+            if skip_ssdts or err_ssdts:
+                import plistlib
+                with open(str(config_path), "rb") as f:
+                    cfg = plistlib.load(f)
+                bad = {f"{n}.aml" for n in skip_ssdts + err_ssdts}
+                cfg["ACPI"]["Add"] = [e for e in cfg["ACPI"]["Add"] if e.get("Path","") not in bad]
+                with open(str(config_path), "wb") as f:
+                    plistlib.dump(cfg, f)
+
+            manual = skip_ssdts + err_ssdts
             if manual:
                 note = acpi_dir / "README_MANUAL_SSDTS.txt"
                 note.write_text(

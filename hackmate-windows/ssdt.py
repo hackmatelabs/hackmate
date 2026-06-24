@@ -130,11 +130,19 @@ def _run(script: Path, input_text: str, timeout: int = 60) -> str:
     return result.stdout + result.stderr
 
 
+def _pnlf_uid(cpu_generation: int) -> str:
+    if cpu_generation in (2, 3): return "14"
+    if cpu_generation in (4, 5): return "15"
+    if cpu_generation in (6, 7): return "16"
+    return "19"
+
+
 def generate(
     needed: list[str],
     acpi_dir: Path,
     tmp: Path,
     progress_cb=None,
+    cpu_generation: int = 0,
 ) -> dict[str, str]:
     """
     Generate SSDTs for every name in `needed`, copy .aml files to `acpi_dir`.
@@ -216,7 +224,10 @@ def generate(
         if results_dir.exists():
             shutil.rmtree(str(results_dir))
 
-        stdin = f"D\n{dsdt}\n{choice}\n\n\nQ\n"
+        stdin = f"D\n{dsdt}\n{choice}\n"
+        if ssdt == "SSDT-PNLF":
+            stdin += f"{_pnlf_uid(cpu_generation)}\n"
+        stdin += "\n\nQ\n"
 
         try:
             _run(script, stdin, timeout=30)
