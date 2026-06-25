@@ -33,7 +33,7 @@ IG_PLATFORM_IDS: dict[str, bytes] = {
     "hd630":     bytes([0x03, 0x00, 0x12, 0x59]),
     "iris640":   bytes([0x00, 0x00, 0x26, 0x59]),
     # Kaby Lake-R / Coffee Lake laptop
-    "uhd620":    bytes([0x04, 0x00, 0xA0, 0x3E]),
+    "uhd620":    bytes([0x04, 0x00, 0xA5, 0x3E]),
     # Coffee Lake desktop
     "uhd630_dt": bytes([0x07, 0x00, 0x9B, 0x3E]),
     # Coffee Lake laptop
@@ -590,13 +590,13 @@ def _uefi_section(profile: HardwareProfile) -> dict:
             "ExitBootServicesDelay":        0,
             "ForceOcWriteFlash":            False,
             "ForgeUefiSupport":             False,
-            "IgnoreInvalidFlexRatio":       False,
+            "IgnoreInvalidFlexRatio":       "lenovo" in _dmi_vendor(),
             "ReleaseUsbOwnership":          True,
             "ReloadOptionRoms":             False,
             "RequestBootVarRouting":        True,
             "ResizeGpuBars":                -1,
             "TscSyncTimeout":               0,
-            "UnblockFsConnect":             False,
+            "UnblockFsConnect":             "lenovo" in _dmi_vendor(),
         },
         "ReservedMemory": [],
     }
