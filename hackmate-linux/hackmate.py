@@ -388,6 +388,7 @@ class InstallScreen(Screen):
         device: str                 = self.device
         repair: bool                = self.repair
         tmp = Path("/tmp/hackmate_build")
+        tmp.mkdir(parents=True, exist_ok=True)
         mount = Path("/tmp/hackmate_usb")
 
         def ui(pct, msg):
