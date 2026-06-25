@@ -259,7 +259,41 @@ class USBScreen(Screen):
             idx = lv.index
             if idx is not None and self.drives:
                 selected = self.drives[idx][0]
-                self.app.push_screen(InstallScreen(selected))
+                self.app.push_screen(BuildModeScreen(selected))
+        elif event.button.id == "back":
+            self.app.pop_screen()
+
+
+# ─── Build Mode ───────────────────────────────────────────────────────────────
+
+class BuildModeScreen(Screen):
+    def __init__(self, device: str):
+        super().__init__()
+        self.device = device
+
+    def compose(self) -> ComposeResult:
+        yield Header()
+        yield Container(
+            Vertical(
+                Static("── Build Mode ───────────────────────────────────────────", classes="title"),
+                Static(f"  Device: {self.device}", classes="info"),
+                Static(""),
+                Static("  Full Build   — formats USB, downloads recovery (~600 MB), installs everything fresh", classes="info"),
+                Static("  Repair EFI  — keeps recovery on USB, updates OpenCore + kexts + SSDTs + config.plist", classes="info"),
+                Static(""),
+                Button("Full Build",  id="full",   classes="primary"),
+                Button("Repair EFI",  id="repair",  classes="primary"),
+                Button("← Back",      id="back",    classes="back"),
+                classes="screen-inner"
+            )
+        )
+        yield Footer()
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "full":
+            self.app.push_screen(InstallScreen(self.device, repair=False))
+        elif event.button.id == "repair":
+            self.app.push_screen(InstallScreen(self.device, repair=True))
         elif event.button.id == "back":
             self.app.pop_screen()
 
@@ -267,15 +301,16 @@ class USBScreen(Screen):
 # ─── Install ──────────────────────────────────────────────────────────────────
 
 class InstallScreen(Screen):
-    def __init__(self, device: str):
+    def __init__(self, device: str, repair: bool = False):
         super().__init__()
         self.device = device
+        self.repair = repair
 
     def compose(self) -> ComposeResult:
         yield Header()
         with Container(classes="screen-inner"):
             with Vertical():
-                yield Static(f"── Building EFI → {self.device} ───────────────────────", classes="title")
+                yield Static(f"── {'Repairing' if self.repair else 'Building'} EFI → {self.device} ──────────────────────", classes="title")
                 yield Static("", id="status")
                 yield ProgressBar(id="progress", total=100)
                 yield LoadingIndicator(id="spinner")
@@ -351,6 +386,7 @@ class InstallScreen(Screen):
         profile: HardwareProfile    = self.app.profile
         version: MacOSVersion       = self.app.macos_version
         device: str                 = self.device
+        repair: bool                = self.repair
         tmp = Path("/tmp/hackmate_build")
         mount = Path("/tmp/hackmate_usb")
 
@@ -372,40 +408,49 @@ class InstallScreen(Screen):
 
         self.app.call_from_thread(self._show_spinner, True)
 
+        import glob, re, time
+
+        # Determine partition device (sdb→sdb1, nvme0n1→nvme0n1p1)
+        disk = re.sub(r'p?\d+$', '', device) if re.search(r'\d$', device) else device
+        part_device = (disk + "p1") if disk[-1].isdigit() else (disk + "1")
+
         try:
-            # ── 1. Format USB ────────────────────────────────────────────────
-            ui(2, "Formatting USB as FAT32...")
+            if repair:
+                # ── Repair: just mount existing partition ─────────────────────
+                ui(2, "Mounting existing USB partition...")
+                log("── Repair mode: skipping format and recovery download", "header")
+                for part in sorted(glob.glob(f"{disk}*")):
+                    cmd(["umount", part], capture_output=True)
+                mount.mkdir(parents=True, exist_ok=True)
+                cmd(["mount", part_device, str(mount)], check=True, capture_output=True)
+                log(f"Mounted {part_device} at {mount}", "ok")
+            else:
+                # ── 1. Format USB ─────────────────────────────────────────────
+                ui(2, "Formatting USB as FAT32...")
 
-            import glob, re, time
+                # Unmount everything on the disk
+                for part in sorted(glob.glob(f"{disk}*")):
+                    cmd(["umount", part], capture_output=True)
 
-            # If user selected a partition (sdb1), get the parent disk (sdb)
-            disk = re.sub(r'p?\d+$', '', device) if re.search(r'\d$', device) else device
+                # Need a real GPT + ESP — UEFI won't boot a raw FAT disk
+                cmd(["parted", "-s", disk, "mklabel", "gpt"], check=True, capture_output=True)
+                cmd(["parted", "-s", disk, "mkpart", "primary", "fat32", "1MiB", "100%"],
+                    check=True, capture_output=True)
+                cmd(["parted", "-s", disk, "set", "1", "esp", "on"], capture_output=True)
+                cmd(["partprobe", disk], capture_output=True)
+                time.sleep(1)
 
-            # Unmount everything on the disk
-            for part in sorted(glob.glob(f"{disk}*")):
-                cmd(["umount", part], capture_output=True)
+                cmd(["mkfs.fat", "-F32", "-n", "HACKINTOSH", part_device],
+                    check=True, capture_output=True)
+                log(f"Formatted {part_device} as FAT32 (GPT+ESP)", "ok")
 
-            # Need a real GPT + ESP — UEFI won't boot a raw FAT disk
-            cmd(["parted", "-s", disk, "mklabel", "gpt"], check=True, capture_output=True)
-            cmd(["parted", "-s", disk, "mkpart", "primary", "fat32", "1MiB", "100%"],
-                check=True, capture_output=True)
-            cmd(["parted", "-s", disk, "set", "1", "esp", "on"], capture_output=True)
-            cmd(["partprobe", disk], capture_output=True)
-            time.sleep(1)
+                # ── 2. Mount USB ──────────────────────────────────────────────
+                ui(5, "Mounting USB...")
+                mount.mkdir(parents=True, exist_ok=True)
+                cmd(["mount", part_device, str(mount)], check=True, capture_output=True)
+                log(f"Mounted at {mount}", "ok")
 
-            # Partition node: sdb→sdb1, nvme0n1→nvme0n1p1
-            part_device = (disk + "p1") if disk[-1].isdigit() else (disk + "1")
-            cmd(["mkfs.fat", "-F32", "-n", "HACKINTOSH", part_device],
-                check=True, capture_output=True)
-            log(f"Formatted {part_device} as FAT32 (GPT+ESP)", "ok")
-
-            # ── 2. Mount USB ─────────────────────────────────────────────────
-            ui(5, "Mounting USB...")
-            mount.mkdir(parents=True, exist_ok=True)
-            cmd(["mount", part_device, str(mount)], check=True, capture_output=True)
-            log(f"Mounted at {mount}", "ok")
-
-            # ── 3. Create EFI structure ───────────────────────────────────────
+            # ── 3. Create / ensure EFI structure ─────────────────────────────
             ui(8, "Creating EFI structure...")
             efi       = mount / "EFI"
             oc_dir    = efi / "OC"
@@ -415,50 +460,53 @@ class InstallScreen(Screen):
             driver_dir= oc_dir / "Drivers"
             for d in [efi, oc_dir, boot_dir, kext_dir, acpi_dir, driver_dir]:
                 d.mkdir(parents=True, exist_ok=True)
-            log("EFI folder structure created.", "ok")
+            log("EFI folder structure ready.", "ok")
 
-            # ── 4. Download macOS recovery ────────────────────────────────────
-            ui(10, f"Downloading {version.name} recovery from Apple...")
-            log(f"── Fetching {version.name} from Apple CDN...", "header")
-            recovery_dest = tmp / "recovery"
-            self.app.call_from_thread(self._cmd_log, [
-                "python3", "macrecovery.py",
-                "-b", version.board_id, "-m", version.mlb,
-                *(version.os_flag.split() if version.os_flag else []),
-                "download", "--outdir", str(recovery_dest),
-            ])
+            if not repair:
+                # ── 4. Download macOS recovery ────────────────────────────────
+                ui(10, f"Downloading {version.name} recovery from Apple...")
+                log(f"── Fetching {version.name} from Apple CDN...", "header")
+                recovery_dest = tmp / "recovery"
+                self.app.call_from_thread(self._cmd_log, [
+                    "python3", "macrecovery.py",
+                    "-b", version.board_id, "-m", version.mlb,
+                    *(version.os_flag.split() if version.os_flag else []),
+                    "download", "--outdir", str(recovery_dest),
+                ])
 
-            def recovery_progress(msg):
-                if "%" in msg or "Chunk" in msg:
-                    self.app.call_from_thread(self._log, f"  {msg}", "info")
-                    self.app.call_from_thread(self._cmd_out, msg)
-                elif "complete" in msg.lower() or "verification" in msg.lower():
-                    self.app.call_from_thread(self._log, f"  {msg}", "ok")
-                    self.app.call_from_thread(self._cmd_out, msg)
-                else:
-                    self.app.call_from_thread(self._log, f"  {msg}", "info")
-                    self.app.call_from_thread(self._cmd_out, msg)
+                def recovery_progress(msg):
+                    if "%" in msg or "Chunk" in msg:
+                        self.app.call_from_thread(self._log, f"  {msg}", "info")
+                        self.app.call_from_thread(self._cmd_out, msg)
+                    elif "complete" in msg.lower() or "verification" in msg.lower():
+                        self.app.call_from_thread(self._log, f"  {msg}", "ok")
+                        self.app.call_from_thread(self._cmd_out, msg)
+                    else:
+                        self.app.call_from_thread(self._log, f"  {msg}", "info")
+                        self.app.call_from_thread(self._cmd_out, msg)
 
-            ok, msg = download_recovery(version, recovery_dest, progress_cb=recovery_progress)
-            if not ok:
-                raise RuntimeError(f"Recovery download failed: {msg}")
-            log(msg, "ok")
+                ok, msg = download_recovery(version, recovery_dest, progress_cb=recovery_progress)
+                if not ok:
+                    raise RuntimeError(f"Recovery download failed: {msg}")
+                log(msg, "ok")
 
-            ui(28, "Copying recovery to USB...")
-            log("── Copying recovery to USB (may take 1-2 min for large images)...", "header")
-            files = list(recovery_dest.iterdir())
-            total_bytes = sum(f.stat().st_size for f in files if f.is_file())
-            log(f"  {len(files)} file(s), {total_bytes // 1024 // 1024} MB to write", "info")
-            com_apple = mount / "com.apple.recovery.boot"
-            if com_apple.exists():
-                shutil.rmtree(str(com_apple))
-            com_apple.mkdir(parents=True)
-            for i, src in enumerate(files, 1):
-                mb = src.stat().st_size // 1024 // 1024
-                log(f"  Writing {src.name} ({mb} MB)...", "info")
-                shutil.copy2(str(src), str(com_apple / src.name))
-                log(f"  {src.name} written", "ok")
-            log("Recovery copied to USB.", "ok")
+                ui(28, "Copying recovery to USB...")
+                log("── Copying recovery to USB (may take 1-2 min for large images)...", "header")
+                files = list(recovery_dest.iterdir())
+                total_bytes = sum(f.stat().st_size for f in files if f.is_file())
+                log(f"  {len(files)} file(s), {total_bytes // 1024 // 1024} MB to write", "info")
+                com_apple = mount / "com.apple.recovery.boot"
+                if com_apple.exists():
+                    shutil.rmtree(str(com_apple))
+                com_apple.mkdir(parents=True)
+                for i, src in enumerate(files, 1):
+                    mb = src.stat().st_size // 1024 // 1024
+                    log(f"  Writing {src.name} ({mb} MB)...", "info")
+                    shutil.copy2(str(src), str(com_apple / src.name))
+                    log(f"  {src.name} written", "ok")
+                log("Recovery copied to USB.", "ok")
+            else:
+                log("  Skipping recovery download (repair mode)", "info")
 
             # ── 5. Generate SMBIOS ────────────────────────────────────────────
             ui(35, "Generating SMBIOS...")
@@ -485,6 +533,10 @@ class InstallScreen(Screen):
             from kexts import select_kexts, download_kexts
             kexts = select_kexts(profile)
             log(f"  {len(kexts)} kexts selected for this hardware", "ok")
+
+            if repair and kext_dir.exists():
+                shutil.rmtree(str(kext_dir))
+                kext_dir.mkdir(parents=True)
 
             ui(50, f"Downloading {len(kexts)} kexts from GitHub...")
             log("── Downloading kexts from GitHub...", "header")
@@ -564,6 +616,10 @@ class InstallScreen(Screen):
                 log("  Could not find OpenCore release asset", "error")
 
             # ── 9. SSDTs via SSDTTime ─────────────────────────────────────────
+            if repair and acpi_dir.exists():
+                shutil.rmtree(str(acpi_dir))
+                acpi_dir.mkdir(parents=True)
+
             ui(90, "Generating SSDTs with SSDTTime...")
             log("── Generating SSDTs with SSDTTime...", "header")
             ssdts = _required_ssdts(profile, kexts)
@@ -635,7 +691,8 @@ class InstallScreen(Screen):
             cmd(["umount", str(mount)], capture_output=True)
             shutil.rmtree(str(tmp), ignore_errors=True)
 
-            ui(100, f"Done! {version.name} EFI ready on {device}")
+            mode_label = "Repair complete" if repair else f"Done! {version.name} EFI ready"
+            ui(100, f"{mode_label} on {device}")
             log("", "info")
             log("══════════════════════════════════════════════════", "header")
             log("  USB is ready!", "ok")
