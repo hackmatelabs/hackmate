@@ -39,6 +39,61 @@ SSDT_MENU_KEYWORDS: dict[str, list[str]] = {
 # SSDTs SSDTTime has no equivalent for (none currently — THINK/TBHP removed from pipeline)
 MANUAL_SSDTS: set[str] = set()
 
+GPIO_DSL_TEMPLATE = """\
+DefinitionBlock ("", "SSDT", 2, "CORP", "SsdtGpio", 0x00001000)
+{{
+    External ({gpio_path}, DeviceObj)
+    Scope ({gpio_path})
+    {{
+        Method (_STA, 0, NotSerialized)
+        {{
+            If (_OSI ("Darwin"))
+            {{
+                Return (0x0F)
+            }}
+            Else
+            {{
+                Return (Zero)
+            }}
+        }}
+    }}
+}}
+"""
+
+def _build_gpio_ssdt(dsdt_path: Path, acpi_dir: Path, ssdttime_dir: Path) -> bool:
+    """Compile SSDT-GPIO.aml from the DSDT's GPI0 device path. Returns True on success."""
+    try:
+        data = dsdt_path.read_bytes()
+        # GPI0 is the common name; also try GPIO
+        for name in (b"GPI0", b"GPIO"):
+            idx = data.find(name)
+            if idx != -1:
+                gpio_name = name.decode()
+                break
+        else:
+            return False  # no GPI0/GPIO device in DSDT
+
+        # Build standard path (nearly universal on Intel laptops)
+        gpio_path = f"\\_SB.PCI0.{gpio_name}"
+
+        dsl = GPIO_DSL_TEMPLATE.format(gpio_path=gpio_path)
+        dsl_file = acpi_dir / "SSDT-GPIO.dsl"
+        dsl_file.write_text(dsl)
+
+        iasl = ssdttime_dir / "Scripts" / "iasl"
+        if not iasl.exists():
+            return False
+
+        result = subprocess.run(
+            [str(iasl), str(dsl_file)],
+            capture_output=True, timeout=15
+        )
+        dsl_file.unlink(missing_ok=True)
+        aml = acpi_dir / "SSDT-GPIO.aml"
+        return aml.exists()
+    except Exception:
+        return False
+
 
 def _ensure_ssdttime() -> Path:
     """Download and extract SSDTTime if not present. Returns path to SSDTTime.py."""
@@ -198,6 +253,15 @@ def generate(
     results_dir = script.parent / "Results"
 
     for ssdt in doable:
+        # SSDT-GPIO has no SSDTTime option — build it directly from DSDT
+        if ssdt == "SSDT-GPIO":
+            cb("Generating SSDT-GPIO...")
+            ok = _build_gpio_ssdt(dsdt, acpi_dir, script.parent)
+            results[ssdt] = "OK" if ok else "ERROR: GPI0/GPIO device not found in DSDT"
+            if ok:
+                cb("  SSDT-GPIO.aml")
+            continue
+
         choice = menu_map.get(ssdt)
         if not choice:
             results[ssdt] = f"SKIP: '{ssdt}' not found in this SSDTTime version"
