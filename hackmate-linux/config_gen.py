@@ -348,7 +348,7 @@ def _kernel_section(profile: HardwareProfile, kexts: list[KextEntry]) -> dict:
         "LegacyCommpage":             False,
         "PanicNoKextDump":            True,
         "PowerTimeoutKernelPanic":    True,
-        "ProvideCurrentCpuInfo":      True if profile.cpu_generation >= 12 else False,
+        "ProvideCurrentCpuInfo":      True if profile.cpu_generation >= 10 else False,
         "SetApfsTrimTimeout":         -1,
         "XhciPortLimit":              False,   # use USB map
     }
