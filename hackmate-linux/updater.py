@@ -45,8 +45,9 @@ def _get_local_sha() -> str | None:
         return None
 
 
-def _download_file(filename: str) -> bool:
-    url = f"{RAW_BASE}/{filename}"
+def _download_file(filename: str, sha: str) -> bool:
+    # Pin to exact commit SHA so GitHub CDN can't serve a cached older version
+    url = f"https://raw.githubusercontent.com/{REPO}/{sha}/hackmate-linux/{filename}"
     dest = Path(__file__).parent / filename
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "HackMate/1.0"})
@@ -86,7 +87,7 @@ def check_and_update(silent: bool = False) -> bool:
 
     failed = []
     for filename in FILES:
-        ok = _download_file(filename)
+        ok = _download_file(filename, remote_sha)
         if not silent:
             status = "✓" if ok else "✗"
             print(f"  {status} {filename}")
