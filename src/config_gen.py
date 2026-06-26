@@ -350,7 +350,7 @@ def _kernel_section(profile: HardwareProfile, kexts: list[KextEntry]) -> dict:
         "LegacyCommpage":             False,
         "PanicNoKextDump":            True,
         "PowerTimeoutKernelPanic":    True,
-        "ProvideCurrentCpuInfo":      True if profile.cpu_generation >= 10 else False,
+        "ProvideCurrentCpuInfo":      True,
         "SetApfsTrimTimeout":         -1,
         "XhciPortLimit":              False,   # use USB map
     }
@@ -617,10 +617,10 @@ def _booter_section(profile: HardwareProfile) -> dict:
             "ProtectUefiServices":      False if profile.cpu_generation < 10 else True,
             "ProvideCustomSlide":       True,
             "ProvideMaxSlide":          0,
-            "RebuildAppleMemoryMap":    False,
+            "RebuildAppleMemoryMap":    True,
             "ResizeAppleGpuBars":       -1,
             "SetupVirtualMap":          True,
-            "SignalAppleOS":            False,
+            "SignalAppleOS":            True,
             "SyncRuntimePermissions":   True,
         },
     }
