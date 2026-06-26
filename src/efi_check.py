@@ -101,7 +101,7 @@ def _check_hardware_mismatch(cfg: dict, profile, results):
                 pass
 
     # ── WiFi kext vs detected hardware ───────────────────────────────────────
-    wifi = profile.wifi_model.lower() if profile.wifi_model else ""
+    wifi = profile.wifi_name.lower() if profile.wifi_name else ""
     if "intel" in wifi:
         if "itlwm.kext" not in kext_set and "AirportItlwm.kext" not in kext_set:
             warn(
@@ -118,7 +118,7 @@ def _check_hardware_mismatch(cfg: dict, profile, results):
             )
 
     # ── Ethernet kext vs detected hardware ───────────────────────────────────
-    eth = profile.ethernet_model.lower() if profile.ethernet_model else ""
+    eth = profile.ethernet_name.lower() if profile.ethernet_name else ""
     if "intel" in eth:
         if not any("Intel" in k or "Mausi" in k for k in kext_set):
             warn(
