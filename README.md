@@ -13,7 +13,7 @@ Supports Linux, Windows, and macOS as host operating systems.
 
 ## 📢 Announcements
 
-**v1.2.1 is out** — `git pull` to get the latest. Intel WiFi users now get a choice between itlwm and native AirportItlwm. SSDT-XOSI now generates from a template instead of silently skipping. BIOS checklist screen shows after USB is built. More Intel GPU IDs for accurate gen detection.
+**v1.3.0 is out** — Windows users can now download a single `HackMate.exe` from the [releases page](https://github.com/riftaway7-code/hackmate/releases) — no Python, no venv, no setup.py. Also fixes AMD config.plist crash, Windows SSL error, and macOS lspci error. Config.plist editor added to welcome screen.
 
 **If you cloned before June 25th (running from `hackmate-linux/`):**
 Just run your usual command — HackMate will auto-migrate itself to the new `src/` layout and relaunch. No manual steps needed.
