@@ -601,7 +601,7 @@ def _uefi_section(profile: HardwareProfile) -> dict:
             "RequestBootVarRouting":        True,
             "ResizeGpuBars":                -1,
             "TscSyncTimeout":               0,
-            "UnblockFsConnect":             "lenovo" in _dmi_vendor(),
+            "UnblockFsConnect":             any(v in _dmi_vendor() for v in ("lenovo", "dell", "hp")),
         },
         "ReservedMemory": [],
     }
