@@ -574,7 +574,7 @@ def _uefi_section(profile: HardwareProfile) -> dict:
         "Quirks": {
             "ActivateHpetSupport":          False,
             "DisableSecurityPolicy":        False,
-            "EnableVectorAcceleration":     True,
+            "EnableVectorAcceleration":     profile.platform == "desktop",
             "EnableVmx":                    False,
             "ExitBootServicesDelay":        0,
             "ForceOcWriteFlash":            False,
