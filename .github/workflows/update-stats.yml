@@ -1,0 +1,78 @@
+name: Update Download Stats
+
+on:
+  schedule:
+    - cron: "0 0 * * *"   # daily at midnight
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  stats:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch and accumulate stats
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 - <<'EOF'
+          import json, urllib.request, os
+          from pathlib import Path
+
+          token = os.environ["GH_TOKEN"]
+          headers = {"Authorization": f"token {token}", "User-Agent": "HackMate"}
+
+          def fetch(url):
+              req = urllib.request.Request(url, headers=headers)
+              with urllib.request.urlopen(req, timeout=10) as r:
+                  return json.loads(r.read())
+
+          # clone traffic (last 14 days)
+          clones = fetch("https://api.github.com/repos/riftaway7-code/hackmate/traffic/clones")
+          new_clones = clones.get("count", 0)
+
+          # EXE download count across all releases
+          releases = fetch("https://api.github.com/repos/riftaway7-code/hackmate/releases")
+          exe_downloads = sum(
+              a.get("download_count", 0)
+              for r in releases
+              for a in r.get("assets", [])
+              if a["name"].endswith(".exe")
+          )
+
+          # stars
+          repo = fetch("https://api.github.com/repos/riftaway7-code/hackmate")
+          stars = repo.get("stargazers_count", 0)
+
+          # load existing stats
+          stats_path = Path("docs/stats.json")
+          existing = json.loads(stats_path.read_text()) if stats_path.exists() else {}
+
+          # accumulate clones (GitHub only gives last 14 days so we keep a running total)
+          last_clone_snapshot = existing.get("last_clone_snapshot", 0)
+          accumulated = existing.get("accumulated_clones", 0)
+          if new_clones > last_clone_snapshot:
+              accumulated += new_clones - last_clone_snapshot
+
+          stats = {
+              "stars": stars,
+              "exe_downloads": exe_downloads,
+              "accumulated_clones": accumulated,
+              "last_clone_snapshot": new_clones,
+              "total_downloads": exe_downloads + accumulated,
+          }
+
+          stats_path.write_text(json.dumps(stats, indent=2))
+          print(json.dumps(stats, indent=2))
+          EOF
+
+      - name: Commit stats
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/stats.json
+          git diff --staged --quiet || git commit -m "chore: update download stats"
+          git push

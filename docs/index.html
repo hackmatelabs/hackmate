@@ -156,9 +156,20 @@
     <div class="tagline">Automates the entire OpenCore hackintosh USB process. No manual config.plist editing.</div>
     <div class="badges">
       <img src="https://img.shields.io/github/stars/riftaway7-code/hackmate?style=flat&color=gold" alt="stars" />
-      <img src="https://img.shields.io/github/downloads/riftaway7-code/hackmate/total?style=flat&color=00ff88&label=EXE+downloads" alt="downloads" />
+      <span id="dl-badge" style="display:inline-flex;align-items:center;background:#111;border:1px solid #222;padding:2px 8px;font-size:11px;gap:6px;">
+        <span style="color:#555">total downloads</span>
+        <span id="dl-count" style="color:#00ff88">…</span>
+      </span>
       <img src="https://img.shields.io/github/v/release/riftaway7-code/hackmate?style=flat&color=555" alt="version" />
     </div>
+    <script>
+      fetch('stats.json?_=' + Date.now())
+        .then(r => r.json())
+        .then(d => {
+          document.getElementById('dl-count').textContent = (d.total_downloads || 0).toLocaleString();
+        })
+        .catch(() => {});
+    </script>
     <div class="btns">
       <a class="btn" href="https://github.com/riftaway7-code/hackmate/releases/latest">Download EXE (Windows)</a>
       <a class="btn btn-secondary" href="https://github.com/riftaway7-code/hackmate">⭐ Star on GitHub</a>
