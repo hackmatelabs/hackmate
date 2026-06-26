@@ -23,7 +23,6 @@ FILES = [
     "smbios.py",
     "recovery.py",
     "ssdt.py",
-    "ai_fallback.py",
     "updater.py",
     "efi_check.py",
 ]
