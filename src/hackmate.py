@@ -71,11 +71,13 @@ Button.advanced-btn:hover { color: #00ff88; }
 .hw-row               { margin-bottom: 0; }
 .hw-key               { color: #555555; width: 12; }
 .hw-val               { color: #cccccc; }
-.cfg-section          { color: #00ff88; margin-top: 1; }
-.cfg-label            { color: #aaaaaa; width: 36; }
-.cfg-row              { margin-bottom: 1; height: 3; }
-Switch                { margin: 0; }
-Select                { width: 24; }
+.cfg-section          { color: #00ff88; margin-top: 1; margin-bottom: 1; }
+.cfg-label            { color: #aaaaaa; width: 36; content-align: left middle; height: 3; }
+.cfg-row              { margin-bottom: 1; height: 3; align: left middle; }
+.cfg-mode-bar         { height: 3; align: left middle; }
+Switch                { margin: 0 1 0 0; height: 3; }
+#editor-scroll        { height: 1fr; border: solid #1a1a1a; }
+.short-input          { width: 20; }
 """
 
 BANNER = (
@@ -1122,10 +1124,8 @@ class ConfigEditorScreen(Screen):
         yield Header()
         yield Container(
             Vertical(
-                Horizontal(
-                    Static("── Config Editor ────────────────────────────────────", classes="title"),
-                    Button("Advanced ▶", id="mode-toggle", classes="advanced-btn"),
-                ),
+                Static("── Config Editor ──────────────── [tab: Advanced ▶]", classes="title"),
+                Button("Switch to Advanced mode", id="mode-toggle", classes="back"),
                 Static(f"  {self._path}", classes="info"),
                 Static(""),
                 ScrollableContainer(
@@ -1196,7 +1196,7 @@ class ConfigEditorScreen(Screen):
             self.query_one("#simple-panel").display   = (self._mode == "simple")
             self.query_one("#advanced-panel").display = (self._mode == "advanced")
             self.query_one("#mode-toggle", Button).label = (
-                "Simple ▶" if self._mode == "advanced" else "Advanced ▶"
+                "Switch to Simple mode" if self._mode == "advanced" else "Switch to Advanced mode"
             )
 
         elif bid == "adv-get":
