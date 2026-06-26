@@ -832,7 +832,12 @@ class InstallScreen(Screen):
                     log("  Could not find OpenCore release asset", "error")
 
             # ── 8. SSDTs via SSDTTime ─────────────────────────────────────────
-            if repair and acpi_dir.exists():
+            # In repair mode, back up existing SSDTs first so we can restore
+            # them if generation fails — never leave the system with zero SSDTs.
+            ssdt_backup_dir = None
+            if repair and acpi_dir.exists() and any(acpi_dir.iterdir()):
+                ssdt_backup_dir = tmp / "acpi_backup"
+                shutil.copytree(str(acpi_dir), str(ssdt_backup_dir))
                 shutil.rmtree(str(acpi_dir))
                 acpi_dir.mkdir(parents=True)
 
@@ -853,6 +858,13 @@ class InstallScreen(Screen):
             ok_ssdts   = [n for n, s in ssdt_results.items() if s == "OK"]
             skip_ssdts = [n for n, s in ssdt_results.items() if s.startswith("SKIP")]
             err_ssdts  = [n for n, s in ssdt_results.items() if s.startswith("ERROR")]
+
+            # If all SSDTs failed in repair mode, restore the backup so the
+            # system isn't left with an empty ACPI folder
+            if repair and ssdt_backup_dir and not ok_ssdts:
+                log("  All SSDTs failed — restoring previous SSDTs", "warn")
+                shutil.rmtree(str(acpi_dir))
+                shutil.copytree(str(ssdt_backup_dir), str(acpi_dir))
 
             # Remove failed/skipped SSDTs from config.plist so it doesn't reference missing files
             if skip_ssdts or err_ssdts:
