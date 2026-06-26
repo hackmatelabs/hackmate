@@ -385,12 +385,14 @@ class BuildModeScreen(Screen):
                 Static("── Build Mode ───────────────────────────────────────────", classes="title"),
                 Static(f"  Device: {self.device}", classes="info"),
                 Static(""),
-                Static("  Full Build   — formats USB, downloads recovery (~600 MB), installs everything fresh", classes="info"),
-                Static("  Repair EFI  — keeps recovery on USB, updates OpenCore + kexts + SSDTs + config.plist", classes="info"),
+                Static("  Full Build        — formats USB, downloads recovery (~600 MB), installs everything fresh", classes="info"),
+                Static("  Already Formatted — USB is already FAT32, skips format, downloads recovery + installs", classes="info"),
+                Static("  Repair EFI        — keeps recovery on USB, updates OpenCore + kexts + SSDTs + config.plist", classes="info"),
                 Static(""),
-                Button("Full Build",  id="full",   classes="primary"),
-                Button("Repair EFI",  id="repair",  classes="primary"),
-                Button("← Back",      id="back",    classes="back"),
+                Button("Full Build",        id="full",        classes="primary"),
+                Button("Already Formatted", id="skip_format", classes="primary"),
+                Button("Repair EFI",        id="repair",      classes="primary"),
+                Button("← Back",            id="back",        classes="back"),
                 classes="screen-inner"
             )
         )
@@ -398,9 +400,11 @@ class BuildModeScreen(Screen):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "full":
-            self.app.push_screen(ConfirmScreen(self.device, repair=False))
+            self.app.push_screen(ConfirmScreen(self.device, repair=False, skip_format=False))
+        elif event.button.id == "skip_format":
+            self.app.push_screen(ConfirmScreen(self.device, repair=False, skip_format=True))
         elif event.button.id == "repair":
-            self.app.push_screen(ConfirmScreen(self.device, repair=True))
+            self.app.push_screen(ConfirmScreen(self.device, repair=True, skip_format=False))
         elif event.button.id == "back":
             self.app.pop_screen()
 
@@ -408,10 +412,11 @@ class BuildModeScreen(Screen):
 # ─── Confirm Screen ───────────────────────────────────────────────────────────
 
 class ConfirmScreen(Screen):
-    def __init__(self, device: str, repair: bool = False):
+    def __init__(self, device: str, repair: bool = False, skip_format: bool = False):
         super().__init__()
         self.device = device
         self.repair = repair
+        self.skip_format = skip_format
 
     def compose(self) -> ComposeResult:
         import subprocess, re
@@ -444,9 +449,15 @@ class ConfirmScreen(Screen):
             model, size = "Unknown", "?"
 
         self.confirm_phrase = f"WRITE {self.device}"
-        action = "Repair EFI on" if self.repair else "FORMAT AND WRITE TO"
-        warn = "This will update OpenCore, kexts, and config on the existing USB." if self.repair else \
-               "ALL DATA ON THIS DRIVE WILL BE PERMANENTLY ERASED."
+        if self.repair:
+            action = "Repair EFI on"
+            warn = "This will update OpenCore, kexts, and config on the existing USB."
+        elif self.skip_format:
+            action = "WRITE TO (no format)"
+            warn = "USB must already be FAT32 formatted. No data will be erased."
+        else:
+            action = "FORMAT AND WRITE TO"
+            warn = "ALL DATA ON THIS DRIVE WILL BE PERMANENTLY ERASED."
 
         yield Header()
         yield Container(
@@ -477,7 +488,7 @@ class ConfirmScreen(Screen):
             if typed != self.confirm_phrase:
                 self.query_one("#confirm-input", Input).placeholder = f"Type exactly: {self.confirm_phrase}"
                 return
-            self.app.push_screen(InstallScreen(self.device, repair=self.repair))
+            self.app.push_screen(InstallScreen(self.device, repair=self.repair, skip_format=self.skip_format))
         elif event.button.id == "cancel":
             self.app.pop_screen()
 
@@ -485,10 +496,11 @@ class ConfirmScreen(Screen):
 # ─── Install ──────────────────────────────────────────────────────────────────
 
 class InstallScreen(Screen):
-    def __init__(self, device: str, repair: bool = False):
+    def __init__(self, device: str, repair: bool = False, skip_format: bool = False):
         super().__init__()
         self.device = device
         self.repair = repair
+        self.skip_format = skip_format
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -573,6 +585,7 @@ class InstallScreen(Screen):
         version: MacOSVersion       = self.app.macos_version
         device: str                 = self.device
         repair: bool                = self.repair
+        skip_format: bool           = self.skip_format
         tmp = Path(get_tmp_dir())
         tmp.mkdir(parents=True, exist_ok=True)
         mount = get_mount_path(device)
@@ -599,18 +612,21 @@ class InstallScreen(Screen):
         import zipfile
 
         try:
-            if repair:
-                # ── Repair: mount and backup existing EFI before touching it ──
-                ui(2, "Mounting existing USB partition...")
-                log("── Repair mode: skipping format and recovery download", "header")
+            if repair or skip_format:
+                # ── Repair / Already Formatted: mount existing USB ────────────
+                ui(2, "Mounting USB partition...")
+                if repair:
+                    log("── Repair mode: skipping format and recovery download", "header")
+                else:
+                    log("── Already formatted: skipping format step", "header")
                 if not IS_WINDOWS:
                     if not mount_usb(device, mount):
                         raise RuntimeError(f"Failed to mount {device}")
                 log(f"Mounted at {mount}", "ok")
 
-                # Backup existing EFI before any changes
+                # Backup existing EFI before any changes (repair only)
                 existing_efi = Path(f"{mount}") / "EFI" if not IS_WINDOWS else Path(f"{mount}\\EFI")
-                if existing_efi.exists():
+                if repair and existing_efi.exists():
                     import datetime, zipfile as zf
                     ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
                     backup_dir = Path.home() / "HackMate" / "backups"
