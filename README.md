@@ -32,14 +32,15 @@ Automates the entire process of creating a bootable OpenCore hackintosh USB. No 
 
 ---
 
-## Linux
+## Linux / macOS
 
 **Requirements:** Python 3.10+, root access
 
 ```bash
 git clone https://github.com/riftaway7-code/hackmate.git
-cd hackmate/src
-pip install textual
+cd hackmate
+python3 setup.py
+cd src
 sudo python3 hackmate.py
 ```
 
@@ -49,24 +50,14 @@ sudo python3 hackmate.py
 
 ```powershell
 git clone https://github.com/riftaway7-code/hackmate.git
-cd hackmate\src
-pip install textual
+cd hackmate
+python setup.py
+cd src
 # Right-click → Run as Administrator, or from an admin terminal:
 python hackmate.py
 ```
 
-## macOS
-
-**Requirements:** Python 3.10+, sudo access
-
-```bash
-git clone https://github.com/riftaway7-code/hackmate.git
-cd hackmate/src
-pip3 install textual
-sudo python3 hackmate.py
-```
-
-> Works on both real Macs and hackintoshes. Uses `system_profiler` for hardware detection and `diskutil` for USB formatting.
+> macOS is supported (real Macs and hackintoshes). Uses `system_profiler` for hardware detection and `diskutil` for USB formatting.
 
 ---
 

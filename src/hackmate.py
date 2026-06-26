@@ -13,11 +13,18 @@ from updater import check_and_update
 if check_and_update():
     os.execv(sys.executable, [sys.executable] + sys.argv)
 
-from textual.app import App, ComposeResult
-from textual.widgets import Header, Footer, Label, Button, ListView, ListItem, ProgressBar, Static, RichLog, LoadingIndicator, Input
-from textual.containers import Container, Vertical, Horizontal, ScrollableContainer
-from textual.screen import Screen
-from textual import work
+try:
+    from textual.app import App, ComposeResult
+    from textual.widgets import Header, Footer, Label, Button, ListView, ListItem, ProgressBar, Static, RichLog, LoadingIndicator, Input
+    from textual.containers import Container, Vertical, Horizontal, ScrollableContainer
+    from textual.screen import Screen
+    from textual import work
+except ModuleNotFoundError:
+    print("\nERROR: 'textual' is not installed.")
+    print("Run setup first:\n")
+    print("  python3 setup.py   (from the hackmate/ folder)\n")
+    print("Or install manually:  pip install textual\n")
+    sys.exit(1)
 
 from hardware import scan, HardwareProfile
 from kexts import select_kexts, get_alc_layout
