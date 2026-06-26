@@ -89,26 +89,59 @@ BANNER = (
 # ─── USB detection (Windows) ──────────────────────────────────────────────────
 
 def get_usb_drives() -> list[tuple[str, str, str]]:
-    """Return list of (drive_letter, size, label) for removable USB drives."""
+    """Return list of (drive_letter, size, label) for USB drives (flash + external HDD)."""
     drives = []
     try:
-        out = subprocess.run(
+        # Get disk numbers that are on a USB bus
+        out_disk = subprocess.run(
             ["powershell", "-NoProfile", "-Command",
-             "Get-WmiObject Win32_LogicalDisk | Where-Object {$_.DriveType -eq 2} | "
-             "Select-Object DeviceID, Size, VolumeName | ConvertTo-Json"],
+             "Get-Disk | Where-Object {$_.BusType -eq 'USB'} | Select-Object Number, Size | ConvertTo-Json"],
             capture_output=True, text=True, timeout=10
         ).stdout.strip()
-        if not out:
+        if not out_disk:
             return drives
-        items = json.loads(out)
-        if isinstance(items, dict):
-            items = [items]
-        for item in items:
-            letter = item.get("DeviceID", "")
-            size_bytes = item.get("Size") or 0
-            label = item.get("VolumeName") or ""
-            size_gb = f"{int(size_bytes) // 1024 // 1024 // 1024}GB" if size_bytes else "?"
-            drives.append((letter, size_gb, label))
+        disks = json.loads(out_disk)
+        if isinstance(disks, dict):
+            disks = [disks]
+        usb_disk_numbers = {str(d.get("Number", "")): d.get("Size", 0) for d in disks}
+
+        # Map disk numbers to drive letters via partitions
+        out_part = subprocess.run(
+            ["powershell", "-NoProfile", "-Command",
+             "Get-Partition | Where-Object {$_.DriveLetter} | Select-Object DiskNumber, DriveLetter | ConvertTo-Json"],
+            capture_output=True, text=True, timeout=10
+        ).stdout.strip()
+        if not out_part:
+            return drives
+        parts = json.loads(out_part)
+        if isinstance(parts, dict):
+            parts = [parts]
+
+        # Get volume labels
+        out_vol = subprocess.run(
+            ["powershell", "-NoProfile", "-Command",
+             "Get-Volume | Where-Object {$_.DriveLetter} | Select-Object DriveLetter, FileSystemLabel, Size | ConvertTo-Json"],
+            capture_output=True, text=True, timeout=10
+        ).stdout.strip()
+        vol_map = {}
+        if out_vol:
+            vols = json.loads(out_vol)
+            if isinstance(vols, dict):
+                vols = [vols]
+            for v in vols:
+                letter = str(v.get("DriveLetter") or "").strip()
+                if letter:
+                    vol_map[letter] = (v.get("FileSystemLabel") or "", v.get("Size") or 0)
+
+        seen = set()
+        for p in parts:
+            disk_num = str(p.get("DiskNumber", ""))
+            letter = str(p.get("DriveLetter") or "").strip()
+            if disk_num in usb_disk_numbers and letter and letter not in seen:
+                seen.add(letter)
+                label, size_bytes = vol_map.get(letter, ("", usb_disk_numbers[disk_num]))
+                size_gb = f"{int(size_bytes) // 1024 // 1024 // 1024}GB" if size_bytes else "?"
+                drives.append((f"{letter}:", size_gb, label or ""))
     except Exception:
         pass
     return drives
