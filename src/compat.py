@@ -389,8 +389,18 @@ def _format_usb_windows(drive_letter: str, mount_letter: str = "Z") -> bool:
         f"(Get-Partition -DriveLetter {letter} | Get-Disk).Number"
     ]).strip()
 
+    # Fallback: USB may be RAW (no partition table) — try via Get-Volume
     if not disk_num_raw.isdigit():
-        return False
+        disk_num_raw = _run([
+            "powershell", "-NoProfile", "-Command",
+            f"(Get-Volume -DriveLetter {letter} -ErrorAction SilentlyContinue | Get-Partition -ErrorAction SilentlyContinue | Get-Disk).Number"
+        ]).strip()
+
+    if not disk_num_raw.isdigit():
+        raise RuntimeError(
+            f"Could not resolve disk number for drive {letter}: — the USB may be RAW with no drive letter. "
+            f"Open Disk Management, format the USB as FAT32, then use the 'Already Formatted' button."
+        )
 
     script = (
         f"select disk {disk_num_raw}\n"

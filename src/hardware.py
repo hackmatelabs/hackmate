@@ -305,7 +305,7 @@ def _detect_amd_gen(profile: HardwareProfile):
     name = profile.cpu_name.lower()
     if "ryzen" in name or "threadripper" in name:
         # Match model number after "ryzen [pro] N NNNN" — avoids grabbing frequencies or years
-        m = re.search(r'ryzen\s+(?:pro\s+)?(?:threadripper\s+)?(?:\d+\s+)?(\d{4})', name) \
+        m = re.search(r'ryzen\s+(?:threadripper\s+)?\d*\s*(?:pro\s+)?(\d{4})', name) \
             or re.search(r'(\d{4})', name)
         if m:
             model = int(m.group(1))
@@ -533,10 +533,12 @@ def _detect_network_linux(profile: HardwareProfile):
 
 
 def _detect_network_windows(profile: HardwareProfile):
-    # Ethernet
+    # Ethernet — use PhysicalAdapter flag, exclude virtual/root devices
     raw = _ps("""
         $nic = Get-WmiObject Win32_NetworkAdapter | Where-Object {
-            $_.AdapterType -eq 'Ethernet 802.3' -and $_.PNPDeviceID -notlike 'ROOT*'
+            $_.PhysicalAdapter -eq $true -and
+            $_.PNPDeviceID -notlike 'ROOT*' -and
+            $_.Name -notmatch 'Wi-Fi|Wireless|WiFi|802\.11|Bluetooth|Virtual|TAP|VPN|Loopback|Miniport'
         } | Select-Object -First 1
         $nic.Name
     """)
