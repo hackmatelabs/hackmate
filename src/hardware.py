@@ -462,8 +462,12 @@ def _detect_gpu_linux(profile: HardwareProfile):
 
 
 def _detect_gpu_windows(profile: HardwareProfile):
-    raw = _ps("(Get-WmiObject Win32_VideoController).Name -join '||'").strip()
+    raw = _ps("(Get-WmiObject Win32_VideoController | ForEach-Object { $_.Name }) -join '||'").strip()
     gpus = [g.strip() for g in raw.split("||") if g.strip()]
+    if not gpus:
+        raw = _ps("(Get-WmiObject Win32_VideoController | Select-Object -First 1).Name").strip()
+        if raw:
+            gpus = [raw]
 
     for name in gpus:
         lower = name.lower()

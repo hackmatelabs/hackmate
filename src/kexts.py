@@ -462,26 +462,39 @@ def select_kexts(profile: HardwareProfile, wifi_kext_mode: str = "itlwm") -> lis
 # ─── Download ─────────────────────────────────────────────────────────────────
 
 def _get_latest_release(repo: str) -> Optional[dict]:
+    import ssl
     headers = {"User-Agent": "HackMate/1.0"}
+
+    def _fetch(url: str) -> Optional[dict]:
+        ctx = ssl.create_default_context()
+        try:
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req, context=ctx, timeout=10) as r:
+                data = json.loads(r.read())
+                # Surface rate limit as a clear error instead of silent None
+                if isinstance(data, dict) and "rate limit" in data.get("message", "").lower():
+                    raise RuntimeError(
+                        "GitHub API rate limit exceeded (60 req/hr unauthenticated). "
+                        "Wait ~1 hour and rerun, or set a GITHUB_TOKEN environment variable."
+                    )
+                return data
+        except RuntimeError:
+            raise
+        except Exception:
+            return None
+
     # Try /latest first (fastest, skips pre-releases)
-    url = f"https://api.github.com/repos/{repo}/releases/latest"
-    try:
-        req = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(req, timeout=10) as r:
-            return json.loads(r.read())
-    except Exception:
-        pass
+    result = _fetch(f"https://api.github.com/repos/{repo}/releases/latest")
+    if result:
+        return result
+
     # Fall back to releases list — picks first non-draft (covers pre-release-only repos)
-    url2 = f"https://api.github.com/repos/{repo}/releases?per_page=5"
-    try:
-        req = urllib.request.Request(url2, headers=headers)
-        with urllib.request.urlopen(req, timeout=10) as r:
-            releases = json.loads(r.read())
-            for rel in releases:
-                if not rel.get("draft", False):
-                    return rel
-    except Exception:
-        pass
+    releases = _fetch(f"https://api.github.com/repos/{repo}/releases?per_page=5")
+    if isinstance(releases, list):
+        for rel in releases:
+            if not rel.get("draft", False):
+                return rel
+
     return None
 
 
