@@ -25,6 +25,16 @@ def is_admin() -> bool:
     return os.geteuid() == 0
 
 
+def _get_sudo_hint() -> str:
+    """Generate the correct sudo command based on how Python is invoked."""
+    python = sys.executable
+    # Check if running from a venv
+    in_venv = hasattr(sys, 'real_prefix') or (hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix)
+    if in_venv:
+        return f"sudo {python} {' '.join(sys.argv)}"
+    return f"sudo python3 {' '.join(sys.argv)}"
+
+
 def require_admin():
     if not is_admin():
         if IS_WINDOWS:
@@ -32,7 +42,9 @@ def require_admin():
             print("Right-click and select 'Run as administrator'.")
             input("Press Enter to exit...")
         else:
-            print("HackMate requires root. Run with: sudo python3 hackmate.py")
+            hint = _get_sudo_hint()
+            print("HackMate requires root privileges.")
+            print(f"Run with: {hint}")
         sys.exit(1)
 
 

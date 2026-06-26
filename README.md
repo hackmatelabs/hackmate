@@ -24,12 +24,24 @@ Known issue, being investigated. Workaround: manually format your USB as FAT32 i
 ## Install
 
 ### Linux / macOS
+
+**Option A: Using uv (recommended)**
+```bash
+git clone https://github.com/riftaway7-code/hackmate.git
+cd hackmate
+python3 setup.py    # choose 'y' for uv when prompted
+sudo uv run src/hackmate.py
+```
+
+**Option B: Using venv**
 ```bash
 git clone https://github.com/riftaway7-code/hackmate.git
 cd hackmate
 python3 setup.py
-sudo python3 src/hackmate.py
+sudo .venv/bin/python3 src/hackmate.py
 ```
+
+> When using a venv, always use the full path to the venv Python (`.venv/bin/python3`) with `sudo`, not just `python3`. Otherwise sudo will use the system Python which doesn't have the dependencies installed.
 
 ### Windows
 ```powershell
@@ -37,10 +49,10 @@ git clone https://github.com/riftaway7-code/hackmate.git
 cd hackmate
 python setup.py
 # Run as Administrator:
-python src\hackmate.py
+.venv\Scripts\python.exe src\hackmate.py
 ```
 
-> `setup.py` installs required dependencies. HackMate will also tell you if anything is missing when you launch it.
+> `setup.py` creates a virtual environment and installs required dependencies. HackMate will also tell you if anything is missing when you launch it.
 
 ---
 

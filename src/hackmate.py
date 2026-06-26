@@ -23,7 +23,8 @@ except ModuleNotFoundError:
     print("\nERROR: 'textual' is not installed.")
     print("Run setup first:\n")
     print("  python3 setup.py   (from the hackmate/ folder)\n")
-    print("Or install manually:  pip install textual\n")
+    print("Or install manually:")
+    print(f"  {sys.executable} -m pip install textual\n")
     sys.exit(1)
 
 from hardware import scan, HardwareProfile
