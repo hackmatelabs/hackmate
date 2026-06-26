@@ -38,13 +38,14 @@ MACOS_VERSIONS = [
 ]
 
 
-def compatible_versions(cpu_gen: int, gpu_vendor: str) -> list[MacOSVersion]:
+def compatible_versions(cpu_gen: int, gpu_vendor: str, cpu_vendor: str = "intel") -> list[MacOSVersion]:
     result = []
     for v in MACOS_VERSIONS:
-        if cpu_gen < v.min_gen:
-            continue
-        if cpu_gen > v.max_gen:
-            continue
+        if cpu_vendor != "amd":
+            if cpu_gen < v.min_gen:
+                continue
+            if cpu_gen > v.max_gen:
+                continue
         if gpu_vendor == "nvidia" and not v.nvidia_ok:
             continue
         result.append(v)

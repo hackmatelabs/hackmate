@@ -219,7 +219,7 @@ class ScanScreen(Screen):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "continue":
-            versions = compatible_versions(self.app.profile.cpu_generation, self.app.profile.gpu_vendor)
+            versions = compatible_versions(self.app.profile.cpu_generation, self.app.profile.gpu_vendor, self.app.profile.cpu_vendor)
             self.app.push_screen(VersionScreen(versions))
         elif event.button.id == "back":
             self.app.pop_screen()

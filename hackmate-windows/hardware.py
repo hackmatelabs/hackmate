@@ -78,11 +78,33 @@ def _detect_cpu() -> tuple[str, str, int, str]:
         }
         codename = codename_map.get(gen, "Unknown")
     elif vendor == "amd":
-        if "ryzen 3" in name.lower(): gen = 17
-        elif "ryzen 5" in name.lower(): gen = 17
-        elif "ryzen 7" in name.lower(): gen = 17
-        elif "ryzen 9" in name.lower(): gen = 17
-        codename = "Zen"
+        n = name.lower()
+        if "ryzen" in n or "threadripper" in n:
+            m2 = re.search(r'(\d{4})', n)
+            if m2:
+                model = int(m2.group(1))
+                if model >= 9000:
+                    gen, codename = 12, "Zen 5"
+                elif model >= 7000:
+                    gen, codename = 12, "Zen 4"
+                elif model >= 6000:
+                    gen, codename = 11, "Zen 3+"
+                elif model >= 5000:
+                    gen, codename = 11, "Zen 3"
+                elif model >= 4000:
+                    gen, codename = 10, "Zen 2"
+                elif model >= 3000:
+                    gen, codename = 10, "Zen 2"
+                elif model >= 2000:
+                    gen, codename = 8, "Zen+"
+                else:
+                    gen, codename = 8, "Zen"
+            else:
+                gen, codename = 8, "Zen (Ryzen)"
+        elif "athlon" in n and ("200" in n or "300" in n):
+            gen, codename = 8, "Zen (Athlon)"
+        else:
+            gen, codename = 8, "AMD (unknown)"
 
     return name, vendor, gen, codename
 
