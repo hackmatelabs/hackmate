@@ -13,7 +13,7 @@ Supports Linux, Windows, and macOS as host operating systems.
 
 ## 📢 Announcements
 
-**v1.1.0 is out** — `git pull` to get all the latest fixes before running HackMate. HackMate will also prompt you to update automatically on launch.
+**v1.2.0 is out** — `git pull` to get the latest. Includes full AMD vanilla kernel patches, OpenCore log reader, and a post-install guide. HackMate will also prompt you to update automatically on launch.
 
 **If you cloned before June 25th (running from `hackmate-linux/`):**
 Just run your usual command — HackMate will auto-migrate itself to the new `src/` layout and relaunch. No manual steps needed.
