@@ -497,6 +497,32 @@ def _find_asset(assets: list, pattern: str) -> Optional[dict]:
     return None
 
 
+def download_heliport(dest: Path, progress_cb=None) -> bool:
+    """Download HeliPort.app (needed with itlwm) into dest/HeliPort.app.zip."""
+    if progress_cb:
+        progress_cb("Downloading HeliPort.app...")
+    release = _get_latest_release("OpenIntelWireless/HeliPort")
+    if not release:
+        return False
+    assets = release.get("assets", [])
+    asset = next((a for a in assets if a["name"].lower().endswith(".dmg") or
+                  "heliport" in a["name"].lower()), None)
+    if not asset:
+        return False
+    dest.mkdir(parents=True, exist_ok=True)
+    out = dest / asset["name"]
+    try:
+        req = urllib.request.Request(asset["browser_download_url"],
+                                     headers={"User-Agent": "HackMate/1.0"})
+        with urllib.request.urlopen(req, timeout=60) as r:
+            out.write_bytes(r.read())
+        if progress_cb:
+            progress_cb(f"HeliPort saved to {out.name}")
+        return True
+    except Exception:
+        return False
+
+
 def _kext_valid(kext_path: Path) -> bool:
     """A kext is valid if it exists as a dir with Contents/Info.plist inside."""
     return (

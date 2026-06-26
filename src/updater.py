@@ -27,6 +27,7 @@ FILES = [
     "efi_check.py",
     "compat.py",
     "oc_log.py",
+    "config_editor.py",
 ]
 
 

@@ -15,7 +15,7 @@ if check_and_update():
 
 try:
     from textual.app import App, ComposeResult
-    from textual.widgets import Header, Footer, Label, Button, ListView, ListItem, ProgressBar, Static, RichLog, LoadingIndicator, Input
+    from textual.widgets import Header, Footer, Label, Button, ListView, ListItem, ProgressBar, Static, RichLog, LoadingIndicator, Input, Switch, Select
     from textual.containers import Container, Vertical, Horizontal, ScrollableContainer
     from textual.screen import Screen
     from textual import work
@@ -71,6 +71,11 @@ Button.advanced-btn:hover { color: #00ff88; }
 .hw-row               { margin-bottom: 0; }
 .hw-key               { color: #555555; width: 12; }
 .hw-val               { color: #cccccc; }
+.cfg-section          { color: #00ff88; margin-top: 1; }
+.cfg-label            { color: #aaaaaa; width: 36; }
+.cfg-row              { margin-bottom: 1; height: 3; }
+Switch                { margin: 0; }
+Select                { width: 24; }
 """
 
 BANNER = (
@@ -95,6 +100,7 @@ class WelcomeScreen(Screen):
                 Static(""),
                 Button("Build EFI",    id="start",   classes="primary"),
                 Button("Restore EFI",  id="restore", classes="primary"),
+                Button("Edit Config",  id="edit_cfg",classes="primary"),
                 Button("Quit",         id="quit",    classes="danger"),
                 id="welcome-inner"
             ),
@@ -107,6 +113,8 @@ class WelcomeScreen(Screen):
             self.app.push_screen(ScanScreen())
         elif event.button.id == "restore":
             self.app.push_screen(RestoreScreen())
+        elif event.button.id == "edit_cfg":
+            self.app.push_screen(ConfigEditorUSBScreen())
         elif event.button.id == "quit":
             self.app.exit()
 
@@ -825,6 +833,19 @@ class InstallScreen(Screen):
                 if result.startswith("ERROR"):
                     log(f"  WARN: {name} — {result}", "warn")
 
+            # HeliPort — download alongside itlwm so user has it ready on the USB
+            if self.app.wifi_kext_mode == "itlwm":
+                from kexts import download_heliport
+                extras_dir = mount / "EFI" / "HackMate-Extras"
+                ok = download_heliport(
+                    extras_dir,
+                    progress_cb=lambda m: self.app.call_from_thread(log, f"  {m}", "info")
+                )
+                if ok:
+                    log("  HeliPort saved to EFI/HackMate-Extras/ on USB", "ok")
+                else:
+                    log("  HeliPort download failed — get it from github.com/OpenIntelWireless/HeliPort", "warn")
+
             # ── 7. Download OpenCore ──────────────────────────────────────────
             MIN_EFI = 50 * 1024  # sane minimum — corrupt/truncated files are smaller
             oc_required = [
@@ -1029,6 +1050,251 @@ class InstallScreen(Screen):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "back":
             self.app.pop_screen()
+
+
+# ─── Config Editor ───────────────────────────────────────────────────────────
+
+class ConfigEditorUSBScreen(Screen):
+    """Pick which USB / config.plist to edit."""
+
+    def compose(self) -> ComposeResult:
+        from config_editor import find_configs
+        self._configs = find_configs()
+        yield Header()
+        yield Container(
+            Vertical(
+                Static("── Edit Config.plist ────────────────────────────────────", classes="title"),
+                Static(""),
+                Static("  Select a config.plist to edit:", classes="info"),
+                Static(""),
+                ListView(
+                    *[ListItem(Static(f"  {p}")) for p in self._configs] if self._configs
+                    else [ListItem(Static("  No config.plist found on any mounted USB"))],
+                    id="cfg-list"
+                ),
+                Static(""),
+                Static("  Mount your USB first if it doesn't appear above.", classes="info"),
+                Static(""),
+                Button("← Back", id="back", classes="back"),
+                classes="screen-inner"
+            )
+        )
+        yield Footer()
+
+    def on_list_view_selected(self, event: ListView.Selected) -> None:
+        idx = self.query_one("#cfg-list", ListView).index
+        if self._configs:
+            self.app.push_screen(ConfigEditorScreen(self._configs[idx]))
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "back":
+            self.app.pop_screen()
+
+
+class ConfigEditorScreen(Screen):
+    """Simple / Advanced config.plist editor."""
+
+    def __init__(self, config_path):
+        super().__init__()
+        self._path = config_path
+        self._mode = "simple"   # "simple" or "advanced"
+        self._cfg  = None
+        self._changes: list[str] = []
+
+    def _load(self):
+        from config_editor import load_config
+        self._cfg = load_config(self._path)
+
+    def compose(self) -> ComposeResult:
+        self._load()
+        from config_editor import (
+            get_boot_args, get_sip_enabled, get_hide_auxiliary,
+            get_timeout, get_oc_logging, get_secure_boot_model, get_smbios
+        )
+        cfg = self._cfg
+        args = get_boot_args(cfg)
+
+        alcid_val   = str(args.get("alcid", ""))
+        timeout_val = str(get_timeout(cfg))
+        smbios_val  = get_smbios(cfg)
+        sbm_val     = get_secure_boot_model(cfg)
+
+        yield Header()
+        yield Container(
+            Vertical(
+                Horizontal(
+                    Static("── Config Editor ────────────────────────────────────", classes="title"),
+                    Button("Advanced ▶", id="mode-toggle", classes="advanced-btn"),
+                ),
+                Static(f"  {self._path}", classes="info"),
+                Static(""),
+                ScrollableContainer(
+                    # ── Simple mode ──────────────────────────────────────
+                    Vertical(
+                        Static("  ── Boot Args ──────────────────────────────────────────", classes="cfg-section"),
+                        Horizontal(Static("  Verbose (-v)",              classes="cfg-label"), Switch(value="-v" in args,              id="sw-verbose"),   classes="cfg-row"),
+                        Horizontal(Static("  No compat check",           classes="cfg-label"), Switch(value="-no_compat_check" in args, id="sw-nocompat"),  classes="cfg-row"),
+                        Horizontal(Static("  Debug logging",             classes="cfg-label"), Switch(value="debug" in args,           id="sw-debug"),     classes="cfg-row"),
+                        Horizontal(Static("  Audio layout (alcid)",      classes="cfg-label"), Input(value=alcid_val, placeholder="e.g. 11", id="in-alcid", classes="short-input"), classes="cfg-row"),
+                        Static(""),
+                        Static("  ── OpenCore ────────────────────────────────────────────", classes="cfg-section"),
+                        Horizontal(Static("  Picker timeout (sec)",      classes="cfg-label"), Input(value=timeout_val, placeholder="5", id="in-timeout", classes="short-input"), classes="cfg-row"),
+                        Horizontal(Static("  Show recovery in picker",   classes="cfg-label"), Switch(value=not get_hide_auxiliary(cfg), id="sw-recovery"), classes="cfg-row"),
+                        Horizontal(Static("  OC file logging",           classes="cfg-label"), Switch(value=get_oc_logging(cfg),        id="sw-oclog"),    classes="cfg-row"),
+                        Static(""),
+                        Static("  ── Security ────────────────────────────────────────────", classes="cfg-section"),
+                        Horizontal(Static("  SIP enabled",               classes="cfg-label"), Switch(value=get_sip_enabled(cfg),      id="sw-sip"),      classes="cfg-row"),
+                        Horizontal(Static("  SecureBootModel",           classes="cfg-label"), Input(value=sbm_val, placeholder="Disabled", id="in-sbm", classes="short-input"), classes="cfg-row"),
+                        Static(""),
+                        Static("  ── System ──────────────────────────────────────────────", classes="cfg-section"),
+                        Horizontal(Static("  SMBIOS model",              classes="cfg-label"), Input(value=smbios_val, placeholder="MacBookPro15,2", id="in-smbios"), classes="cfg-row"),
+                        id="simple-panel"
+                    ),
+                    # ── Advanced mode ─────────────────────────────────────
+                    Vertical(
+                        Static("  ── Advanced: raw plist key editor ────────────────────", classes="cfg-section"),
+                        Static(""),
+                        Static("  Key path (dot-separated):", classes="info"),
+                        Input(placeholder="e.g. Misc.Debug.Target", id="adv-key"),
+                        Static(""),
+                        Static("  Value:", classes="info"),
+                        Input(placeholder="value", id="adv-val"),
+                        Static(""),
+                        Static("  Type:", classes="info"),
+                        Input(value="string", placeholder="string / bool / int / data", id="adv-type"),
+                        Static(""),
+                        Horizontal(
+                            Button("Get", id="adv-get", classes="primary"),
+                            Button("Set", id="adv-set", classes="primary"),
+                        ),
+                        Static(""),
+                        Static("  Recent changes:", classes="cfg-section"),
+                        Static("  (none yet)", id="adv-log", classes="info"),
+                        id="advanced-panel", display=False
+                    ),
+                    id="editor-scroll"
+                ),
+                Static(""),
+                Horizontal(
+                    Button("Save",    id="save",   classes="primary"),
+                    Button("← Back",  id="back",   classes="back"),
+                ),
+                Static("", id="save-status"),
+                classes="screen-inner"
+            )
+        )
+        yield Footer()
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        bid = event.button.id
+
+        if bid == "mode-toggle":
+            self._mode = "advanced" if self._mode == "simple" else "simple"
+            self.query_one("#simple-panel").display   = (self._mode == "simple")
+            self.query_one("#advanced-panel").display = (self._mode == "advanced")
+            self.query_one("#mode-toggle", Button).label = (
+                "Simple ▶" if self._mode == "advanced" else "Advanced ▶"
+            )
+
+        elif bid == "adv-get":
+            from config_editor import get_value
+            key = self.query_one("#adv-key", Input).value.strip()
+            try:
+                val = get_value(self._cfg, key)
+                self.query_one("#adv-val", Input).value = str(val)
+            except Exception as e:
+                self.query_one("#adv-val", Input).value = f"ERROR: {e}"
+
+        elif bid == "adv-set":
+            from config_editor import set_value, coerce_value
+            key  = self.query_one("#adv-key",  Input).value.strip()
+            raw  = self.query_one("#adv-val",  Input).value.strip()
+            typ  = self.query_one("#adv-type", Input).value.strip() or "string"
+            try:
+                val = coerce_value(raw, typ)
+                set_value(self._cfg, key, val)
+                entry = f"  • {key} → {raw}"
+                self._changes.append(entry)
+                self.query_one("#adv-log", Static).update("\n".join(self._changes[-8:]))
+            except Exception as e:
+                self.query_one("#adv-log", Static).update(f"  ERROR: {e}")
+
+        elif bid == "save":
+            self._apply_simple()
+            from config_editor import save_config
+            try:
+                save_config(self._path, self._cfg)
+                self.query_one("#save-status", Static).update("  ✓ Saved.")
+            except Exception as e:
+                self.query_one("#save-status", Static).update(f"  ✗ Save failed: {e}")
+
+        elif bid == "back":
+            self.app.pop_screen()
+
+    def _apply_simple(self) -> None:
+        """Read all simple-mode widgets and apply to cfg."""
+        from config_editor import (
+            get_boot_args, set_boot_args, set_sip, set_hide_auxiliary,
+            set_timeout, set_oc_logging, set_secure_boot_model, set_smbios
+        )
+        cfg  = self._cfg
+        args = get_boot_args(cfg)
+
+        def sw(id_) -> bool:
+            try:
+                return self.query_one(id_, Switch).value
+            except Exception:
+                return False
+
+        def inp(id_) -> str:
+            try:
+                return self.query_one(id_, Input).value.strip()
+            except Exception:
+                return ""
+
+        # boot-args flags
+        for flag, widget_id in [
+            ("-v",                "sw-verbose"),
+            ("-no_compat_check",  "sw-nocompat"),
+        ]:
+            if sw(f"#{widget_id}"):
+                args[flag] = True
+            else:
+                args.pop(flag, None)
+
+        # debug=0x100 + keepsyms=1 together
+        if sw("#sw-debug"):
+            args["debug"]    = "0x100"
+            args["keepsyms"] = "1"
+        else:
+            args.pop("debug",    None)
+            args.pop("keepsyms", None)
+
+        # alcid
+        alcid = inp("#in-alcid")
+        if alcid.isdigit():
+            args["alcid"] = alcid
+        else:
+            args.pop("alcid", None)
+
+        set_boot_args(cfg, args)
+
+        # timeout
+        t = inp("#in-timeout")
+        if t.isdigit():
+            set_timeout(cfg, int(t))
+
+        set_hide_auxiliary(cfg, not sw("#sw-recovery"))
+        set_oc_logging(cfg, sw("#sw-oclog"))
+        set_sip(cfg, sw("#sw-sip"))
+
+        sbm = inp("#in-sbm")
+        if sbm:
+            set_secure_boot_model(cfg, sbm)
+
+        smbios = inp("#in-smbios")
+        if smbios:
+            set_smbios(cfg, smbios)
 
 
 # ─── BIOS Checklist ──────────────────────────────────────────────────────────
