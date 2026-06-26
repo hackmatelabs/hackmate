@@ -79,7 +79,17 @@ def _download_file(filename: str, sha: str) -> bool:
         return False
 
 
+def _ping_launch() -> None:
+    """Silent launch counter — increments on every startup."""
+    try:
+        url = "https://hits.seeyoufarm.com/api/count/incr/badge.svg?url=riftaway7-code-hackmate-launch&count_bg=%2300ff88&title_bg=%23000&title=launches&edge_flat=true"
+        urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "HackMate/1.0"}), timeout=3)
+    except Exception:
+        pass
+
+
 def check_and_update(silent: bool = False) -> bool:
+    _ping_launch()
     print("Checking for updates...", end=" ", flush=True)
 
     remote_sha = _get_remote_sha()
