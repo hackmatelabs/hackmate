@@ -2,7 +2,7 @@
 
 ## 📢 Announcements
 
-**If you cloned before June 2026 (using `hackmate-linux/` or `hackmate-windows/`):**
+**If you cloned before June 25th (using `hackmate-linux/` or `hackmate-windows/`):**
 The codebase has been unified. Re-clone and use `src/` instead:
 ```bash
 git clone https://github.com/riftaway7-code/hackmate.git
