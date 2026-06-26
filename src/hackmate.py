@@ -917,19 +917,33 @@ class InstallScreen(Screen):
             log("", "info")
             log("── EFI Sanity Check ──────────────────────────────", "header")
             from efi_check import check as efi_check
-            issues = efi_check(efi, profile)
+            issues   = efi_check(efi, profile)
             errors   = [m for lvl, m in issues if lvl == "error"]
             warnings = [m for lvl, m in issues if lvl == "warn"]
+            infos    = [m for lvl, m in issues if lvl == "info"]
             oks      = [m for lvl, m in issues if lvl == "ok"]
+            # Print non-ok issues with full explanations, suppress ok spam
             for lvl, m in issues:
-                log(f"  {m}", lvl)
+                if lvl != "ok":
+                    prefix = {"error": "✗", "warn": "⚠", "info": "ℹ"}.get(lvl, "•")
+                    log(f"  {prefix} {m}", lvl)
+            if oks:
+                log(f"  ✓ {len(oks)} checks passed", "ok")
             log("──────────────────────────────────────────────────", "header")
             if errors:
-                log(f"  {len(errors)} error(s) found — fix before booting", "error")
+                log(f"  {len(errors)} error(s) — must fix before booting", "error")
+                if warnings:
+                    log(f"  {len(warnings)} warning(s)", "warn")
+                if infos:
+                    log(f"  {len(infos)} recommendation(s)", "info")
             elif warnings:
                 log(f"  {len(warnings)} warning(s) — review before booting", "warn")
+                if infos:
+                    log(f"  {len(infos)} recommendation(s)", "info")
+            elif infos:
+                log(f"  {len(infos)} recommendation(s) — {len(oks)} checks passed", "info")
             else:
-                log(f"  All checks passed ({len(oks)} OK)", "ok")
+                log(f"  All {len(oks)} checks passed", "ok")
 
             # ── 10. Unmount ───────────────────────────────────────────────────
             ui(99, "Unmounting USB...")
