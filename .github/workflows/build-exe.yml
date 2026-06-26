@@ -1,0 +1,44 @@
+name: Build Windows EXE
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install textual pyinstaller
+
+      - name: Build EXE
+        run: |
+          pyinstaller --onefile --name HackMate --paths src `
+            --hidden-import hardware `
+            --hidden-import kexts `
+            --hidden-import config_gen `
+            --hidden-import smbios `
+            --hidden-import recovery `
+            --hidden-import ssdt `
+            --hidden-import updater `
+            --hidden-import efi_check `
+            --hidden-import compat `
+            --hidden-import oc_log `
+            --hidden-import config_editor `
+            src/hackmate.py
+
+      - name: Upload EXE to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/HackMate.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
