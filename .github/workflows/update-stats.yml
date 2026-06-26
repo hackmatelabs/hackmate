@@ -30,10 +30,6 @@ jobs:
               with urllib.request.urlopen(req, timeout=10) as r:
                   return json.loads(r.read())
 
-          # clone traffic (last 14 days)
-          clones = fetch("https://api.github.com/repos/riftaway7-code/hackmate/traffic/clones")
-          new_clones = clones.get("count", 0)
-
           # EXE download count across all releases
           releases = fetch("https://api.github.com/repos/riftaway7-code/hackmate/releases")
           exe_downloads = sum(
@@ -47,22 +43,16 @@ jobs:
           repo = fetch("https://api.github.com/repos/riftaway7-code/hackmate")
           stars = repo.get("stargazers_count", 0)
 
-          # load existing stats
+          # load existing stats (clone count accumulated locally, don't overwrite)
           stats_path = Path("docs/stats.json")
           existing = json.loads(stats_path.read_text()) if stats_path.exists() else {}
-
-          # accumulate clones (GitHub only gives last 14 days so we keep a running total)
-          last_clone_snapshot = existing.get("last_clone_snapshot", 0)
-          accumulated = existing.get("accumulated_clones", 0)
-          if new_clones > last_clone_snapshot:
-              accumulated += new_clones - last_clone_snapshot
 
           stats = {
               "stars": stars,
               "exe_downloads": exe_downloads,
-              "accumulated_clones": accumulated,
-              "last_clone_snapshot": new_clones,
-              "total_downloads": exe_downloads + accumulated,
+              "accumulated_clones": existing.get("accumulated_clones", 0),
+              "last_clone_snapshot": existing.get("last_clone_snapshot", 0),
+              "total_downloads": exe_downloads + existing.get("accumulated_clones", 0),
           }
 
           stats_path.write_text(json.dumps(stats, indent=2))
