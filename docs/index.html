@@ -197,12 +197,60 @@
 
   <!-- supported hardware -->
   <div class="section-title">Supported hardware</div>
+
   <table>
-    <tr><th>Platform</th><th>Details</th><th>macOS</th></tr>
-    <tr><td>Intel 2nd–10th gen</td><td>Sandy Bridge → Comet Lake, laptop + desktop</td><td>Lion → Tahoe</td></tr>
-    <tr><td>AMD Ryzen / Threadripper</td><td>Zen, Zen+, Zen 2, Zen 3, Zen 4, Zen 5</td><td>Catalina → Tahoe</td></tr>
-    <tr><td>Intel WiFi</td><td>AX200, AX210, AC-9260 + more via itlwm / AirportItlwm</td><td>—</td></tr>
-    <tr><td>Realtek / Intel ethernet</td><td>RTL8111, RTL8125, I219, I225, I226</td><td>—</td></tr>
+    <tr><th colspan="3" style="color:#666;font-size:.75rem;padding-top:1rem">CPU</th></tr>
+    <tr><th>Generation</th><th>Codename</th><th>macOS</th></tr>
+    <tr><td>Intel 2nd gen</td><td>Sandy Bridge — Core i3/i5/i7-2xxx</td><td>Lion → Ventura</td></tr>
+    <tr><td>Intel 3rd gen</td><td>Ivy Bridge — Core i3/i5/i7-3xxx</td><td>Mountain Lion → Ventura</td></tr>
+    <tr><td>Intel 4th gen</td><td>Haswell — Core i3/i5/i7-4xxx</td><td>Mavericks → Sonoma</td></tr>
+    <tr><td>Intel 5th gen</td><td>Broadwell — Core i5/i7-5xxx</td><td>Yosemite → Sequoia</td></tr>
+    <tr><td>Intel 6th gen</td><td>Skylake — Core i3/i5/i7-6xxx</td><td>El Capitan → Tahoe</td></tr>
+    <tr><td>Intel 7th gen</td><td>Kaby Lake — Core i3/i5/i7-7xxx</td><td>Sierra → Tahoe</td></tr>
+    <tr><td>Intel 8th gen</td><td>Coffee Lake / Whiskey Lake / Kaby Lake-R</td><td>High Sierra → Tahoe</td></tr>
+    <tr><td>Intel 9th gen</td><td>Coffee Lake Refresh — Core i5/i7/i9-9xxx</td><td>Mojave → Tahoe</td></tr>
+    <tr><td>Intel 10th gen</td><td>Comet Lake / Ice Lake — Core i3/i5/i7-10xxx</td><td>Catalina → Tahoe</td></tr>
+    <tr><td>AMD Ryzen 1000</td><td>Zen — Ryzen 3/5/7 1xxx</td><td>High Sierra → Tahoe</td></tr>
+    <tr><td>AMD Ryzen 2000</td><td>Zen+ — Ryzen 3/5/7 2xxx</td><td>Mojave → Tahoe</td></tr>
+    <tr><td>AMD Ryzen 3000</td><td>Zen 2 — Ryzen 5/7/9 3xxx, Threadripper 3xxx</td><td>Catalina → Tahoe</td></tr>
+    <tr><td>AMD Ryzen 5000</td><td>Zen 3 — Ryzen 5/7/9 5xxx, PRO variants</td><td>Big Sur → Tahoe</td></tr>
+    <tr><td>AMD Ryzen 7000</td><td>Zen 4 — Ryzen 5/7/9 7xxx</td><td>Ventura → Tahoe</td></tr>
+    <tr><td>AMD Ryzen 9000</td><td>Zen 5 — Ryzen 5/7/9 9xxx</td><td>Sequoia → Tahoe</td></tr>
+  </table>
+
+  <table style="margin-top:1.2rem">
+    <tr><th colspan="2" style="color:#666;font-size:.75rem;padding-top:1rem">GPU (iGPU framebuffer auto-patched)</th></tr>
+    <tr><th>Intel iGPU</th><th>Platform ID (auto-selected)</th></tr>
+    <tr><td>HD 3000 (Sandy Bridge)</td><td>00003001</td></tr>
+    <tr><td>HD 4000 (Ivy Bridge)</td><td>03006601</td></tr>
+    <tr><td>HD 4600 / Iris Pro 5200 (Haswell)</td><td>0a002604</td></tr>
+    <tr><td>HD 5500 / HD 6000 (Broadwell)</td><td>16000000</td></tr>
+    <tr><td>HD 520 / HD 530 (Skylake)</td><td>00001619</td></tr>
+    <tr><td>HD 620 / HD 630 (Kaby Lake)</td><td>00001659</td></tr>
+    <tr><td>UHD 620 (Kaby Lake-R / Whiskey Lake)</td><td>0000c087</td></tr>
+    <tr><td>UHD 630 (Coffee Lake)</td><td>07009b3e / 00009b3e</td></tr>
+    <tr><td>UHD 630 / UHD 620 (Comet Lake)</td><td>0000c087</td></tr>
+    <tr><td>Iris Plus (Ice Lake)</td><td>0000528a</td></tr>
+  </table>
+
+  <table style="margin-top:1.2rem">
+    <tr><th colspan="2" style="color:#666;font-size:.75rem;padding-top:1rem">Networking</th></tr>
+    <tr><th>Device</th><th>Kext</th></tr>
+    <tr><td>Intel WiFi — AX200, AX201, AX210, AX211, AC-9260, AC-8265, AC-7265</td><td>itlwm / AirportItlwm</td></tr>
+    <tr><td>Broadcom WiFi — BCM94360, BCM943602, BCM94352</td><td>AirportBrcmFixup</td></tr>
+    <tr><td>Realtek Ethernet — RTL8111, RTL8168, RTL8125 (2.5G)</td><td>RealtekRTL8111 / LucyRTL8125</td></tr>
+    <tr><td>Intel Ethernet — I219-V/LM, I217-V/LM, I211-AT, I225-V, I226-V</td><td>IntelMausiEthernet</td></tr>
+    <tr><td>Atheros / Qualcomm Ethernet — AR8151, AR8161</td><td>AtherosE2200Ethernet</td></tr>
+  </table>
+
+  <table style="margin-top:1.2rem">
+    <tr><th colspan="2" style="color:#666;font-size:.75rem;padding-top:1rem">Audio (layout ID auto-suggested)</th></tr>
+    <tr><th>Codec</th><th>Common alcid</th></tr>
+    <tr><td>Realtek ALC256 / ALC257</td><td>21, 11, 13</td></tr>
+    <tr><td>Realtek ALC255 / ALC295</td><td>71, 53, 28</td></tr>
+    <tr><td>Realtek ALC269 / ALC294</td><td>11, 21, 29 (ThinkPad), 76 (Dell)</td></tr>
+    <tr><td>Realtek ALC285 / ALC289</td><td>21, 61, 87</td></tr>
+    <tr><td>Realtek ALC1220 / ALC887 / ALC892</td><td>7, 11, 16 (desktop)</td></tr>
   </table>
 
   <!-- faq -->
