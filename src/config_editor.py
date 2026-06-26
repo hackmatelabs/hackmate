@@ -171,9 +171,12 @@ def find_configs() -> list[Path]:
     system = platform.system()
 
     if system == "Linux":
-        search_roots = list(Path("/run/media").glob("*/*")) + \
-                       list(Path("/media").glob("*/*")) + \
-                       list(Path("/mnt").glob("*"))
+        search_roots = (
+            [Path("/mnt")] +                            # direct mount (sudo mount /dev/sdX /mnt)
+            list(Path("/mnt").glob("*")) +              # named mounts under /mnt
+            list(Path("/run/media").glob("*/*")) +      # udisks auto-mount
+            list(Path("/media").glob("*/*"))            # older udisks
+        )
     elif system == "Darwin":
         search_roots = list(Path("/Volumes").iterdir())
     else:
