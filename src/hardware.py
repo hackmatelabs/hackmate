@@ -538,7 +538,7 @@ def _detect_network_windows(profile: HardwareProfile):
         $nic = Get-WmiObject Win32_NetworkAdapter | Where-Object {
             $_.PhysicalAdapter -eq $true -and
             $_.PNPDeviceID -notlike 'ROOT*' -and
-            $_.Name -notmatch 'Wi-Fi|Wireless|WiFi|802\.11|Bluetooth|Virtual|TAP|VPN|Loopback|Miniport'
+            $_.Name -notmatch 'Wi-Fi|Wireless|WiFi|802.11|Bluetooth|Virtual|TAP|VPN|Loopback|Miniport'
         } | Select-Object -First 1
         $nic.Name
     """)

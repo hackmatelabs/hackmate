@@ -1170,7 +1170,7 @@ class ConfigEditorScreen(Screen):
                         Static(""),
                         Static("  Recent changes:", classes="cfg-section"),
                         Static("  (none yet)", id="adv-log", classes="info"),
-                        id="advanced-panel", display=False
+                        id="advanced-panel"
                     ),
                     id="editor-scroll"
                 ),
@@ -1184,6 +1184,9 @@ class ConfigEditorScreen(Screen):
             )
         )
         yield Footer()
+
+    def on_mount(self) -> None:
+        self.query_one("#advanced-panel").display = False
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         bid = event.button.id
