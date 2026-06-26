@@ -406,6 +406,7 @@ def _format_usb_windows(drive_letter: str, mount_letter: str = "Z") -> bool:
         f"select disk {disk_num_raw}\n"
         "clean\n"
         "create partition primary\n"
+        "select partition 1\n"
         "format fs=fat32 quick label=HACKINTOSH\n"
         f"assign letter={mount_letter}\n"
         "exit\n"
@@ -451,9 +452,13 @@ def unmount_usb(mount_point: str) -> bool:
     return result.returncode == 0
 
 
-def get_mount_path(device: str = "") -> str:
+def get_mount_path(device: str = "", skip_format: bool = False) -> str:
     """Get the mount path for the USB drive."""
     if IS_WINDOWS:
+        if skip_format and device:
+            letter = device.strip(":\\/").upper()
+            if letter and letter.isalpha():
+                return f"{letter}:"
         return "Z:"
     if IS_MACOS:
         return "/Volumes/HACKINTOSH"

@@ -649,7 +649,7 @@ class InstallScreen(Screen):
         skip_format: bool           = self.skip_format
         tmp = Path(get_tmp_dir())
         tmp.mkdir(parents=True, exist_ok=True)
-        mount = get_mount_path(device)
+        mount = get_mount_path(device, skip_format=skip_format)
 
         def ui(pct, msg):
             self.app.call_from_thread(self._status, pct, msg)
