@@ -163,6 +163,7 @@ NO_EXECUTABLE = {
     "FakeSMC_ACPISensors", "FakeSMC_CPUSensors", "FakeSMC_GPUSensors",
     "FakeSMC_LPCSensors", "FakeSMC_SMMSensors",
     "NullEthernet",
+    "VoodooGPIO",
 }
 
 # Min/Max kernel versions for version-specific kexts

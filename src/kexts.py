@@ -66,7 +66,7 @@ DB: dict[str, KextEntry] = {
     "VoodooPS2Trackpad": KextEntry("VoodooPS2Trackpad","acidanthera/VoodooPS2",       "VoodooPS2Controller-","PS/2 trackpad (in VoodooPS2 zip)"),
 
     # ── I2C input ─────────────────────────────────────────────────────────────
-    "VoodooI2C":         KextEntry("VoodooI2C",        "VoodooI2C/VoodooI2C",         "VoodooI2C-",         "I2C trackpad/touchscreen base"),
+    "VoodooI2C":         KextEntry("VoodooI2C",        "VoodooI2C/VoodooI2C",         "VoodooI2C-",         "I2C trackpad/touchscreen base", exe_name="VoodooI2C"),
     "VoodooI2CHID":      KextEntry("VoodooI2CHID",     "VoodooI2C/VoodooI2C",         "VoodooI2C-",         "generic I2C-HID satellite (bundled in VoodooI2C zip)"),
     "VoodooI2CSynaptics":KextEntry("VoodooI2CSynaptics","VoodooI2C/VoodooI2C",        "VoodooI2C-",         "Synaptics I2C satellite (bundled in VoodooI2C zip)"),
     "VoodooI2CELAN":     KextEntry("VoodooI2CELAN",    "VoodooI2C/VoodooI2C",         "VoodooI2C-",         "ELAN I2C satellite (bundled in VoodooI2C zip)"),
@@ -94,7 +94,7 @@ DB: dict[str, KextEntry] = {
     "NullEthernet":      KextEntry("NullEthernet",     "RehabMan/OS-X-Null-Ethernet", "NullEthernet-",      "placeholder ethernet for iMessage/iCloud on WiFi-only"),
 
     # ── WiFi ──────────────────────────────────────────────────────────────────
-    "itlwm":             KextEntry("itlwm",            "OpenIntelWireless/itlwm",     "itlwm_",             "Intel WiFi (needs HeliPort app for menu bar)"),
+    "itlwm":             KextEntry("itlwm",            "OpenIntelWireless/itlwm",     "itlwm_",             "Intel WiFi (needs HeliPort app for menu bar)", exe_name="AirportItlwm"),
     "AirportItlwm":      KextEntry("AirportItlwm",     "OpenIntelWireless/itlwm",     "AirportItlwm_",      "Intel WiFi as native AirportBSD (macOS version specific!)"),
     "AirportBrcmFixup":  KextEntry("AirportBrcmFixup", "acidanthera/AirportBrcmFixup","AirportBrcmFixup-",  "Broadcom BCM94352Z/BCM943602CS WiFi patches"),
     "ATH9KFixup":        KextEntry("ATH9KFixup",       "chontos/ATH9KFixup",          "ATH9KFixup-",        "Atheros AR9xxx WiFi patches"),
