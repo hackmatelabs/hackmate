@@ -71,14 +71,14 @@ Button.advanced-btn:hover { color: #00ff88; }
 .hw-row               { margin-bottom: 0; }
 .hw-key               { color: #555555; width: 12; }
 .hw-val               { color: #cccccc; }
-.cfg-section          { color: #00ff88; margin-top: 1; margin-bottom: 0; }
-.cfg-label            { color: #aaaaaa; width: 32; content-align: left middle; height: 1; }
-.cfg-row              { height: 1; align: left middle; margin-bottom: 0; }
-Switch                { margin: 0 1 0 0; height: 1; }
+.cfg-section          { color: #00ff88; height: 1; margin-top: 1; }
+.cfg-label            { color: #aaaaaa; width: 32; content-align: left middle; }
+.cfg-row              { height: 3; align: left middle; }
+Switch                { margin: 0 1 0 0; }
 #editor-scroll        { height: 1fr; border: solid #1a1a1a; }
 #simple-panel         { height: auto; }
 #advanced-panel       { height: auto; }
-.short-input          { width: 16; height: 1; }
+.short-input          { width: 16; }
 """
 
 BANNER = (
