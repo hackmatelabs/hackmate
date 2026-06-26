@@ -194,7 +194,7 @@ def _kext_entry(kext: KextEntry) -> dict:
         "BundlePath":     f"{kext.name}.kext",
         "Comment":        kext.note,
         "Enabled":        True,
-        "ExecutablePath": f"Contents/MacOS/{kext.name}" if has_exe else "",
+        "ExecutablePath": f"Contents/MacOS/{kext.exe_name or kext.name}" if has_exe else "",
         "MaxKernel":      max_k,
         "MinKernel":      min_k,
         "PlistPath":      "Contents/Info.plist",
