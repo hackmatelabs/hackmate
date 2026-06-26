@@ -7,17 +7,22 @@ Supports Linux, Windows, and macOS as host operating systems.
 
 ## 📢 Announcements
 
+**v1.1.0 is out** — `git pull` to get all the latest fixes before running HackMate. HackMate will also prompt you to update automatically on launch.
+
 **If you cloned before June 25th (running from `hackmate-linux/`):**
 Just run your usual command — HackMate will auto-migrate itself to the new `src/` layout and relaunch. No manual steps needed.
 
 **If you're on macOS and got a `lspci not found` error:**
-macOS is now fully supported. Just update and re-run:
-```bash
-git pull && sudo python3 src/hackmate.py
-```
+macOS is now fully supported. Pull the latest and re-run.
 
 **If USB formatting fails on Windows:**
-Known issue, being investigated. Workaround: manually format your USB as FAT32 in Disk Management, then re-run HackMate.
+Fixed in latest update. Pull and try again. If it still fails, use the new **Already Formatted** button — format your USB as FAT32 (GPT) in Disk Management first, then pick that option in HackMate.
+
+**If you got `sudo: uv: command not found`:**
+Don't use `sudo uv run`. Always run with `sudo .venv/bin/python3 src/hackmate.py` after setup.
+
+**Kaby Lake (7th gen) users:**
+Tahoe now shows as an option for your hardware. Pull the latest and rerun.
 
 ---
 
