@@ -694,8 +694,33 @@ class InstallScreen(Screen):
             # ── 4. Generate SMBIOS ────────────────────────────────────────────
             ui(35, "Generating SMBIOS...")
             log("── Generating SMBIOS...", "header")
-            from smbios import generate as gen_smbios
-            smbios = gen_smbios(profile)
+            from smbios import generate as gen_smbios, SMBIOSData
+            smbios = None
+
+            # In repair mode, reuse existing SMBIOS so serial/MLB/UUID stay the same
+            if repair:
+                existing_config = oc_dir / "config.plist"
+                if existing_config.exists():
+                    try:
+                        import plistlib
+                        with open(str(existing_config), "rb") as f:
+                            old_cfg = plistlib.load(f)
+                        pi = old_cfg.get("PlatformInfo", {}).get("Generic", {})
+                        if pi.get("SystemSerialNumber") and pi.get("MLB"):
+                            smbios = SMBIOSData(
+                                model=pi.get("SystemProductName", profile.smbios_model),
+                                serial=pi["SystemSerialNumber"],
+                                board_serial=pi["MLB"],
+                                system_uuid=pi.get("SystemUUID", ""),
+                                rom=pi.get("ROM", b"").hex() if isinstance(pi.get("ROM"), bytes) else pi.get("ROM", ""),
+                            )
+                            log(f"  Reusing existing SMBIOS (serial preserved)", "ok")
+                    except Exception as e:
+                        log(f"  Could not read existing SMBIOS ({e}), generating fresh", "info")
+
+            if smbios is None:
+                smbios = gen_smbios(profile)
+
             log(f"  Model:   {smbios.model}", "ok")
             log(f"  Serial:  {smbios.serial}", "ok")
             log(f"  MLB:     {smbios.board_serial}", "ok")
