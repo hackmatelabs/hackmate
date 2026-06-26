@@ -653,7 +653,7 @@ def generate(profile: HardwareProfile, smbios: SMBIOSData) -> dict:
             "Boot": {
                 "ConsoleAttributes":  0,
                 "HibernateMode":      "None",
-                "HideAuxiliary":      True,
+                "HideAuxiliary":      False,
                 "LauncherOption":     "Disabled",
                 "LauncherPath":       "Default",
                 "PickerAttributes":   1,
