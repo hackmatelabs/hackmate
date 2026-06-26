@@ -2,6 +2,10 @@ MIT License
 
 Copyright (c) 2026 riftaway7-code
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+GRANT OF LICENSE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
 in the Software without restriction, including without limitation the rights
@@ -12,18 +16,83 @@ furnished to do so, subject to the following conditions:
 The above copyright notice and this permission notice shall be included in all
 copies or substantial portions of the Software.
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DISCLAIMER OF WARRANTIES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+FITNESS FOR A PARTICULAR PURPOSE, TITLE, AND NON-INFRINGEMENT. THE AUTHORS
+AND COPYRIGHT HOLDERS MAKE NO REPRESENTATIONS OR WARRANTIES OF ANY KIND
+CONCERNING THE SOFTWARE, WHETHER EXPRESS, IMPLIED, STATUTORY, OR OTHERWISE,
+INCLUDING WITHOUT LIMITATION WARRANTIES OF TITLE, MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE, NON-INFRINGEMENT, OR THE ABSENCE OF LATENT OR
+OTHER DEFECTS, ACCURACY, OR THE PRESENCE OR ABSENCE OF ERRORS, WHETHER OR
+NOT DISCOVERABLE.
 
-ADDITIONAL DISCLAIMER: This software is intended solely for educational and
-personal research purposes. The authors are not responsible for any misuse,
-legal consequences, or violations of third-party terms of service that may
-arise from the use of this software. Any forks, modifications, or
-redistributions of this software are the sole legal responsibility of the
-person or entity that created them. Use of this software is entirely at your
-own risk.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+LIMITATION OF LIABILITY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR
+OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR THE
+USE OR OTHER DEALINGS IN THE SOFTWARE. THIS INCLUDES BUT IS NOT LIMITED TO:
+
+  • Loss of data, files, or storage media resulting from use of this software
+  • Damage to hardware, firmware, or system configurations
+  • Violations of any third-party end-user license agreements (EULAs),
+    terms of service, or applicable laws in your jurisdiction
+  • Any indirect, incidental, special, exemplary, or consequential damages,
+    even if the authors have been advised of the possibility of such damages
+  • Any claims brought by third parties arising out of or relating to your
+    use, distribution, or modification of the Software
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+EDUCATIONAL AND RESEARCH PURPOSE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+This software is developed and distributed for educational, research, and
+personal experimentation purposes only. HackMate automates the generation of
+OpenCore EFI configurations and is intended to assist users in learning about
+bootloader configuration, ACPI tables, kernel extensions, and macOS
+compatibility on non-Apple hardware.
+
+The authors do not encourage, endorse, or facilitate any violation of software
+license agreements, intellectual property rights, or applicable laws. Users are
+solely and entirely responsible for ensuring that their use of this software
+complies with all applicable laws, regulations, and third-party terms of
+service in their jurisdiction.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FORKS, MODIFICATIONS, AND REDISTRIBUTION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Any person or entity that forks, modifies, redistributes, or otherwise derives
+a work from this Software assumes full and sole legal responsibility for that
+derivative work and any consequences arising from it. The original authors
+bear no responsibility whatsoever for the actions, content, or legal standing
+of any fork or redistribution of this Software. Attribution to the original
+project is appreciated but not legally required beyond the conditions stated
+above.
+
+If you distribute a modified version of this Software, you must:
+
+  1. Retain this license and copyright notice in all copies or substantial
+     portions of the Software.
+  2. Clearly indicate that changes were made and that the modified version is
+     not the original HackMate project.
+  3. Not use the name "HackMate" or any confusingly similar name in a way
+     that implies endorsement by the original authors without prior written
+     permission.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ACCEPTANCE OF TERMS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+By downloading, cloning, running, modifying, or distributing this Software,
+you acknowledge that you have read, understood, and agree to be bound by the
+terms of this license. If you do not agree to these terms, you must not use
+this Software.
+
+Use of this Software is entirely at your own risk.
