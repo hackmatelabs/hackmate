@@ -399,7 +399,14 @@ def _amd_kernel_patches(profile: HardwareProfile) -> list[dict]:
     # Core AMD kernel patches from AMD-OSX
     # These allow AMD CPUs to boot macOS
     # Values from https://github.com/AMD-OSX/AMD_Vanilla
-    cores = profile.core_count or 8
+    try:
+        import subprocess
+        raw = subprocess.run(
+            ["nproc", "--all"], capture_output=True, text=True, timeout=5
+        ).stdout.strip()
+        cores = int(raw) if raw.isdigit() else 8
+    except Exception:
+        cores = 8
 
     def amd_patch(comment, base, find, replace, count=1, min_k="", max_k=""):
         return {
