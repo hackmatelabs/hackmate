@@ -11,10 +11,11 @@ body:
     id: os-type
     attributes:
       label: Operating System
-      description: Are you using Windows or Linux?
+      description: What OS are you running HackMate from?
       options:
         - Windows
         - Linux
+        - macOS
     validations:
       required: true
   - type: input

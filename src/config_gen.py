@@ -358,6 +358,12 @@ def _kernel_section(profile: HardwareProfile, kexts: list[KextEntry]) -> dict:
     if "hp" in _dmi_vendor():
         quirks["LapicKernelPanic"] = True
 
+    # AMD: disable Intel-only quirks
+    if profile.cpu_vendor == "amd":
+        quirks["AppleCpuPmCfgLock"]  = False
+        quirks["AppleXcpmCfgLock"]   = False
+        quirks["ProvideCurrentCpuInfo"] = False
+
     # AMD needs extra kernel patches
     patches = []
     if profile.cpu_vendor == "amd":
@@ -395,40 +401,84 @@ def _dmi_vendor() -> str:
 
 
 def _amd_kernel_patches(profile: HardwareProfile) -> list[dict]:
-    # Core AMD kernel patches from AMD-OSX
-    # These allow AMD CPUs to boot macOS
-    # Values from https://github.com/AMD-OSX/AMD_Vanilla
+    # Full AMD vanilla kernel patches from https://github.com/AMD-OSX/AMD_Vanilla
+    # Required for AMD CPUs (Ryzen/Threadripper) to boot macOS
     cores = cpu_core_count()
+    core_hex = format(cores, "02x")
 
-    def amd_patch(comment, base, find, replace, count=1, min_k="", max_k=""):
+    def p(comment, base, find, replace, count=1, min_k="", max_k="", identifier="kernel"):
         return {
             "Arch":         "x86_64",
             "Base":         base,
             "Comment":      f"AMD - {comment}",
             "Count":        count,
             "Enabled":      True,
-            "Find":         bytes.fromhex(find) if find else b"",
-            "Identifier":   "kernel",
+            "Find":         bytes.fromhex(find.replace(" ", "")) if find else b"",
+            "Identifier":   identifier,
             "Limit":        0,
             "Mask":         b"",
             "MaxKernel":    max_k,
             "MinKernel":    min_k,
-            "Replace":      bytes.fromhex(replace),
+            "Replace":      bytes.fromhex(replace.replace(" ", "")),
             "ReplaceMask":  b"",
             "Skip":         0,
         }
 
-    core_hex = format(cores, "02x")
-
     return [
-        amd_patch("algos-BKernel", "_mh_execute_header",
-                  "B8000000 0000",
-                  "B8" + core_hex + "000000 0000", count=1,
-                  min_k="20.0.0"),
-        amd_patch("mp-cpus", "_mp_cpus_callin",
-                  "B8010000 00",
-                  "B8" + core_hex + "0000 00", count=1,
-                  min_k="20.0.0"),
+        # cpuid_set_cpufamily — make macOS treat AMD as supported Intel family
+        p("cpuid_set_cpufamily",
+          "_cpuid_set_cpufamily",
+          "B9 78000000 31C0 39D9 75 13",
+          "B8 A1000000 31C0 31C0 31C0 EB 02",
+          min_k="20.0.0"),
+
+        # cpuid_set_info_rdmsr — prevent RDMSR crash on AMD
+        p("cpuid_set_info_rdmsr",
+          "_cpuid_set_info_rdmsr",
+          "B9 000000C0 0F32",
+          "B9 000000C0 31C0",
+          count=4, min_k="20.0.0"),
+
+        # commpage_populate — disable commpage CPU features AMD doesn't have
+        p("commpage_populate",
+          "_commpage_populate",
+          "EB 4E",
+          "EB 00",
+          min_k="20.0.0"),
+
+        # mp_cpus_callin — patch CPU count with actual core count
+        p("mp_cpus_callin",
+          "_mp_cpus_callin",
+          "B8 01000000",
+          f"B8 {core_hex}000000",
+          min_k="20.0.0"),
+
+        # cpuid_vmm_present — prevent VMM detection hang
+        p("cpuid_vmm_present",
+          "_cpuid_vmm_present",
+          "B8 01000000 C3",
+          "B8 00000000 C3",
+          min_k="20.0.0"),
+
+        # mach_trap_table patches — fix system call table for AMD
+        p("mach_trap_table 1",
+          "_mach_trap_table",
+          "B9 90010000",
+          "B9 00000000",
+          min_k="20.0.0"),
+
+        p("mach_trap_table 2",
+          "_mach_trap_table",
+          "4C 8D 15 XXXXXXXX",
+          "4C 8D 15 00000000",
+          min_k="20.0.0"),
+
+        # cpuid power management — AMD has no XCPM
+        p("xcpm_pkg_scope_msrs",
+          "_xcpm_pkg_scope_msrs",
+          "B9 790000C0 0F32",
+          "B9 790000C0 31C0",
+          min_k="20.0.0"),
     ]
 
 

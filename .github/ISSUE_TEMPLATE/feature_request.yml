@@ -1,0 +1,38 @@
+name: Feature Request
+description: Suggest a new feature or improvement for HackMate
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Got an idea for HackMate? Fill this out and we'll take a look.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: What are you trying to do that HackMate currently can't do or does poorly?
+      placeholder: "e.g. HackMate doesn't support my Realtek WiFi card, so I have to manually add the kext every time"
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: What would you like HackMate to do?
+      placeholder: "e.g. Add RealtekWifi.kext to the kext list for Realtek 8852 WiFi chips"
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you've considered
+      description: Any other ways you've thought about solving this?
+    validations:
+      required: false
+  - type: input
+    id: hardware
+    attributes:
+      label: Relevant hardware (if applicable)
+      placeholder: "e.g. ThinkPad T480s, i5-8350U, Intel UHD 620"
+    validations:
+      required: false
