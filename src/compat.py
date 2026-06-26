@@ -94,7 +94,8 @@ def cpu_core_count() -> int:
     if IS_WINDOWS:
         try:
             raw = _run(["powershell", "-NoProfile", "-Command",
-                        "(Get-WmiObject Win32_Processor).NumberOfCores"])
+                        "(Get-WmiObject Win32_Processor | Select-Object -First 1).NumberOfCores"])
+            raw = raw.strip().splitlines()[0].strip()
             return int(raw) if raw.isdigit() else 8
         except Exception:
             return 8
@@ -380,9 +381,19 @@ def _format_usb_macos(device: str) -> bool:
 
 def _format_usb_windows(drive_letter: str, mount_letter: str = "Z") -> bool:
     import tempfile
-    src = drive_letter.rstrip(':\\')
+    letter = drive_letter.rstrip(':\\')
+
+    # diskpart needs disk number, not drive letter — resolve it via PowerShell
+    disk_num_raw = _run([
+        "powershell", "-NoProfile", "-Command",
+        f"(Get-Partition -DriveLetter {letter} | Get-Disk).Number"
+    ]).strip()
+
+    if not disk_num_raw.isdigit():
+        return False
+
     script = (
-        f"select volume {src}\n"
+        f"select disk {disk_num_raw}\n"
         "clean\n"
         "create partition primary\n"
         "format fs=fat32 quick label=HACKINTOSH\n"
