@@ -1112,15 +1112,23 @@ class ConfigEditorScreen(Screen):
         self._load()
         from config_editor import (
             get_boot_args, get_sip_enabled, get_hide_auxiliary,
-            get_timeout, get_oc_logging, get_secure_boot_model, get_smbios
+            get_timeout, get_oc_logging, get_secure_boot_model, get_smbios,
+            get_igpu_platform_id, suggest_framebuffers, BOOT_ARG_PRESETS,
         )
-        cfg = self._cfg
-        args = get_boot_args(cfg)
+        cfg     = self._cfg
+        args    = get_boot_args(cfg)
+        profile = self.app.profile
 
         alcid_val   = str(args.get("alcid", ""))
         timeout_val = str(get_timeout(cfg))
         smbios_val  = get_smbios(cfg)
         sbm_val     = get_secure_boot_model(cfg)
+
+        # iGPU suggestions
+        gpu_id    = getattr(profile, "gpu_device_id", "").lower() if profile else ""
+        fb_opts   = suggest_framebuffers(gpu_id)
+        cur_fb    = get_igpu_platform_id(cfg)
+        gpu_label = getattr(profile, "gpu_name", "") if profile else ""
 
         yield Header()
         yield Container(
@@ -1132,6 +1140,12 @@ class ConfigEditorScreen(Screen):
                 ScrollableContainer(
                     # ── Simple mode ──────────────────────────────────────
                     Vertical(
+                        Static("  ── Boot Arg Presets ──────────────────────", classes="cfg-section"),
+                        Horizontal(
+                            *[Button(name, id=f"preset-{name.lower().replace(' ','-')}", classes="advanced-btn")
+                              for name in BOOT_ARG_PRESETS],
+                            classes="cfg-row",
+                        ),
                         Static("  ── Boot Args ─────────────────────────────", classes="cfg-section"),
                         Horizontal(Static("  Verbose (-v)",         classes="cfg-label"), Switch(value="-v" in args,              id="sw-verbose"),  classes="cfg-row"),
                         Horizontal(Static("  No compat check",      classes="cfg-label"), Switch(value="-no_compat_check" in args,id="sw-nocompat"), classes="cfg-row"),
@@ -1146,6 +1160,20 @@ class ConfigEditorScreen(Screen):
                         Horizontal(Static("  SecureBootModel",      classes="cfg-label"), Input(value=sbm_val, placeholder="Disabled", id="in-sbm", classes="short-input"), classes="cfg-row"),
                         Static("  ── System ────────────────────────────────", classes="cfg-section"),
                         Horizontal(Static("  SMBIOS model",         classes="cfg-label"), Input(value=smbios_val, placeholder="MacBookPro15,2", id="in-smbios"), classes="cfg-row"),
+                        *(
+                            [
+                                Static("  ── iGPU Framebuffer ──────────────────────", classes="cfg-section"),
+                                Static(f"  Detected: {gpu_label} ({gpu_id})", classes="info"),
+                                Static(f"  Current:  {cur_fb or '(not set)'}", id="fb-current", classes="info"),
+                                Static("  Suggestions:", classes="info"),
+                                *[Horizontal(
+                                    Static(f"  {label}", classes="cfg-label"),
+                                    Button("Apply", id=f"fb-{hex_id}", classes="advanced-btn"),
+                                    classes="cfg-row",
+                                ) for hex_id, label in fb_opts],
+                                Horizontal(Static("  Custom platform-id", classes="cfg-label"), Input(value=cur_fb, placeholder="e.g. 0000c087", id="in-fb", classes="short-input"), classes="cfg-row"),
+                            ] if fb_opts or gpu_id else []
+                        ),
                         id="simple-panel"
                     ),
                     # ── Advanced mode ─────────────────────────────────────
@@ -1197,6 +1225,31 @@ class ConfigEditorScreen(Screen):
                 "Switch to Simple mode" if self._mode == "advanced" else "Switch to Advanced mode"
             )
 
+        elif bid.startswith("preset-"):
+            from config_editor import get_boot_args, set_boot_args, BOOT_ARG_PRESETS
+            # map button id back to preset name
+            preset_key = next(
+                (k for k in BOOT_ARG_PRESETS if f"preset-{k.lower().replace(' ','-')}" == bid),
+                None
+            )
+            if preset_key:
+                self._apply_simple()
+                args = get_boot_args(self._cfg)
+                args.update(BOOT_ARG_PRESETS[preset_key])
+                set_boot_args(self._cfg, args)
+                self.query_one("#save-status", Static).update(f"  Preset '{preset_key}' applied — save to write.")
+
+        elif bid.startswith("fb-"):
+            hex_id = bid[3:]
+            from config_editor import set_igpu_platform_id
+            set_igpu_platform_id(self._cfg, hex_id)
+            try:
+                self.query_one("#fb-current", Static).update(f"  Current:  {hex_id}")
+                self.query_one("#in-fb", Input).value = hex_id
+            except Exception:
+                pass
+            self.query_one("#save-status", Static).update(f"  Framebuffer set to {hex_id} — save to write.")
+
         elif bid == "adv-get":
             from config_editor import get_value
             key = self.query_one("#adv-key", Input).value.strip()
@@ -1236,7 +1289,8 @@ class ConfigEditorScreen(Screen):
         """Read all simple-mode widgets and apply to cfg."""
         from config_editor import (
             get_boot_args, set_boot_args, set_sip, set_hide_auxiliary,
-            set_timeout, set_oc_logging, set_secure_boot_model, set_smbios
+            set_timeout, set_oc_logging, set_secure_boot_model, set_smbios,
+            set_igpu_platform_id,
         )
         cfg  = self._cfg
         args = get_boot_args(cfg)
@@ -1296,6 +1350,13 @@ class ConfigEditorScreen(Screen):
         smbios = inp("#in-smbios")
         if smbios:
             set_smbios(cfg, smbios)
+
+        fb = inp("#in-fb")
+        if fb and len(fb) == 8:
+            try:
+                set_igpu_platform_id(cfg, fb)
+            except Exception:
+                pass
 
 
 # ─── BIOS Checklist ──────────────────────────────────────────────────────────

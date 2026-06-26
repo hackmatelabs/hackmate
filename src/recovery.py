@@ -74,8 +74,32 @@ def ensure_macrecovery() -> Path:
     return MACRECOVERY_PATH
 
 
+_CACHE_DIR = Path.home() / ".hackmate" / "cache" / "recovery"
+
+
+def _cached_recovery_files(version: MacOSVersion) -> list[Path]:
+    """Return cached recovery files for this version if they exist."""
+    cache = _CACHE_DIR / version.version
+    if not cache.exists():
+        return []
+    files = list(cache.glob("*.dmg")) + list(cache.glob("*.chunklist")) + list(cache.glob("com.apple.*"))
+    return files
+
+
 def download_recovery(version: MacOSVersion, dest: Path, progress_cb=None) -> tuple[bool, str]:
     """Download macOS recovery to dest folder. Returns (success, message)."""
+    import shutil
+
+    # Use cached files if available
+    cached = _cached_recovery_files(version)
+    if cached:
+        if progress_cb:
+            progress_cb(f"Using cached recovery ({len(cached)} files)...")
+        dest.mkdir(parents=True, exist_ok=True)
+        for f in cached:
+            shutil.copy2(f, dest / f.name)
+        return True, f"Copied {len(cached)} file(s) from cache"
+
     try:
         script = ensure_macrecovery()
     except Exception as e:
@@ -115,10 +139,18 @@ def download_recovery(version: MacOSVersion, dest: Path, progress_cb=None) -> tu
     except Exception as e:
         return False, f"Download failed: {e}"
 
-    # macrecovery downloads BaseSystem.dmg + BaseSystem.chunklist (or RecoveryImage)
     files = list(dest.glob("*.dmg")) + list(dest.glob("*.chunklist")) + list(dest.glob("com.apple.*"))
     if not files:
         return False, "No recovery files found after download"
+
+    # Cache for future use
+    try:
+        cache = _CACHE_DIR / version.version
+        cache.mkdir(parents=True, exist_ok=True)
+        for f in files:
+            shutil.copy2(f, cache / f.name)
+    except Exception:
+        pass
 
     return True, f"Downloaded {len(files)} file(s) to {dest}"
 

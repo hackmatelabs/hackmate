@@ -149,6 +149,83 @@ def set_smbios(cfg: dict, val: str) -> None:
     cfg.setdefault("PlatformInfo", {}).setdefault("Generic", {})["SystemProductName"] = val
 
 
+# ─── iGPU framebuffer ─────────────────────────────────────────────────────────
+
+_IGPU_PATH = "PciRoot(0x0)/Pci(0x2,0x0)"
+
+# device_id (lowercase) → [(platform_id_hex, label), ...]
+IGPU_FRAMEBUFFERS: dict[str, list[tuple[str, str]]] = {
+    # Sandy Bridge
+    "0116": [("00003001", "HD 3000 — laptop")],
+    "0126": [("00003001", "HD 3000 — laptop")],
+    # Ivy Bridge
+    "0166": [("03006601", "HD 4000 — laptop (recommended)"), ("04006601", "HD 4000 — laptop 13\"")],
+    "0162": [("0b006601", "HD 4000 — desktop")],
+    # Haswell
+    "0416": [("0a002604", "HD 4600 — laptop (recommended)"), ("07002604", "HD 4600 — laptop alt")],
+    "0412": [("07002604", "HD 4600 — desktop")],
+    "0d26": [("0b002604", "Iris Pro 5200 — laptop")],
+    # Broadwell
+    "1616": [("16000000", "HD 5500 — laptop")],
+    "1626": [("16000000", "HD 6000 — laptop")],
+    # Skylake
+    "1916": [("00001619", "HD 520 — laptop (recommended)")],
+    "191b": [("00001b19", "HD 530 — desktop")],
+    "1926": [("00002619", "Iris 540/550 — laptop")],
+    # Kaby Lake
+    "5916": [("00001659", "HD 620 — laptop (recommended)"), ("00001b59", "HD 620 — laptop alt")],
+    "591b": [("00001b59", "HD 630 — laptop (recommended)")],
+    "5912": [("00001259", "HD 630 — desktop")],
+    # Kaby Lake-R
+    "5917": [("00001659", "UHD 620 — laptop (recommended)")],
+    # Whiskey Lake / Coffee Lake-R
+    "3ea0": [("0000c087", "UHD 620 — laptop (recommended)")],
+    "3ea9": [("0000c087", "UHD 620 — laptop")],
+    # Coffee Lake
+    "3e92": [("07009b3e", "UHD 630 — desktop (recommended)")],
+    "3e91": [("07009b3e", "UHD 630 — desktop")],
+    "3e98": [("07009b3e", "UHD 630 — desktop"), ("00009b3e", "UHD 630 — laptop")],
+    # Comet Lake
+    "9bc4": [("0000c087", "UHD 630 — laptop (recommended)")],
+    "9bca": [("0000c087", "UHD 620 — laptop (recommended)")],
+    "9bc8": [("07009b3e", "UHD 630 — desktop")],
+    # Ice Lake
+    "8a52": [("0000528a", "Iris Plus — laptop (recommended)")],
+    "8a51": [("0000528a", "Iris Plus — laptop")],
+}
+
+
+def suggest_framebuffers(gpu_device_id: str) -> list[tuple[str, str]]:
+    """Return list of (hex, label) suggestions for a GPU device ID."""
+    return IGPU_FRAMEBUFFERS.get(gpu_device_id.lower(), [])
+
+
+def get_igpu_platform_id(cfg: dict) -> str:
+    try:
+        val = cfg["DeviceProperties"]["Add"][_IGPU_PATH]["AAPL,ig-platform-id"]
+        return val.hex()
+    except (KeyError, TypeError, AttributeError):
+        return ""
+
+
+def set_igpu_platform_id(cfg: dict, hex_str: str) -> None:
+    if not hex_str:
+        return
+    cfg.setdefault("DeviceProperties", {}).setdefault("Add", {}).setdefault(_IGPU_PATH, {})
+    cfg["DeviceProperties"]["Add"][_IGPU_PATH]["AAPL,ig-platform-id"] = bytes.fromhex(hex_str)
+
+
+# ─── Boot-arg presets ─────────────────────────────────────────────────────────
+
+BOOT_ARG_PRESETS: dict[str, dict[str, str | bool]] = {
+    "Verbose":       {"-v": True, "keepsyms": "1", "debug": "0x100"},
+    "Disable Nvidia":{"nv_disable": "1"},
+    "Safe mode":     {"-x": True},
+    "No sleep":      {"darkwake": "0"},
+    "USB reset":     {"uia_exclude": ""},
+}
+
+
 # ─── Load / Save ──────────────────────────────────────────────────────────────
 
 def load_config(path: Path) -> dict:
