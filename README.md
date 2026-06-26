@@ -3,7 +3,7 @@ Automates the entire process of creating a bootable OpenCore hackintosh USB. No 
 
 ## Platform
 
-`src/` works on both Linux and Windows from a single codebase.
+`src/` works on Linux, Windows, and macOS from a single codebase.
 
 ---
 
@@ -29,6 +29,19 @@ pip install textual
 # Right-click → Run as Administrator, or from an admin terminal:
 python hackmate.py
 ```
+
+## macOS
+
+**Requirements:** Python 3.10+, sudo access
+
+```bash
+git clone https://github.com/riftaway7-code/hackmate.git
+cd hackmate/src
+pip3 install textual
+sudo python3 hackmate.py
+```
+
+> Works on both real Macs and hackintoshes. Uses `system_profiler` for hardware detection and `diskutil` for USB formatting.
 
 ---
 

@@ -1,7 +1,7 @@
 import subprocess
 import re
 from dataclasses import dataclass, field
-from compat import IS_WINDOWS, IS_LINUX
+from compat import IS_WINDOWS, IS_LINUX, IS_MACOS
 
 
 @dataclass
@@ -564,6 +564,109 @@ def detect_smbios(profile: HardwareProfile):
         profile.smbios_model = "MacBookPro15,2"
 
 
+# ─── macOS detection ───────────────────────────────────────────────────────────
+
+def _sp(data_type: str) -> str:
+    try:
+        return subprocess.run(
+            ["system_profiler", data_type], capture_output=True, text=True, timeout=15
+        ).stdout
+    except Exception:
+        return ""
+
+
+def _detect_cpu_macos(profile: HardwareProfile):
+    profile.cpu_name = _run(["sysctl", "-n", "machdep.cpu.brand_string"])
+    vendor_raw = _run(["sysctl", "-n", "machdep.cpu.vendor"]).lower()
+    if "intel" in vendor_raw:
+        profile.cpu_vendor = "intel"
+    elif "amd" in vendor_raw or "amd" in profile.cpu_name.lower():
+        profile.cpu_vendor = "amd"
+
+    try:
+        profile.core_count = int(_run(["sysctl", "-n", "hw.physicalcpu"]) or "0")
+        profile.thread_count = int(_run(["sysctl", "-n", "hw.logicalcpu"]) or "0")
+    except Exception:
+        pass
+
+    # Detect generation from CPU name same as Linux
+    if profile.cpu_vendor == "intel":
+        name = profile.cpu_name.lower()
+        for keyword, gen, codename in [
+            ("14th", 14, "Raptor Lake Refresh"), ("13th", 13, "Raptor Lake"),
+            ("12th", 12, "Alder Lake"), ("11th", 11, "Tiger Lake"),
+            ("10th", 10, "Ice Lake / Comet Lake"), ("8th", 8, "Coffee Lake"),
+            ("7th", 7, "Kaby Lake"), ("6th", 6, "Skylake"),
+            ("5th", 5, "Broadwell"), ("4th", 4, "Haswell"),
+        ]:
+            if keyword in name:
+                profile.cpu_generation = gen
+                profile.cpu_codename = codename
+                profile.oc_platform = codename
+                break
+    elif profile.cpu_vendor == "amd":
+        _detect_amd_gen(profile)
+
+
+def _detect_gpu_macos(profile: HardwareProfile):
+    sp = _sp("SPDisplaysDataType")
+    for line in sp.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        lower = line.lower()
+        if "intel" in lower and ("uhd" in lower or "iris" in lower or "hd graphics" in lower):
+            profile.gpu_vendor = "intel"
+            profile.gpu_name = line.split(":")[-1].strip() if ":" in line else line
+        elif "amd" in lower or "radeon" in lower:
+            profile.gpu_vendor = "amd"
+            profile.gpu_name = line.split(":")[-1].strip() if ":" in line else line
+        elif "nvidia" in lower or "geforce" in lower:
+            profile.gpu_vendor = "nvidia"
+            profile.gpu_name = line.split(":")[-1].strip() if ":" in line else line
+
+
+def _detect_audio_macos(profile: HardwareProfile):
+    sp = _sp("SPAudioDataType")
+    for line in sp.splitlines():
+        lower = line.lower()
+        if "alc" in lower or "realtek" in lower:
+            m = re.search(r'alc\d+', lower)
+            if m:
+                profile.audio_codec = m.group(0).upper()
+                profile.audio_name = line.strip()
+                break
+        elif "audio" in lower and ":" in line:
+            profile.audio_name = line.split(":")[-1].strip()
+
+
+def _detect_network_macos(profile: HardwareProfile):
+    sp = _sp("SPNetworkDataType")
+    lower = sp.lower()
+    if "i219" in lower or "i218" in lower:
+        profile.ethernet_chipset = "i219"
+        profile.ethernet_name = "Intel Ethernet"
+    elif "realtek" in lower:
+        profile.ethernet_chipset = "rtl8111"
+        profile.ethernet_name = "Realtek Ethernet"
+    if "intel" in lower and ("wi-fi" in lower or "wireless" in lower or "ax" in lower):
+        profile.wifi_chipset = "intel"
+        profile.wifi_name = "Intel WiFi"
+    elif "broadcom" in lower and ("wi-fi" in lower or "wireless" in lower):
+        profile.wifi_chipset = "broadcom"
+        profile.wifi_name = "Broadcom WiFi"
+
+
+def _detect_platform_macos(profile: HardwareProfile):
+    model = _run(["sysctl", "-n", "hw.model"]).lower()
+    profile.platform = "laptop" if "macbook" in model else "desktop"
+    profile.has_touchpad = "macbook" in model
+    if profile.has_touchpad:
+        profile.touchpad_type = "i2c"
+    sp = _sp("SPStorageDataType").lower()
+    profile.nvme_present = "nvme" in sp or "apple ssd" in sp
+
+
 # ─── Main scan ─────────────────────────────────────────────────────────────────
 
 def scan() -> HardwareProfile:
@@ -575,6 +678,12 @@ def scan() -> HardwareProfile:
         _detect_audio_windows(profile)
         _detect_network_windows(profile)
         _detect_platform_windows(profile)
+    elif IS_MACOS:
+        _detect_cpu_macos(profile)
+        _detect_gpu_macos(profile)
+        _detect_audio_macos(profile)
+        _detect_network_macos(profile)
+        _detect_platform_macos(profile)
     else:
         profile.raw_pci = _lspci()
         _detect_cpu_linux(profile)

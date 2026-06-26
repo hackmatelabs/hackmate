@@ -11,7 +11,8 @@ from pathlib import Path
 from typing import Optional
 
 IS_WINDOWS = sys.platform == "win32"
-IS_LINUX = not IS_WINDOWS
+IS_MACOS  = sys.platform == "darwin"
+IS_LINUX  = not IS_WINDOWS and not IS_MACOS
 
 
 def is_admin() -> bool:
@@ -35,16 +36,19 @@ def require_admin():
         sys.exit(1)
 
 
+def _run(cmd: list) -> str:
+    try:
+        return subprocess.run(cmd, capture_output=True, text=True, timeout=10).stdout.strip()
+    except Exception:
+        return ""
+
+
 def dmi_vendor() -> str:
     if IS_WINDOWS:
-        try:
-            return subprocess.run(
-                ["powershell", "-NoProfile", "-Command",
-                 "(Get-WmiObject Win32_ComputerSystem).Manufacturer"],
-                capture_output=True, text=True, timeout=8
-            ).stdout.strip().lower()
-        except Exception:
-            return ""
+        return _run(["powershell", "-NoProfile", "-Command",
+                     "(Get-WmiObject Win32_ComputerSystem).Manufacturer"]).lower()
+    if IS_MACOS:
+        return _run(["sysctl", "-n", "hw.model"]).lower()
     try:
         return Path("/sys/class/dmi/id/sys_vendor").read_text().strip().lower()
     except Exception:
@@ -60,15 +64,14 @@ def dmi_field(field: str) -> str:
             "board_name":   "(Get-WmiObject Win32_BaseBoard).Product",
         }
         cmd = wmi_map.get(field)
-        if not cmd:
-            return ""
-        try:
-            return subprocess.run(
-                ["powershell", "-NoProfile", "-Command", cmd],
-                capture_output=True, text=True, timeout=8
-            ).stdout.strip().lower()
-        except Exception:
-            return ""
+        return _run(["powershell", "-NoProfile", "-Command", cmd]).lower() if cmd else ""
+    if IS_MACOS:
+        macos_map = {
+            "sys_vendor":   ["sysctl", "-n", "hw.model"],
+            "product_name": ["sysctl", "-n", "hw.model"],
+        }
+        cmd = macos_map.get(field)
+        return _run(cmd).lower() if cmd else ""
     try:
         return Path(f"/sys/class/dmi/id/{field}").read_text().strip().lower()
     except Exception:
@@ -78,18 +81,19 @@ def dmi_field(field: str) -> str:
 def cpu_core_count() -> int:
     if IS_WINDOWS:
         try:
-            raw = subprocess.run(
-                ["powershell", "-NoProfile", "-Command",
-                 "(Get-WmiObject Win32_Processor).NumberOfCores"],
-                capture_output=True, text=True, timeout=8
-            ).stdout.strip()
+            raw = _run(["powershell", "-NoProfile", "-Command",
+                        "(Get-WmiObject Win32_Processor).NumberOfCores"])
+            return int(raw) if raw.isdigit() else 8
+        except Exception:
+            return 8
+    if IS_MACOS:
+        try:
+            raw = _run(["sysctl", "-n", "hw.physicalcpu"])
             return int(raw) if raw.isdigit() else 8
         except Exception:
             return 8
     try:
-        raw = subprocess.run(
-            ["nproc", "--all"], capture_output=True, text=True, timeout=5
-        ).stdout.strip()
+        raw = _run(["nproc", "--all"])
         return int(raw) if raw.isdigit() else 8
     except Exception:
         return 8
@@ -119,6 +123,24 @@ def get_dsdt(tmp: Path) -> Optional[Path]:
             return dst
         except Exception:
             return None
+    if IS_MACOS:
+        try:
+            dst = tmp / "DSDT.aml"
+            # ioreg dumps ACPI tables on macOS
+            raw = subprocess.run(
+                ["ioreg", "-l", "-p", "IOACPIPlane", "-k", "DSDT"],
+                capture_output=True, timeout=10
+            ).stdout
+            # Find DSDT bytes in ioreg output
+            import re
+            m = re.search(rb'"DSDT"\s*=\s*<([0-9a-f\s]+)>', raw, re.IGNORECASE)
+            if m:
+                hex_data = m.group(1).replace(b' ', b'')
+                dst.write_bytes(bytes.fromhex(hex_data.decode()))
+                return dst
+        except Exception:
+            pass
+        return None
     src = Path("/sys/firmware/acpi/tables/DSDT")
     if not src.exists():
         return None
@@ -187,6 +209,8 @@ def get_usb_drives() -> list[tuple[str, str, str]]:
     """Return list of (device, size, label) for USB drives."""
     if IS_WINDOWS:
         return _get_usb_drives_windows()
+    if IS_MACOS:
+        return _get_usb_drives_macos()
     return _get_usb_drives_linux()
 
 
@@ -213,6 +237,30 @@ def _get_usb_drives_linux() -> list[tuple[str, str, str]]:
         else:
             drives.append((dev["name"], dev.get("size", "?"), "No partition"))
     return drives
+
+
+def _get_usb_drives_macos() -> list[tuple[str, str, str]]:
+    import plistlib
+    try:
+        raw = subprocess.run(
+            ["diskutil", "list", "-plist", "external"],
+            capture_output=True, timeout=10
+        ).stdout
+        data = plistlib.loads(raw)
+        drives = []
+        for disk in data.get("WholeDisks", []):
+            info_raw = subprocess.run(
+                ["diskutil", "info", "-plist", disk],
+                capture_output=True, timeout=5
+            ).stdout
+            info = plistlib.loads(info_raw)
+            size_bytes = info.get("TotalSize", 0)
+            size_gb = f"{size_bytes // 1024 // 1024 // 1024}GB" if size_bytes else "?"
+            label = info.get("VolumeName") or info.get("MediaName") or ""
+            drives.append((f"/dev/{disk}", size_gb, label))
+        return drives
+    except Exception:
+        return []
 
 
 def _get_usb_drives_windows() -> list[tuple[str, str, str]]:
@@ -276,6 +324,8 @@ def format_usb(device: str, mount_point: str) -> bool:
     """Format USB as FAT32 with GPT+ESP. Returns True on success."""
     if IS_WINDOWS:
         return _format_usb_windows(device, mount_point)
+    if IS_MACOS:
+        return _format_usb_macos(device)
     return _format_usb_linux(device, mount_point)
 
 
@@ -306,6 +356,16 @@ def _format_usb_linux(device: str, mount_point: str) -> bool:
     return True
 
 
+def _format_usb_macos(device: str) -> bool:
+    # diskutil handles GPT+ESP automatically with FAT32
+    disk = device.replace("/dev/", "")
+    result = subprocess.run(
+        ["diskutil", "eraseDisk", "FAT32", "HACKINTOSH", "GPT", disk],
+        capture_output=True, timeout=60
+    )
+    return result.returncode == 0
+
+
 def _format_usb_windows(drive_letter: str, mount_letter: str = "Z") -> bool:
     import tempfile
     src = drive_letter.rstrip(':\\')
@@ -330,9 +390,12 @@ def _format_usb_windows(drive_letter: str, mount_letter: str = "Z") -> bool:
 
 
 def mount_usb(device: str, mount_point: str) -> bool:
-    """Mount USB partition. On Windows, the drive is already mounted after format."""
+    """Mount USB partition."""
     if IS_WINDOWS:
         return True  # Windows auto-mounts after format
+    if IS_MACOS:
+        # macOS auto-mounts to /Volumes/HACKINTOSH after format
+        return True
     import re
     import glob
     disk = re.sub(r'p?\d+$', '', device) if re.search(r'\d$', device) else device
@@ -347,15 +410,20 @@ def mount_usb(device: str, mount_point: str) -> bool:
 def unmount_usb(mount_point: str) -> bool:
     """Unmount the USB drive."""
     if IS_WINDOWS:
-        return True  # Windows handles this automatically
+        return True
+    if IS_MACOS:
+        subprocess.run(["diskutil", "unmount", mount_point], capture_output=True)
+        return True
     result = subprocess.run(["umount", mount_point], capture_output=True)
     return result.returncode == 0
 
 
 def get_mount_path(device: str = "") -> str:
-    """Get the mount path/letter for the USB drive."""
+    """Get the mount path for the USB drive."""
     if IS_WINDOWS:
-        return "Z:"  # We always mount as Z: during format
+        return "Z:"
+    if IS_MACOS:
+        return "/Volumes/HACKINTOSH"
     return "/tmp/hackmate_usb"
 
 
@@ -370,18 +438,16 @@ def get_tmp_dir() -> str:
 def has_card_reader() -> bool:
     if IS_WINDOWS:
         try:
-            raw = subprocess.run(
-                ["powershell", "-NoProfile", "-Command",
-                 "Get-PnpDevice | Where-Object {$_.Class -eq 'SDHost'} | Select-Object -ExpandProperty FriendlyName"],
-                capture_output=True, text=True, timeout=8
-            ).stdout.strip()
+            raw = _run(["powershell", "-NoProfile", "-Command",
+                        "Get-PnpDevice | Where-Object {$_.Class -eq 'SDHost'} | Select-Object -ExpandProperty FriendlyName"])
             return bool(raw)
         except Exception:
             return False
+    if IS_MACOS:
+        sp = _run(["system_profiler", "SPUSBDataType"]).lower()
+        return "card reader" in sp or "rtsx" in sp or "rts5" in sp
     try:
-        lspci = subprocess.run(
-            ["lspci"], capture_output=True, text=True, timeout=5
-        ).stdout.lower()
+        lspci = _run(["lspci"]).lower()
         return "sd host" in lspci or "card reader" in lspci or "rtsx" in lspci
     except Exception:
         return False
