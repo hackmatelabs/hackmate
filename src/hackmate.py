@@ -99,6 +99,113 @@ BANNER = (
 )
 
 
+# ─── Enable OC Logging ────────────────────────────────────────────────────────
+
+class EnableOCLoggingScreen(Screen):
+    """Pick a USB, patch its config.plist to enable OpenCore file logging."""
+
+    def compose(self) -> ComposeResult:
+        from compat import list_usb_drives
+        drives = list_usb_drives()
+        yield Header()
+        yield Container(
+            Vertical(
+                Static("── Enable OC Logging ────────────────────────────────────────", classes="title"),
+                Static("  Patches config.plist on your USB so OpenCore writes a log file on next boot.", classes="info"),
+                Static("  After rebooting (even if it fails), plug USB back in and use Analyze to read the log.", classes="info"),
+                Static(""),
+                Static("  ── Select your USB ───────────────────────────────────────", classes="cfg-section"),
+                *(
+                    [ListView(
+                        *[ListItem(Label(f"  {d['device']}  {d.get('size','')}  {d.get('name','')}"), id=f"drv-{i}")
+                          for i, d in enumerate(drives)],
+                        id="log-usb-list"
+                    )] if drives else
+                    [Static("  No USB drives detected. Insert your HackMate USB and reopen this screen.", classes="warn")]
+                ),
+                Static(""),
+                Horizontal(
+                    Button("Patch config.plist", id="patch", classes="primary"),
+                    Button("← Back",             id="back",  classes="back"),
+                ),
+                Static("", id="log-status"),
+                classes="screen-inner"
+            )
+        )
+        yield Footer()
+
+    def __init__(self):
+        super().__init__()
+        from compat import list_usb_drives
+        self._drives = list_usb_drives()
+        self._selected = 0
+
+    def on_list_view_selected(self, event) -> None:
+        try:
+            idx = int(event.item.id.split("-")[1])
+            self._selected = idx
+        except Exception:
+            pass
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "patch":
+            if not self._drives:
+                self.query_one("#log-status", Static).update("  [red]No USB drives found.[/red]")
+                return
+            self._do_patch()
+        elif event.button.id == "back":
+            self.app.pop_screen()
+
+    @work(thread=True)
+    def _do_patch(self) -> None:
+        from oc_log import enable_oc_logging
+        from compat import get_mount_path, IS_WINDOWS, IS_MACOS
+        from pathlib import Path
+
+        drive = self._drives[self._selected]
+        device = drive["device"]
+
+        self.app.call_from_thread(
+            self.query_one("#log-status", Static).update,
+            "  Searching for config.plist on USB…"
+        )
+
+        # Find config.plist — check both mounted path and EFI partition
+        candidates: list[Path] = []
+        mount = get_mount_path(device, skip_format=True)
+        for base in [Path(mount), Path(mount) / "EFI" / "OC"]:
+            p = base / "config.plist"
+            if p.exists():
+                candidates.append(p)
+            # also check EFI/OC one level up
+            p2 = base.parent / "EFI" / "OC" / "config.plist"
+            if p2.exists() and p2 not in candidates:
+                candidates.append(p2)
+
+        if not candidates:
+            self.app.call_from_thread(
+                self.query_one("#log-status", Static).update,
+                f"  [red]config.plist not found on {device}. Is the EFI partition mounted?[/red]"
+            )
+            return
+
+        cfg_path = candidates[0]
+        ok = enable_oc_logging(cfg_path)
+
+        if ok:
+            self.app.call_from_thread(
+                self.query_one("#log-status", Static).update,
+                f"  [green]✓ Logging enabled in {cfg_path}[/green]\n"
+                "  Reboot with this USB. After it boots (or fails), the log will be at:\n"
+                f"  {cfg_path.parent / 'opencore-<date>.txt'}"
+            )
+        else:
+            self.app.call_from_thread(
+                self.query_one("#log-status", Static).update,
+                f"  [red]✗ Failed to patch {cfg_path} — check permissions.[/red]"
+            )
+
+
 # ─── Log Checker ──────────────────────────────────────────────────────────────
 
 class LogCheckerScreen(Screen):
@@ -118,9 +225,11 @@ class LogCheckerScreen(Screen):
                 ),
                 Static(""),
                 Horizontal(
-                    Button("Analyze", id="analyze", classes="primary"),
-                    Button("← Back",  id="back",    classes="back"),
+                    Button("Analyze",           id="analyze",    classes="primary"),
+                    Button("Enable OC Logging", id="enable-log", classes="primary"),
+                    Button("← Back",            id="back",       classes="back"),
                 ),
+                Static("  Enable OC Logging: patches config.plist on your USB so OpenCore writes a log file on next boot.", classes="info"),
                 Static("", id="checker-summary"),
                 Static(""),
                 ScrollableContainer(
@@ -137,6 +246,8 @@ class LogCheckerScreen(Screen):
             path = self.query_one("#log-path", Input).value.strip()
             if path:
                 self._run_analysis(path)
+        elif event.button.id == "enable-log":
+            self.app.push_screen(EnableOCLoggingScreen())
         elif event.button.id == "back":
             self.app.pop_screen()
 
