@@ -123,17 +123,17 @@ SMBIOS_MAP = {
     (9, "laptop"):  "MacBookPro16,1",
     (9, "desktop"): "iMac19,1",
     (10, "laptop"): "MacBookPro16,2",
-    (11, "laptop"): "MacBookPro18,1",
-    (12, "laptop"): "MacBookPro18,3",
-    (13, "laptop"): "MacBookPro18,3",
+    (11, "laptop"): "MacBookPro16,1",
+    (12, "laptop"): "MacBookPro16,1",
+    (13, "laptop"): "MacBookPro16,1",
     (6, "desktop"):  "iMac17,1",
     (7, "desktop"):  "iMac18,3",
     (8, "desktop"):  "iMac19,1",
     (9, "desktop"):  "iMac19,1",
     (10, "desktop"): "iMac20,1",
-    (11, "desktop"): "iMac21,1",
-    (12, "desktop"): "iMacPro1,1",
-    (13, "desktop"): "iMacPro1,1",
+    (11, "desktop"): "MacPro7,1",
+    (12, "desktop"): "MacPro7,1",
+    (13, "desktop"): "MacPro7,1",
 }
 
 ETHERNET_MAP = {

@@ -465,7 +465,7 @@ def _amd_kernel_patches(profile: HardwareProfile) -> list[dict]:
 
 # ─── NVRAM ────────────────────────────────────────────────────────────────────
 
-def _nvram_section(profile: HardwareProfile, layout_id: int) -> dict:
+def _nvram_section(profile: HardwareProfile, layout_id: int, macos_major: int = 0) -> dict:
     boot_args = [
         "-v",                  # verbose on first boot (remove after working)
         "debug=0x100",         # don't panic on kernel error
@@ -473,6 +473,10 @@ def _nvram_section(profile: HardwareProfile, layout_id: int) -> dict:
         "-no_compat_check",    # bypass board ID check in boot.efi
         f"alcid={layout_id}",
     ]
+
+    if macos_major >= 15:
+        # Sequoia+: RestrictEvents VMM spoof so macOS doesn't see unsupported Intel hardware
+        boot_args.append("revpatch=sbvmm")
 
     if profile.cpu_vendor == "amd":
         boot_args.append("npci=0x2000")   # AMD PCI fix
@@ -606,7 +610,7 @@ def _uefi_section(profile: HardwareProfile) -> dict:
         },
         "Quirks": {
             "ActivateHpetSupport":          False,
-            "DisableSecurityPolicy":        False,
+            "DisableSecurityPolicy":        True,
             "EnableVectorAcceleration":     profile.platform == "desktop",
             "EnableVmx":                    False,
             "ExitBootServicesDelay":        0,
@@ -659,7 +663,7 @@ def _booter_section(profile: HardwareProfile) -> dict:
 
 # ─── Main builder ─────────────────────────────────────────────────────────────
 
-def generate(profile: HardwareProfile, smbios: SMBIOSData) -> dict:
+def generate(profile: HardwareProfile, smbios: SMBIOSData, macos_major: int = 0) -> dict:
     kexts = select_kexts(profile)
     layout_id = get_alc_layout(profile.audio_codec)
     ssdts = _required_ssdts(profile, kexts)
@@ -727,7 +731,7 @@ def generate(profile: HardwareProfile, smbios: SMBIOSData) -> dict:
             "Serial":   {"Init": False, "Override": False},
             "Tools":    [],
         },
-        "NVRAM":            _nvram_section(profile, layout_id),
+        "NVRAM":            _nvram_section(profile, layout_id, macos_major),
         "PlatformInfo":     _platform_info(smbios),
         "UEFI":             _uefi_section(profile),
     }

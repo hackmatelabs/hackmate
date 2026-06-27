@@ -1463,7 +1463,8 @@ class InstallScreen(Screen):
             ui(40, "Generating config.plist...")
             log("── Generating config.plist...", "header")
             from config_gen import generate as gen_config, write_plist, _required_ssdts
-            config = gen_config(profile, smbios)
+            macos_major = int(version.version) if version and version.version.isdigit() else 0
+            config = gen_config(profile, smbios, macos_major)
             if self.app.disable_dgpu:
                 from config_editor import set_dgpu_disabled
                 set_dgpu_disabled(config, True)
