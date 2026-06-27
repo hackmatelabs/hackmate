@@ -446,12 +446,25 @@ def unmount_usb(mount_point: str) -> bool:
     if IS_WINDOWS:
         return True
     if IS_MACOS:
-        subprocess.run(["diskutil", "unmount", mount_point], capture_output=True, timeout=10)
+        try:
+            subprocess.run(["diskutil", "unmount", mount_point], capture_output=True, timeout=10)
+        except Exception:
+            pass
         return True
-    result = subprocess.run(["umount", mount_point], capture_output=True, timeout=8)
-    if result.returncode != 0:
-        # lazy unmount — detaches immediately, kernel cleans up when last handle closes
-        subprocess.run(["umount", "-l", mount_point], capture_output=True, timeout=5)
+    # Linux — flush write buffers first so umount doesn't stall
+    try:
+        subprocess.run(["sync"], capture_output=True, timeout=30)
+    except Exception:
+        pass
+    try:
+        result = subprocess.run(["umount", mount_point], capture_output=True, timeout=15)
+        if result.returncode != 0:
+            subprocess.run(["umount", "-l", mount_point], capture_output=True, timeout=5)
+    except subprocess.TimeoutExpired:
+        try:
+            subprocess.run(["umount", "-l", mount_point], capture_output=True, timeout=5)
+        except Exception:
+            pass
     return True
 
 

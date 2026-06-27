@@ -959,6 +959,7 @@ class USBScreen(Screen):
                 ListView(*items, id="usb-list"),
                 Static(""),
                 Button("Build & Install EFI", id="install", classes="primary"),
+                Button("Don't have USB",      id="no-usb",  classes="primary"),
                 Button("← Back",              id="back",    classes="back"),
                 classes="screen-inner"
             )
@@ -972,6 +973,68 @@ class USBScreen(Screen):
             if idx is not None and self.drives:
                 selected = self.drives[idx][0]
                 self.app.push_screen(BuildModeScreen(selected))
+        elif event.button.id == "no-usb":
+            self.app.push_screen(NoUSBPathScreen())
+        elif event.button.id == "back":
+            self.app.pop_screen()
+
+
+# ─── No USB — save EFI to folder ─────────────────────────────────────────────
+
+class NoUSBPathScreen(Screen):
+    """Let the user pick a folder to save the EFI into instead of a USB."""
+
+    def compose(self) -> ComposeResult:
+        yield Header()
+        yield Container(
+            Vertical(
+                Static("── Generate EFI Folder (No USB) ────────────────────────", classes="title"),
+                Static(""),
+                Static("  HackMate will generate the EFI folder (OpenCore, kexts,", classes="info"),
+                Static("  SSDTs, config.plist) and save it to the folder you choose.", classes="info"),
+                Static("  No macOS recovery is downloaded — copy the EFI folder to", classes="info"),
+                Static("  your drive's EFI partition when you're ready.", classes="info"),
+                Static(""),
+                Static("  Folder path:", classes="info"),
+                Input(placeholder="e.g. C:\\Users\\You\\Desktop  or  /home/user/Desktop", id="path-input"),
+                Static(""),
+                Button("Browse…",   id="browse",   classes="primary"),
+                Button("Continue →", id="continue", classes="primary"),
+                Button("← Back",    id="back",     classes="back"),
+                classes="screen-inner"
+            )
+        )
+        yield Footer()
+
+    def _next(self, path: str) -> None:
+        self.app.efi_output_path = path
+        profile: HardwareProfile = self.app.profile
+        has_dgpu = getattr(profile, "dgpu_vendor", "") and getattr(profile, "gpu_vendor", "") == "intel"
+        if getattr(profile, "wifi_chipset", "") == "intel":
+            self.app.push_screen(WiFiKextScreen("local", repair=False, skip_format=True))
+        elif has_dgpu:
+            self.app.push_screen(DGPUScreen("local", repair=False, skip_format=True))
+        else:
+            self.app.push_screen(ConfirmScreen("local", repair=False, skip_format=True))
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "browse":
+            try:
+                import tkinter as _tk
+                from tkinter import filedialog as _fd
+                root = _tk.Tk()
+                root.withdraw()
+                root.attributes("-topmost", True)
+                chosen = _fd.askdirectory(parent=root, title="Choose folder to save EFI")
+                root.destroy()
+                if chosen:
+                    self.query_one("#path-input", Input).value = str(chosen)
+            except Exception:
+                pass
+        elif event.button.id == "continue":
+            path = self.query_one("#path-input", Input).value.strip()
+            if path:
+                self._next(path)
         elif event.button.id == "back":
             self.app.pop_screen()
 
@@ -1327,8 +1390,18 @@ class InstallScreen(Screen):
         import urllib.request
         import zipfile
 
+        local_mode = (device == "local")
+        if local_mode:
+            mount = self.app.efi_output_path
+
         try:
-            if repair or skip_format:
+            if local_mode:
+                # ── Local EFI folder mode — no USB, no recovery download ───────
+                ui(2, "Preparing EFI output folder...")
+                log("── Local EFI mode: generating EFI folder without USB", "header")
+                Path(mount).mkdir(parents=True, exist_ok=True)
+                log(f"Output folder: {mount}", "ok")
+            elif repair or skip_format:
                 # ── Repair / Already Formatted: mount existing USB ────────────
                 ui(2, "Mounting USB partition...")
                 if repair:
@@ -1378,7 +1451,7 @@ class InstallScreen(Screen):
                 d.mkdir(parents=True, exist_ok=True)
             log("EFI folder structure ready.", "ok")
 
-            if not repair:
+            if not repair and not local_mode:
                 # ── 3. Download macOS recovery ────────────────────────────────
                 ui(10, f"Downloading {version.name} recovery from Apple...")
                 log(f"── Fetching {version.name} from Apple CDN...", "header")
@@ -1688,25 +1761,37 @@ class InstallScreen(Screen):
             else:
                 log(f"  All {len(oks)} checks passed", "ok")
 
-            # ── 10. Unmount ───────────────────────────────────────────────────
-            ui(99, "Unmounting USB...")
-            unmount_usb(mount)
+            # ── 10. Unmount (skip for local EFI folder mode) ─────────────────
+            if not local_mode:
+                ui(99, "Unmounting USB...")
+                unmount_usb(mount)
             shutil.rmtree(str(tmp), ignore_errors=True)
 
-            mode_label = "Repair complete" if repair else f"Done! {version.name} EFI ready"
-            ui(100, f"{mode_label} on {device}")
-            log("", "info")
-            log("══════════════════════════════════════════════════", "header")
-            log("  USB is ready!", "ok")
-            if truly_manual:
-                log("  ! Some SSDTs need manual install (see README_MANUAL_SSDTS.txt)", "warn")
-            log("  Configure BIOS settings, then boot from the USB.", "info")
-            log("══════════════════════════════════════════════════", "header")
-            if not repair:
-                self.app.call_from_thread(
-                    self.app.push_screen,
-                    BIOSChecklistScreen(version.name, device)
-                )
+            if local_mode:
+                ui(100, "EFI folder ready!")
+                log("", "info")
+                log("══════════════════════════════════════════════════", "header")
+                log("  EFI folder generated!", "ok")
+                log(f"  Saved to: {mount}", "info")
+                if truly_manual:
+                    log("  ! Some SSDTs need manual install (see README_MANUAL_SSDTS.txt)", "warn")
+                log("  Copy the EFI folder to your drive's EFI partition.", "info")
+                log("══════════════════════════════════════════════════", "header")
+            else:
+                mode_label = "Repair complete" if repair else f"Done! {version.name} EFI ready"
+                ui(100, f"{mode_label} on {device}")
+                log("", "info")
+                log("══════════════════════════════════════════════════", "header")
+                log("  USB is ready!", "ok")
+                if truly_manual:
+                    log("  ! Some SSDTs need manual install (see README_MANUAL_SSDTS.txt)", "warn")
+                log("  Configure BIOS settings, then boot from the USB.", "info")
+                log("══════════════════════════════════════════════════", "header")
+                if not repair:
+                    self.app.call_from_thread(
+                        self.app.push_screen,
+                        BIOSChecklistScreen(version.name, device)
+                    )
 
         except Exception as e:
             ui(0, f"Error: {e}")
@@ -2133,10 +2218,11 @@ class HackMate(App):
     TITLE = "HackMate"
     SUB_TITLE = VERSION
 
-    profile:        HardwareProfile | None = None
-    macos_version:  MacOSVersion   | None = None
-    wifi_kext_mode: str                   = "itlwm"
-    disable_dgpu:   bool                  = False
+    profile:         HardwareProfile | None = None
+    macos_version:   MacOSVersion   | None = None
+    wifi_kext_mode:  str                   = "itlwm"
+    disable_dgpu:    bool                  = False
+    efi_output_path: str                   = ""
 
     def on_mount(self) -> None:
         self.push_screen(WelcomeScreen())

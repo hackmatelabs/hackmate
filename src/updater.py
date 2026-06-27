@@ -47,6 +47,13 @@ def _get_remote_sha() -> str | None:
 
 
 def _get_local_sha() -> str | None:
+    if _is_frozen():
+        # When packaged as EXE, .version is bundled into sys._MEIPASS at build time
+        try:
+            meipass = Path(getattr(sys, "_MEIPASS", ""))
+            return (meipass / ".version").read_text().strip()
+        except Exception:
+            return None
     try:
         return VERSION_FILE.read_text().strip()
     except Exception:

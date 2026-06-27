@@ -581,7 +581,14 @@ def download_kexts(kexts: list[KextEntry], dest: Path, progress_cb=None, verify:
 
         zip_path = tmp / asset["name"]
         try:
-            urllib.request.urlretrieve(asset["browser_download_url"], str(zip_path))
+            import ssl as _ssl
+            _ctx = _ssl.create_default_context()
+            _req = urllib.request.Request(
+                asset["browser_download_url"],
+                headers={"User-Agent": "HackMate/1.0"},
+            )
+            with urllib.request.urlopen(_req, context=_ctx, timeout=60) as _r:
+                zip_path.write_bytes(_r.read())
         except Exception as e:
             results[kext.name] = f"ERROR: download failed: {e}"
             continue

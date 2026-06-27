@@ -568,12 +568,12 @@ def _detect_network_linux(profile: HardwareProfile):
 
 
 def _detect_network_windows(profile: HardwareProfile):
-    # Ethernet — use PhysicalAdapter flag, exclude virtual/root devices
+    # Ethernet — Get-CimInstance works on all Windows 10/11 (Get-WmiObject is deprecated on Win11)
     raw = _ps("""
-        $nic = Get-WmiObject Win32_NetworkAdapter | Where-Object {
+        $nic = Get-CimInstance Win32_NetworkAdapter | Where-Object {
             $_.PhysicalAdapter -eq $true -and
             $_.PNPDeviceID -notlike 'ROOT*' -and
-            $_.Name -notmatch 'Wi-Fi|Wireless|WiFi|802.11|Bluetooth|Virtual|TAP|VPN|Loopback|Miniport'
+            $_.Name -notmatch 'Wi-Fi|Wireless|WiFi|802.11|Bluetooth|Virtual|TAP|VPN|Loopback'
         } | Select-Object -First 1
         $nic.Name
     """)
@@ -587,11 +587,11 @@ def _detect_network_windows(profile: HardwareProfile):
     elif "rtl8111" in name_lower or "rtl8168" in name_lower: profile.ethernet_chipset = "rtl8111"
     elif "rtl8125" in name_lower: profile.ethernet_chipset = "rtl8125"
     elif "rtl8100" in name_lower: profile.ethernet_chipset = "rtl8100"
-    elif "realtek" in name_lower: profile.ethernet_chipset = "rtl8111"  # Realtek PCIe GbE Family Controller
+    elif "realtek" in name_lower: profile.ethernet_chipset = "rtl8111"
 
     # WiFi
     raw = _ps("""
-        $nic = Get-WmiObject Win32_NetworkAdapter | Where-Object {
+        $nic = Get-CimInstance Win32_NetworkAdapter | Where-Object {
             $_.Name -match 'Wi-Fi|Wireless|WiFi|802.11'
         } | Select-Object -First 1
         $nic.Name
