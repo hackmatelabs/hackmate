@@ -979,13 +979,12 @@ class USBScreen(Screen):
 # ─── Build Mode ───────────────────────────────────────────────────────────────
 
 class WiFiKextScreen(Screen):
-    """WiFi kext selection + optional credential pre-load for itlwm."""
+    """WiFi kext selection."""
     def __init__(self, device: str, repair: bool, skip_format: bool):
         super().__init__()
         self.device = device
         self.repair = repair
         self.skip_format = skip_format
-        self._itlwm_chosen = False
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -993,45 +992,23 @@ class WiFiKextScreen(Screen):
             Vertical(
                 Static("── Intel WiFi Mode ──────────────────────────────────────", classes="title"),
                 Static(""),
-                Static("  Intel WiFi detected. Choose your WiFi kext:", classes="info"),
-                Static(""),
                 Static("  Standard (itlwm + HeliPort)", classes="info"),
                 Static("    Works with ALL macOS versions including Tahoe.", classes="info"),
-                Static("    Pre-load WiFi credentials to auto-connect during install.", classes="info"),
+                Static("    Use HeliPort (saved to EFI/HackMate-Extras/) to connect.", classes="info"),
+                Static("    Note: during the Tahoe installer, use ethernet — itlwm", classes="info"),
+                Static("    needs HeliPort which cannot run in the recovery env.", classes="info"),
                 Static(""),
                 Static("  Native AirportBSD (AirportItlwm)", classes="info"),
                 Static("    Shows as built-in WiFi — no HeliPort needed.", classes="info"),
-                Static("    ⚠  Tied to macOS version — no Tahoe build yet.", classes="info"),
+                Static("    No Tahoe build yet — use for Sonoma or earlier only.", classes="info"),
                 Static(""),
                 Button("Standard (itlwm + HeliPort)", id="itlwm",        classes="primary"),
                 Button("Native (AirportItlwm)",        id="airportitlwm", classes="primary"),
                 Button("← Back",                       id="back",         classes="back"),
-                # Credential fields — hidden until Standard is chosen
-                Static("", id="creds-sep", classes="info"),
-                Static("── WiFi Auto-Connect (optional) ────────────────────────", id="creds-title", classes="title"),
-                Static("  Network name (SSID):", id="creds-ssid-label", classes="info"),
-                Input(placeholder="MyWiFiNetwork", id="ssid"),
-                Static("  Password:", id="creds-pw-label", classes="info"),
-                Input(placeholder="(leave blank for open networks)", password=True, id="password"),
-                Static(""),
-                Button("Save & Continue", id="creds-save", classes="primary"),
-                Button("Skip",            id="creds-skip", classes="primary"),
                 classes="screen-inner"
             )
         )
         yield Footer()
-
-    def on_mount(self) -> None:
-        self._set_creds_visible(False)
-
-    def _set_creds_visible(self, visible: bool) -> None:
-        ids = ["creds-sep", "creds-title", "creds-ssid-label", "ssid",
-               "creds-pw-label", "password", "creds-save", "creds-skip"]
-        for wid in ids:
-            try:
-                self.query_one(f"#{wid}").display = visible
-            except Exception:
-                pass
 
     def _next(self) -> None:
         profile: HardwareProfile = self.app.profile
@@ -1043,31 +1020,12 @@ class WiFiKextScreen(Screen):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "itlwm":
             self.app.wifi_kext_mode = "itlwm"
-            self._itlwm_chosen = True
-            # Hide mode buttons, show credential fields
-            self.query_one("#itlwm",       Button).display = False
-            self.query_one("#airportitlwm",Button).display = False
-            self._set_creds_visible(True)
+            self._next()
         elif event.button.id == "airportitlwm":
             self.app.wifi_kext_mode = "AirportItlwm"
             self._next()
-        elif event.button.id == "creds-save":
-            self.app.wifi_ssid     = self.query_one("#ssid",     Input).value.strip()
-            self.app.wifi_password = self.query_one("#password", Input).value
-            self._next()
-        elif event.button.id == "creds-skip":
-            self.app.wifi_ssid = ""
-            self.app.wifi_password = ""
-            self._next()
         elif event.button.id == "back":
-            if self._itlwm_chosen:
-                # Go back to mode selection
-                self._itlwm_chosen = False
-                self.query_one("#itlwm",       Button).display = True
-                self.query_one("#airportitlwm",Button).display = True
-                self._set_creds_visible(False)
-            else:
-                self.app.pop_screen()
+            self.app.pop_screen()
 
 
 class BuildModeScreen(Screen):
@@ -1550,25 +1508,6 @@ class InstallScreen(Screen):
                     log("  HeliPort saved to EFI/HackMate-Extras/ on USB", "ok")
                 else:
                     log("  HeliPort download failed — get it from github.com/OpenIntelWireless/HeliPort", "warn")
-
-                # Inject WiFi credentials into itlwm.kext so it auto-connects during install
-                if self.app.wifi_ssid:
-                    itlwm_plist = kext_dir / "itlwm.kext" / "Contents" / "Info.plist"
-                    if itlwm_plist.exists():
-                        try:
-                            import plistlib as _pl
-                            with open(str(itlwm_plist), "rb") as f:
-                                kinfo = _pl.load(f)
-                            personalities = kinfo.get("IOKitPersonalities", {})
-                            for key in personalities:
-                                personalities[key]["WiFiCredentials"] = [
-                                    {"ssid": self.app.wifi_ssid, "password": self.app.wifi_password}
-                                ]
-                            with open(str(itlwm_plist), "wb") as f:
-                                _pl.dump(kinfo, f)
-                            log(f"  WiFi credentials injected for '{self.app.wifi_ssid}' — itlwm will auto-connect", "ok")
-                        except Exception as e:
-                            log(f"  WiFi credential injection failed: {e}", "warn")
 
             # ── 7. Download OpenCore ──────────────────────────────────────────
             MIN_EFI = 50 * 1024  # sane minimum — corrupt/truncated files are smaller
@@ -2197,8 +2136,6 @@ class HackMate(App):
     profile:        HardwareProfile | None = None
     macos_version:  MacOSVersion   | None = None
     wifi_kext_mode: str                   = "itlwm"
-    wifi_ssid:      str                   = ""
-    wifi_password:  str                   = ""
     disable_dgpu:   bool                  = False
 
     def on_mount(self) -> None:
