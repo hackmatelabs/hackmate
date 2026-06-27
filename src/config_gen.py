@@ -223,8 +223,8 @@ def _required_ssdts(profile: HardwareProfile, kexts: list[KextEntry]) -> list[st
     if profile.platform == "laptop":
         ssdts.append("SSDT-PNLF")
 
-    # AWAC clock fix — Skylake and newer
-    if gen >= 6:
+    # AWAC clock fix — Z390/B460+ desktops (gen 9+); laptops never have AWAC
+    if gen >= 9 and profile.platform == "desktop":
         ssdts.append("SSDT-AWAC")
 
     # PMC fix — Coffee Lake (gen 8) desktop

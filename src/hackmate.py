@@ -1617,26 +1617,16 @@ class InstallScreen(Screen):
                 shutil.rmtree(str(acpi_dir))
                 shutil.copytree(str(ssdt_backup_dir), str(acpi_dir))
 
-            # Remove failed/skipped SSDTs from config.plist so it doesn't reference missing files.
-            # Exception: SSDT-XOSI has a bundled precompiled fallback.
-            _ASSETS = Path(__file__).parent / "assets" / "acpi"
+            # ssdt.py handles 3-tier fallback internally (SSDTTime → template → bundled .aml).
+            # If any SSDT still shows SKIP/ERROR here, it genuinely couldn't be generated —
+            # remove it from config.plist so OpenCore doesn't fail on a missing file.
             if skip_ssdts or err_ssdts:
                 import plistlib
                 with open(str(config_path), "rb") as f:
                     cfg = plistlib.load(f)
-                bad = set()
-                for n in skip_ssdts + err_ssdts:
-                    fallback = _ASSETS / f"{n}.aml"
-                    if fallback.exists():
-                        import shutil as _shutil
-                        _shutil.copy2(str(fallback), str(acpi_dir / f"{n}.aml"))
-                        log(f"  {n} — using bundled fallback SSDT", "ok")
-                        if n in err_ssdts:
-                            err_ssdts.remove(n)
-                        else:
-                            skip_ssdts.remove(n)
-                    else:
-                        bad.add(f"{n}.aml")
+                # Only remove SSDTs that are truly absent from acpi_dir
+                bad = {f"{n}.aml" for n in skip_ssdts + err_ssdts
+                       if not (acpi_dir / f"{n}.aml").exists()}
                 cfg["ACPI"]["Add"] = [e for e in cfg["ACPI"]["Add"] if e.get("Path","") not in bad]
                 with open(str(config_path), "wb") as f:
                     plistlib.dump(cfg, f)
@@ -1644,21 +1634,26 @@ class InstallScreen(Screen):
             for n in ok_ssdts:
                 log(f"  {n}.aml", "ok")
             for n in skip_ssdts:
-                log(f"  {n} — manual install needed", "warn")
+                reason = ssdt_results.get(n, "")
+                not_required = "not required" in reason or "not present" in reason
+                log(f"  {n} — {reason}", "info" if not_required else "warn")
             for n in err_ssdts:
                 log(f"  {n} — {ssdt_results[n]}", "error")
 
-            # Write README for anything that couldn't be auto-generated
-            manual = skip_ssdts + err_ssdts
-            if manual:
+            # Write README only for SSDTs that genuinely need manual intervention
+            # (not for hardware-appropriate skips like SSDT-AWAC on non-AWAC systems)
+            truly_manual = [n for n in skip_ssdts + err_ssdts
+                            if not ("not required" in ssdt_results.get(n, "") or
+                                    "not present" in ssdt_results.get(n, ""))]
+            if truly_manual:
                 note = acpi_dir / "README_MANUAL_SSDTS.txt"
                 note.write_text(
                     "These SSDTs need manual installation:\n\n" +
-                    "\n".join(f"  - {n}.aml" for n in manual) +
+                    "\n".join(f"  - {n}.aml" for n in truly_manual) +
                     "\n\nDownload prebuilt SSDTs from:\n"
                     "  https://dortania.github.io/Getting-Started-With-ACPI/\n"
                 )
-                log(f"  {len(manual)} SSDTs need manual install — see README_MANUAL_SSDTS.txt", "warn")
+                log(f"  {len(truly_manual)} SSDTs need manual install — see README_MANUAL_SSDTS.txt", "warn")
 
             # ── 9. EFI sanity check ─────────────────────────────────────────
             ui(97, "Running EFI sanity check...")
