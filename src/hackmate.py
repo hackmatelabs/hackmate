@@ -105,8 +105,8 @@ class EnableOCLoggingScreen(Screen):
     """Pick a USB, patch its config.plist to enable OpenCore file logging."""
 
     def compose(self) -> ComposeResult:
-        from compat import list_usb_drives
-        drives = list_usb_drives()
+        from compat import get_usb_drives
+        drives = get_usb_drives()
         yield Header()
         yield Container(
             Vertical(
@@ -117,7 +117,7 @@ class EnableOCLoggingScreen(Screen):
                 Static("  ── Select your USB ───────────────────────────────────────", classes="cfg-section"),
                 *(
                     [ListView(
-                        *[ListItem(Label(f"  {d['device']}  {d.get('size','')}  {d.get('name','')}"), id=f"drv-{i}")
+                        *[ListItem(Label(f"  {d[0]}  {d[1]}  {d[2]}"), id=f"drv-{i}")
                           for i, d in enumerate(drives)],
                         id="log-usb-list"
                     )] if drives else
@@ -136,8 +136,8 @@ class EnableOCLoggingScreen(Screen):
 
     def __init__(self):
         super().__init__()
-        from compat import list_usb_drives
-        self._drives = list_usb_drives()
+        from compat import get_usb_drives
+        self._drives = get_usb_drives()
         self._selected = 0
 
     def on_list_view_selected(self, event) -> None:
@@ -162,7 +162,7 @@ class EnableOCLoggingScreen(Screen):
         from compat import get_mount_path, mount_usb, unmount_usb
 
         drive = self._drives[self._selected]
-        device = drive["device"]
+        device = drive[0]  # (device, size, label)
         status = self.query_one("#log-status", Static)
 
         self.app.call_from_thread(status.update, "  Mounting USB…")
