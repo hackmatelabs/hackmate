@@ -446,10 +446,13 @@ def unmount_usb(mount_point: str) -> bool:
     if IS_WINDOWS:
         return True
     if IS_MACOS:
-        subprocess.run(["diskutil", "unmount", mount_point], capture_output=True)
+        subprocess.run(["diskutil", "unmount", mount_point], capture_output=True, timeout=10)
         return True
-    result = subprocess.run(["umount", mount_point], capture_output=True)
-    return result.returncode == 0
+    result = subprocess.run(["umount", mount_point], capture_output=True, timeout=8)
+    if result.returncode != 0:
+        # lazy unmount — detaches immediately, kernel cleans up when last handle closes
+        subprocess.run(["umount", "-l", mount_point], capture_output=True, timeout=5)
+    return True
 
 
 def get_mount_path(device: str = "", skip_format: bool = False) -> str:
