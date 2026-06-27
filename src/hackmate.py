@@ -233,6 +233,9 @@ class LogCheckerScreen(Screen):
         )
         yield Footer()
 
+    def on_mount(self) -> None:
+        self._scan_usbs()
+
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "analyze":
             path = self.query_one("#log-path", Input).value.strip()
@@ -247,6 +250,64 @@ class LogCheckerScreen(Screen):
         path = event.value.strip()
         if path:
             self._run_analysis(path)
+
+    @work(thread=True)
+    def _scan_usbs(self) -> None:
+        """Mount all USBs, find OC logs and panic files, auto-fill the most recent."""
+        from compat import get_usb_drives, mount_usb
+        from pathlib import Path
+
+        self.app.call_from_thread(
+            self.query_one("#checker-summary", Static).update,
+            "  Scanning USB drives for logs…"
+        )
+
+        drives = get_usb_drives()
+        found: list[Path] = []
+
+        def _already_mounted(device: str) -> str | None:
+            try:
+                for line in Path("/proc/mounts").read_text().splitlines():
+                    parts = line.split()
+                    if parts and parts[0] == device:
+                        return parts[1]
+            except Exception:
+                pass
+            return None
+
+        for i, (device, size, label) in enumerate(drives):
+            existing = _already_mounted(device)
+            if existing:
+                base = Path(existing)
+            else:
+                mount = f"/tmp/hackmate_scan_{i}"
+                Path(mount).mkdir(parents=True, exist_ok=True)
+                if not mount_usb(device, mount):
+                    continue
+                base = Path(mount)
+
+            for search in [base, base / "EFI" / "OC"]:
+                if search.exists():
+                    found += sorted(search.glob("opencore-*.txt"), reverse=True)
+            found += sorted(base.glob("**/*.panic"), reverse=True)[:3]
+
+        found.sort(key=lambda p: p.name, reverse=True)
+
+        if found:
+            self.app.call_from_thread(self._set_log_path, str(found[0]))
+            self.app.call_from_thread(
+                self.query_one("#checker-summary", Static).update,
+                f"  Found {len(found)} log(s) on USB — most recent auto-filled. Click Analyze."
+            )
+        else:
+            self.app.call_from_thread(
+                self.query_one("#checker-summary", Static).update,
+                "  No logs found on USB. Paste a path manually or use Enable OC Logging first."
+            )
+
+    def _set_log_path(self, path: str) -> None:
+        inp = self.query_one("#log-path", Input)
+        inp.value = path
 
     @work(thread=True)
     def _run_analysis(self, path: str) -> None:
