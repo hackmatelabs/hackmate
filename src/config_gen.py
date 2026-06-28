@@ -564,12 +564,14 @@ def _platform_info(smbios: SMBIOSData) -> dict:
         "UseRawUuidEncoding": False,
     }
 
-def _uefi_section(profile: HardwareProfile) -> dict:
+def _uefi_section(profile: HardwareProfile, dual_boot: str = "") -> dict:
     drivers = [
         {"Arguments": "", "Comment": "Runtime services",    "Enabled": True, "LoadEarly": False, "Path": "OpenRuntime.efi"},
         {"Arguments": "", "Comment": "HFS+ filesystem",     "Enabled": True, "LoadEarly": False, "Path": "HfsPlus.efi"},
         {"Arguments": "", "Comment": "NVRAM reset entry",   "Enabled": True, "LoadEarly": False, "Path": "ResetNvramEntry.efi"},
     ]
+    if dual_boot in ("linux", "both"):
+        drivers.append({"Arguments": "", "Comment": "Linux EFI scanning", "Enabled": True, "LoadEarly": False, "Path": "OpenLinuxBoot.efi"})
 
     return {
         "APFS": {
@@ -689,7 +691,7 @@ def _booter_section(profile: HardwareProfile, resizable_bar: bool = False) -> di
         },
     }
 
-def generate(profile: HardwareProfile, smbios: SMBIOSData, macos_major: int = 0, wifi_kext_mode: str = "itlwm") -> dict:
+def generate(profile: HardwareProfile, smbios: SMBIOSData, macos_major: int = 0, wifi_kext_mode: str = "itlwm", dual_boot: str = "") -> dict:
     kexts = select_kexts(profile, wifi_kext_mode=wifi_kext_mode)
     layout_id = get_alc_layout(profile.audio_codec)
     ssdts = _required_ssdts(profile, kexts)
@@ -717,7 +719,7 @@ def generate(profile: HardwareProfile, smbios: SMBIOSData, macos_major: int = 0,
                 "ConsoleAttributes":  0,
                 "HibernateMode":      "None",
                 "HideAuxiliary":      False,
-                "LauncherOption":     "Disabled",
+                "LauncherOption":     "Full" if dual_boot else "Disabled",
                 "LauncherPath":       "Default",
                 "PickerAttributes":   1,
                 "PickerAudioAssist":  False,
@@ -759,7 +761,7 @@ def generate(profile: HardwareProfile, smbios: SMBIOSData, macos_major: int = 0,
         },
         "NVRAM":            _nvram_section(profile, layout_id, macos_major),
         "PlatformInfo":     _platform_info(smbios),
-        "UEFI":             _uefi_section(profile),
+        "UEFI":             _uefi_section(profile, dual_boot=dual_boot),
     }
 
 def write_plist(config: dict, path: Path):

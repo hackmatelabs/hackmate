@@ -558,6 +558,7 @@ class WelcomeScreen(Screen):
                 Button("Build EFI",              id="start",      classes="primary"),
                 Button("Build EFI (Manual)",     id="manual",     classes="primary"),
                 Button("Restore EFI",            id="restore",    classes="primary"),
+                Button("Dual Boot / Disk Map",   id="diskmap",    classes="primary"),
                 Button("USB Mapping",            id="usb_map",    classes="primary"),
                 Button("Edit Config",            id="edit_cfg",   classes="primary"),
                 Button("Check Logs",             id="check_logs", classes="primary"),
@@ -579,6 +580,8 @@ class WelcomeScreen(Screen):
             self.app.push_screen(ConfigEditorUSBScreen())
         elif event.button.id == "usb_map":
             self.app.push_screen(USBMappingScreen())
+        elif event.button.id == "diskmap":
+            self.app.push_screen(DiskMapScreen())
         elif event.button.id == "check_logs":
             self.app.push_screen(LogCheckerScreen())
         elif event.button.id == "quit":
@@ -1177,7 +1180,7 @@ class NoUSBPathScreen(Screen):
         elif has_dgpu:
             self.app.push_screen(DGPUScreen("local", repair=False, skip_format=True))
         else:
-            self.app.push_screen(ConfirmScreen("local", repair=False, skip_format=True))
+            self.app.push_screen(DualBootScreen("local", repair=False, skip_format=True))
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "browse":
@@ -1237,7 +1240,7 @@ class WiFiKextScreen(Screen):
         if getattr(profile, "dgpu_vendor", "") and getattr(profile, "gpu_vendor", "") == "intel":
             self.app.push_screen(DGPUScreen(self.device, repair=self.repair, skip_format=self.skip_format))
         else:
-            self.app.push_screen(ConfirmScreen(self.device, repair=self.repair, skip_format=self.skip_format))
+            self.app.push_screen(DualBootScreen(self.device, repair=self.repair, skip_format=self.skip_format))
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "itlwm":
@@ -1282,7 +1285,7 @@ class BuildModeScreen(Screen):
         elif has_dgpu:
             self.app.push_screen(DGPUScreen(self.device, repair=repair, skip_format=skip_format))
         else:
-            self.app.push_screen(ConfirmScreen(self.device, repair=repair, skip_format=skip_format))
+            self.app.push_screen(DualBootScreen(self.device, repair=repair, skip_format=skip_format))
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "full":
@@ -1335,12 +1338,120 @@ class DGPUScreen(Screen):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "disable":
             self.app.disable_dgpu = True
-            self.app.push_screen(ConfirmScreen(self.device, repair=self.repair, skip_format=self.skip_format))
+            self.app.push_screen(DualBootScreen(self.device, repair=self.repair, skip_format=self.skip_format))
         elif event.button.id == "skip":
             self.app.disable_dgpu = False
-            self.app.push_screen(ConfirmScreen(self.device, repair=self.repair, skip_format=self.skip_format))
+            self.app.push_screen(DualBootScreen(self.device, repair=self.repair, skip_format=self.skip_format))
         elif event.button.id == "back":
             self.app.pop_screen()
+
+class DualBootScreen(Screen):
+    """Ask if the user is dual-booting alongside Windows or Linux."""
+
+    def __init__(self, device: str, repair: bool = False, skip_format: bool = False):
+        super().__init__()
+        self.device      = device
+        self.repair      = repair
+        self.skip_format = skip_format
+
+    def compose(self) -> ComposeResult:
+        yield Header()
+        yield Container(
+            Vertical(
+                Static("── Dual Boot Setup ──────────────────────────────────────", classes="title"),
+                Static(""),
+                Static("  Is this machine dual-booting with another OS?", classes="info"),
+                Static(""),
+                Static("  Windows: OpenCore will show a Windows entry in the picker.", classes="info"),
+                Static("  Linux:   Adds OpenLinuxBoot.efi so Linux EFI entries appear.", classes="info"),
+                Static("  Both:    Both of the above.", classes="info"),
+                Static(""),
+                Static("  If unsure, choose 'No dual boot'.", classes="info"),
+                Static(""),
+                Button("No dual boot",           id="none",    classes="primary"),
+                Button("Windows + macOS",        id="windows", classes="primary"),
+                Button("Linux + macOS",          id="linux",   classes="primary"),
+                Button("Windows + Linux + macOS",id="both",    classes="primary"),
+                Button("Scan disks first",       id="scan",    classes="back"),
+                Button("← Back",                 id="back",    classes="back"),
+                classes="screen-inner"
+            )
+        )
+        yield Footer()
+
+    def _proceed(self, choice: str) -> None:
+        self.app.dual_boot = choice
+        self.app.push_screen(ConfirmScreen(self.device, repair=self.repair, skip_format=self.skip_format))
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "none":
+            self._proceed("")
+        elif event.button.id == "windows":
+            self._proceed("windows")
+        elif event.button.id == "linux":
+            self._proceed("linux")
+        elif event.button.id == "both":
+            self._proceed("both")
+        elif event.button.id == "scan":
+            self.app.push_screen(DiskMapScreen(
+                device=self.device, repair=self.repair, skip_format=self.skip_format
+            ))
+        elif event.button.id == "back":
+            self.app.pop_screen()
+
+
+class DiskMapScreen(Screen):
+    """Show disk layout, detected OSes, and conflicts."""
+
+    def __init__(self, device: str = "", repair: bool = False, skip_format: bool = False):
+        super().__init__()
+        self.device      = device
+        self.repair      = repair
+        self.skip_format = skip_format
+
+    def compose(self) -> ComposeResult:
+        yield Header()
+        yield Container(
+            Vertical(
+                Static("── Disk Map ─────────────────────────────────────────────", classes="title"),
+                Static("  Scanning disks…", id="disk-status", classes="info"),
+                Static(""),
+                ScrollableContainer(
+                    RichLog(id="disk-log", auto_scroll=False, markup=True),
+                    id="disk-scroll",
+                ),
+                Static("", id="conflict-area"),
+                Static(""),
+                Button("← Back", id="back", classes="back"),
+                classes="screen-inner"
+            )
+        )
+        yield Footer()
+
+    def on_mount(self) -> None:
+        self._scan()
+
+    @work(thread=True)
+    def _scan(self) -> None:
+        from dualboot import scan_disks, scan_all_bootloaders, check_conflicts, build_disk_tree
+        disks       = scan_disks()
+        bootloaders = scan_all_bootloaders(disks)
+        tree        = build_disk_tree(disks, bootloaders)
+        conflicts   = check_conflicts(disks, bootloaders)
+
+        def _update():
+            self.query_one("#disk-status", Static).update("  Disks found:")
+            log = self.query_one("#disk-log", RichLog)
+            log.write(tree)
+            if conflicts:
+                warn_text = "\n".join(f"  ⚠  {c}" for c in conflicts)
+                self.query_one("#conflict-area", Static).update(warn_text)
+        self.app.call_from_thread(_update)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "back":
+            self.app.pop_screen()
+
 
 class ConfirmScreen(Screen):
     def __init__(self, device: str, repair: bool = False, skip_format: bool = False):
@@ -1401,6 +1512,11 @@ class ConfirmScreen(Screen):
                 Static(""),
                 Static(f"  Action: {action} {self.device}", classes="info"),
                 Static(f"  ⚠  {warn}", classes="warn"),
+                *(
+                    [Static(f"  Dual boot: {self.app.dual_boot}", classes="info")]
+                    if getattr(self.app, "dual_boot", "")
+                    else []
+                ),
                 Static(""),
                 Static(f"  To continue, type:  {self.confirm_phrase}", classes="info"),
                 Static(""),
@@ -1673,7 +1789,8 @@ class InstallScreen(Screen):
             log("── Generating config.plist...", "header")
             from config_gen import generate as gen_config, write_plist, _required_ssdts
             macos_major = int(version.version) if version and version.version.isdigit() else 0
-            config = gen_config(profile, smbios, macos_major, wifi_kext_mode=self.app.wifi_kext_mode)
+            dual_boot = getattr(self.app, "dual_boot", "")
+            config = gen_config(profile, smbios, macos_major, wifi_kext_mode=self.app.wifi_kext_mode, dual_boot=dual_boot)
             if self.app.disable_dgpu:
                 from config_editor import set_dgpu_disabled
                 set_dgpu_disabled(config, True)
@@ -1791,7 +1908,10 @@ class InstallScreen(Screen):
                             shutil.copy(str(found[0]), str(fdest))
                             log(f"  {fname} copied", "ok")
 
-                    for driver in ["OpenRuntime.efi", "HfsPlus.efi", "ResetNvramEntry.efi"]:
+                    base_drivers = ["OpenRuntime.efi", "HfsPlus.efi", "ResetNvramEntry.efi"]
+                    if dual_boot in ("linux", "both"):
+                        base_drivers.append("OpenLinuxBoot.efi")
+                    for driver in base_drivers:
                         found = list(search_root.rglob(driver))
                         if found:
                             shutil.copy(str(found[0]), str(driver_dir / driver))
@@ -2478,6 +2598,7 @@ class HackMate(App):
     macos_version:   MacOSVersion   | None = None
     wifi_kext_mode:  str                   = "itlwm"
     disable_dgpu:    bool                  = False
+    dual_boot:       str                   = ""
     efi_output_path: str                   = ""
 
     def on_mount(self) -> None:
