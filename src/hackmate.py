@@ -293,7 +293,6 @@ class EnableOCLoggingScreen(Screen):
 # ─── Log Checker ──────────────────────────────────────────────────────────────
 
 class LogCheckerScreen(Screen):
-    """Analyze OpenCore logs and kernel panic files to identify issues and suggest fixes."""
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -457,7 +456,6 @@ class LogCheckerScreen(Screen):
 # ─── USB Mapping ─────────────────────────────────────────────────────────────
 
 class USBMappingScreen(Screen):
-    """Post-install: replace placeholder UTBMap.kext with user's generated one."""
 
     def compose(self) -> ComposeResult:
         drives = get_usb_drives()
@@ -721,7 +719,6 @@ class RestoreConfirmScreen(Screen):
 # ─── Manual Hardware Screen ───────────────────────────────────────────────────
 
 class ManualHardwareScreen(Screen):
-    """Let user specify hardware manually — for building a USB for a different machine."""
 
     CPU_OPTIONS = [
         # ── Intel Desktop ──────────────────────────────────────────────────────
@@ -1665,15 +1662,9 @@ class InstallScreen(Screen):
                 ])
 
                 def recovery_progress(msg):
-                    if "%" in msg or "Chunk" in msg:
-                        self.app.call_from_thread(self._log, f"  {msg}", "info")
-                        self.app.call_from_thread(self._cmd_out, msg)
-                    elif "complete" in msg.lower() or "verification" in msg.lower():
-                        self.app.call_from_thread(self._log, f"  {msg}", "ok")
-                        self.app.call_from_thread(self._cmd_out, msg)
-                    else:
-                        self.app.call_from_thread(self._log, f"  {msg}", "info")
-                        self.app.call_from_thread(self._cmd_out, msg)
+                    level = "ok" if ("complete" in msg.lower() or "verification" in msg.lower()) else "info"
+                    self.app.call_from_thread(self._log, f"  {msg}", level)
+                    self.app.call_from_thread(self._cmd_out, msg)
 
                 ok, msg = download_recovery(version, recovery_dest, progress_cb=recovery_progress)
                 if not ok:

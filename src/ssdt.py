@@ -383,9 +383,6 @@ def _ensure_ssdttime() -> Path:
     return script
 
 
-def _get_dsdt(tmp: Path) -> Optional[Path]:
-    return get_dsdt(tmp)
-
 
 def _parse_menu(output: str) -> dict[str, str]:
     mapping: dict[str, str] = {}
@@ -458,7 +455,7 @@ def generate(
 
     # ── 2. Get DSDT + inspect ────────────────────────────────────────────────
     cb("Extracting DSDT from system ACPI tables...")
-    dsdt = _get_dsdt(tmp)
+    dsdt = get_dsdt(tmp)
     if dsdt:
         cb(f"  DSDT: {dsdt.stat().st_size:,} bytes")
         dsdt_info = _inspect_dsdt(dsdt)
@@ -513,23 +510,16 @@ def generate(
                 results[ssdt] = "ERROR: GPI0/GPIO device not found in DSDT"
             continue
 
-        # ── SSDT-XOSI: template path, SSDTTime rarely has it ─────────────────
-        if ssdt == "SSDT-XOSI":
-            choice = menu_map.get(ssdt)
-            if choice and script and dsdt:
-                # SSDTTime has XOSI — use it
-                pass  # falls through to standard SSDTTime block below
+        # ── SSDT-XOSI: prefer template; SSDTTime rarely has it ───────────────
+        if ssdt == "SSDT-XOSI" and not (menu_map.get(ssdt) and script and dsdt):
+            cb("Generating SSDT-XOSI from template...")
+            if _build_xosi_ssdt(acpi_dir, ssdttime_dir):
+                results[ssdt] = "OK"
+            elif _use_bundled(ssdt, acpi_dir, cpu_generation):
+                results[ssdt] = "OK"
             else:
-                cb("Generating SSDT-XOSI from template (SSDTTime doesn't have it)...")
-                if _build_xosi_ssdt(acpi_dir, ssdttime_dir):
-                    cb("  SSDT-XOSI.aml")
-                    results[ssdt] = "OK"
-                elif _use_bundled(ssdt, acpi_dir, cpu_generation):
-                    cb("  SSDT-XOSI.aml (bundled fallback)")
-                    results[ssdt] = "OK"
-                else:
-                    results[ssdt] = "ERROR: could not compile SSDT-XOSI template"
-                continue
+                results[ssdt] = "ERROR: could not compile SSDT-XOSI template"
+            continue
 
         # ── Tier 1: SSDTTime ─────────────────────────────────────────────────
         choice = menu_map.get(ssdt)

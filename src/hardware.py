@@ -191,12 +191,13 @@ def _detect_cpu_linux(profile: HardwareProfile):
         if "vendor_id" in line and not profile.cpu_vendor:
             profile.cpu_vendor = line.split(":")[1].strip().lower()
 
-    siblings = [l for l in cpuinfo.splitlines() if "siblings" in l]
-    cores = [l for l in cpuinfo.splitlines() if "cpu cores" in l]
-    if siblings:
-        profile.thread_count = int(siblings[0].split(":")[1].strip())
-    if cores:
-        profile.core_count = int(cores[0].split(":")[1].strip())
+    for line in cpuinfo.splitlines():
+        if "siblings" in line and not profile.thread_count:
+            try: profile.thread_count = int(line.split(":")[1])
+            except ValueError: pass
+        elif "cpu cores" in line and not profile.core_count:
+            try: profile.core_count = int(line.split(":")[1])
+            except ValueError: pass
 
     if "intel" in profile.cpu_vendor:
         for line in profile.raw_pci:
@@ -231,13 +232,8 @@ def _detect_cpu_windows(profile: HardwareProfile):
         m = re.search(r"i[3579]-(\d{4,5})", name, re.IGNORECASE)
         if m:
             num = m.group(1)
-            if len(num) == 5:
-                d = int(num[:2])
-            else:
-                first = int(num[0])
-                d = 10 if first == 1 else first
-            gen_map = {2:2,3:3,4:4,5:5,6:6,7:7,8:8,9:9,10:10,11:11,12:12,13:13,14:14}
-            profile.cpu_generation = gen_map.get(d, 0)
+            d = int(num[:2]) if len(num) == 5 else (10 if num[0] == "1" else int(num[0]))
+            profile.cpu_generation = d if 2 <= d <= 14 else 0
         codename_map = {
             2:"Sandy Bridge", 3:"Ivy Bridge", 4:"Haswell", 5:"Broadwell",
             6:"Skylake", 7:"Kaby Lake", 8:"Coffee Lake", 9:"Coffee Lake Refresh",
@@ -361,22 +357,17 @@ def _detect_platform_linux(profile: HardwareProfile):
     battery = _run(["ls", "/sys/class/power_supply/"])
     profile.platform = "laptop" if "BAT" in battery else "desktop"
 
-    touchpad = _run(["find", "/sys/bus/i2c/devices", "-name", "*trackpad*", "-o", "-name", "*touchpad*"])
-    i2c_hid = _run(["dmesg"])
-    profile.has_touchpad = bool(touchpad) or "i2c-hid" in i2c_hid.lower() or "synaptics" in i2c_hid.lower()
+    dmesg = _run(["dmesg"])
+    touchpad_files = _run(["find", "/sys/bus/i2c/devices", "-name", "*trackpad*", "-o", "-name", "*touchpad*"])
 
     for line in profile.raw_pci:
         if "thunderbolt" in line.lower() or "alpine ridge" in line.lower() or "titan ridge" in line.lower():
             profile.has_thunderbolt = True
 
-    nvme_check = _run(["lsblk", "-d", "-o", "NAME,TRAN"])
-    profile.nvme_present = "nvme" in nvme_check.lower()
-
-    i2c_check = _run(["dmesg"])
-    touchpad_files = _run(["find", "/sys/bus/i2c/devices", "-name", "*trackpad*"])
+    profile.nvme_present = "nvme" in _run(["lsblk", "-d", "-o", "NAME,TRAN"]).lower()
     profile.has_touchpad = (
-        "synaptics" in i2c_check.lower()
-        or "i2c-hid" in i2c_check.lower()
+        "synaptics" in dmesg.lower()
+        or "i2c-hid" in dmesg.lower()
         or bool(touchpad_files)
         or any("i2c" in l.lower() and ("hid" in l.lower() or "touch" in l.lower()) for l in profile.raw_pci)
     )

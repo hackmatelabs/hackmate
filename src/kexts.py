@@ -588,7 +588,6 @@ def download_heliport(dest: Path, progress_cb=None) -> bool:
 
 
 def _kext_valid(kext_path: Path) -> bool:
-    """A kext is valid if it exists as a dir with Contents/Info.plist inside."""
     return (
         kext_path.is_dir() and
         (kext_path / "Contents" / "Info.plist").exists() and

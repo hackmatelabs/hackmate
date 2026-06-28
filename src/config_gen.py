@@ -355,7 +355,7 @@ def _kernel_section(profile: HardwareProfile, kexts: list[KextEntry]) -> dict:
         "XhciPortLimit":              False,   # use USB map
     }
 
-    if "hp" in _dmi_vendor():
+    if "hp" in dmi_vendor():
         quirks["LapicKernelPanic"] = True
 
     # AMD: disable Intel-only quirks
@@ -394,10 +394,6 @@ def _kernel_section(profile: HardwareProfile, kexts: list[KextEntry]) -> dict:
             "KernelCache":  "Auto",
         },
     }
-
-
-def _dmi_vendor() -> str:
-    return dmi_vendor()
 
 
 def _amd_kernel_patches(profile: HardwareProfile) -> list[dict]:
@@ -620,13 +616,13 @@ def _uefi_section(profile: HardwareProfile) -> dict:
             "ExitBootServicesDelay":        0,
             "ForceOcWriteFlash":            True,
             "ForgeUefiSupport":             False,
-            "IgnoreInvalidFlexRatio":       "lenovo" in _dmi_vendor(),
+            "IgnoreInvalidFlexRatio":       "lenovo" in dmi_vendor(),
             "ReleaseUsbOwnership":          True,
             "ReloadOptionRoms":             False,
             "RequestBootVarRouting":        True,
             "ResizeGpuBars":                -1,
             "TscSyncTimeout":               0,
-            "UnblockFsConnect":             any(v in _dmi_vendor() for v in ("lenovo", "dell", "hp")),
+            "UnblockFsConnect":             any(v in dmi_vendor() for v in ("lenovo", "dell", "hp")),
         },
         "ReservedMemory": [],
     }
