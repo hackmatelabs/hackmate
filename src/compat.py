@@ -418,7 +418,10 @@ def _format_usb_windows(drive_letter: str, mount_letter: str = "Z") -> bool:
             ["diskpart", "/s", str(script_path)],
             capture_output=True, text=True, timeout=120
         )
-        return result.returncode == 0
+        if result.returncode != 0:
+            detail = (result.stdout + result.stderr).strip()[-400:]
+            raise RuntimeError(f"diskpart failed (code {result.returncode}):\n{detail}")
+        return True
     finally:
         script_path.unlink(missing_ok=True)
 

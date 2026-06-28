@@ -634,7 +634,11 @@ def download_kexts(kexts: list[KextEntry], dest: Path, progress_cb=None, verify:
         if kext.repo in seen_repos:
             assets = seen_repos[kext.repo]
         else:
-            release = _get_latest_release(kext.repo)
+            try:
+                release = _get_latest_release(kext.repo)
+            except RuntimeError as e:
+                results[kext.name] = f"ERROR: {e}"
+                continue
             if not release:
                 results[kext.name] = "ERROR: could not fetch release"
                 continue

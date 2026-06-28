@@ -1757,9 +1757,24 @@ class InstallScreen(Screen):
             ok_count  = sum(1 for v in results.values() if v.startswith("OK"))
             err_count = sum(1 for v in results.values() if v.startswith("ERROR"))
             log(f"  {ok_count} kexts downloaded successfully", "ok")
+            failed_kexts = {name for name, res in results.items() if res.startswith("ERROR")}
             for name, result in results.items():
                 if result.startswith("ERROR"):
                     log(f"  WARN: {name} — {result}", "warn")
+
+            # Remove failed kexts from config.plist so missing .kext files don't prevent booting
+            if failed_kexts:
+                import plistlib
+                cfg = plistlib.loads(config_path.read_bytes())
+                before = len(cfg["Kernel"]["Add"])
+                cfg["Kernel"]["Add"] = [
+                    k for k in cfg["Kernel"]["Add"]
+                    if not any(name in k.get("BundlePath", "") for name in failed_kexts)
+                ]
+                removed = before - len(cfg["Kernel"]["Add"])
+                if removed:
+                    config_path.write_bytes(plistlib.dumps(cfg, fmt=plistlib.FMT_XML))
+                    log(f"  Removed {removed} failed kext(s) from config.plist to keep EFI bootable", "warn")
 
             # Extras — HeliPort (itlwm users) and USBToolBox app (everyone)
             from kexts import download_heliport, download_usbtoolbox_app

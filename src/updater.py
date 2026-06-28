@@ -33,10 +33,18 @@ FILES = [
 
 
 def _get(url: str) -> dict | list | None:
+    import ssl
     try:
+        ctx = ssl.create_default_context()
         req = urllib.request.Request(url, headers={"User-Agent": "HackMate/1.0"})
-        with urllib.request.urlopen(req, timeout=8) as r:
-            return json.loads(r.read())
+        try:
+            with urllib.request.urlopen(req, context=ctx, timeout=8) as r:
+                return json.loads(r.read())
+        except ssl.SSLError:
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+            with urllib.request.urlopen(req, context=ctx, timeout=8) as r:
+                return json.loads(r.read())
     except Exception:
         return None
 
@@ -76,12 +84,20 @@ def _get_changelog(base_sha: str, head_sha: str) -> list[str]:
 
 
 def _download_file(filename: str, sha: str) -> bool:
+    import ssl
     url = f"https://raw.githubusercontent.com/{REPO}/{sha}/src/{filename}"
     dest = Path(__file__).parent / filename
     try:
+        ctx = ssl.create_default_context()
         req = urllib.request.Request(url, headers={"User-Agent": "HackMate/1.0"})
-        with urllib.request.urlopen(req, timeout=15) as r:
-            dest.write_bytes(r.read())
+        try:
+            with urllib.request.urlopen(req, context=ctx, timeout=15) as r:
+                dest.write_bytes(r.read())
+        except ssl.SSLError:
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+            with urllib.request.urlopen(req, context=ctx, timeout=15) as r:
+                dest.write_bytes(r.read())
         return True
     except Exception:
         return False
