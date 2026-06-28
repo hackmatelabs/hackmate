@@ -1431,7 +1431,8 @@ class DiskMapScreen(Screen):
             with ScrollableContainer(id="disk-scroll"):
                 yield RichLog(id="disk-log", auto_scroll=False, markup=True)
             yield Static("", id="conflict-area")
-            yield Button("← Back", id="back", classes="back")
+            yield Button("Resize / Free Space →", id="resize", classes="primary")
+            yield Button("← Back",               id="back",   classes="back")
         yield Footer()
 
     def on_mount(self) -> None:
@@ -1455,7 +1456,267 @@ class DiskMapScreen(Screen):
         self.app.call_from_thread(_update)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "resize":
+            self.app.push_screen(PartitionWizardScreen())
+        elif event.button.id == "back":
+            self.app.pop_screen()
+
+
+class PartitionWizardScreen(Screen):
+    """Pick a disk and partition to shrink."""
+
+    DEFAULT_CSS = """
+    PartitionWizardScreen #part-list { height: 1fr; border: solid $panel; }
+    PartitionWizardScreen #disk-select { height: auto; margin-bottom: 1; }
+    """
+
+    def __init__(self):
+        super().__init__()
+        self._parts: list = []
+
+    def compose(self) -> ComposeResult:
+        yield Header()
+        with Vertical(classes="screen-inner"):
+            yield Static("── Resize Partition ─────────────────────────────────────", classes="title")
+            yield Static("  Select a disk:", classes="info")
+            yield Select([], id="disk-select")
+            yield Static("  Select a partition to shrink:", classes="info")
+            yield ListView(id="part-list")
+            yield Static("", id="part-info", classes="info")
+            yield Button("Next →", id="next", classes="primary")
+            yield Button("← Back", id="back", classes="back")
+        yield Footer()
+
+    def on_mount(self) -> None:
+        self._load_disks()
+
+    @work(thread=True)
+    def _load_disks(self) -> None:
+        from dualboot import scan_disks
+        disks = scan_disks()
+        options = [(f"{d.device}  {d.model}  {d.size}", d.device) for d in disks if d.is_gpt]
+
+        def _set():
+            sel = self.query_one("#disk-select", Select)
+            sel.set_options(options)
+            if options:
+                sel.value = options[0][1]
+                self._load_partitions(options[0][1])
+        self.app.call_from_thread(_set)
+
+    def on_select_changed(self, event: Select.Changed) -> None:
+        if event.value and str(event.value) != Select.BLANK:
+            self._load_partitions(str(event.value))
+
+    @work(thread=True)
+    def _load_partitions(self, disk: str) -> None:
+        from partutil import list_partitions
+        parts = [
+            p for p in list_partitions(disk)
+            if p.fs_type not in ("", "fat32", "fat16", "vfat")
+            and p.size_bytes > 500 * 1024 * 1024
+        ]
+        self._parts = parts
+
+        def _set():
+            lv = self.query_one("#part-list", ListView)
+            lv.clear()
+            for p in parts:
+                label = p.label or "?"
+                lv.append(ListItem(Label(
+                    f"  {p.device}  {p.size_gb:.1f} GB  {p.fs_type.upper()}  {label}"
+                )))
+        self.app.call_from_thread(_set)
+
+    def on_list_view_selected(self, event: ListView.Selected) -> None:
+        idx = self.query_one("#part-list", ListView).index
+        if idx is not None and idx < len(self._parts):
+            p = self._parts[idx]
+            self.query_one("#part-info", Static).update(
+                f"  {p.device}  {p.size_gb:.1f} GB  {p.fs_type.upper()}"
+            )
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "next":
+            idx = self.query_one("#part-list", ListView).index
+            if idx is None or idx >= len(self._parts):
+                self.notify("Select a partition first", severity="warning")
+                return
+            self.app.push_screen(PartSizeScreen(self._parts[idx]))
+        elif event.button.id == "back":
+            self.app.pop_screen()
+
+
+class PartSizeScreen(Screen):
+    """Enter how much space to free."""
+
+    def __init__(self, part):
+        super().__init__()
+        self._part = part
+
+    def compose(self) -> ComposeResult:
+        p = self._part
+        yield Header()
+        with Vertical(classes="screen-inner"):
+            yield Static("── How Much Space to Free ───────────────────────────────", classes="title")
+            yield Static("")
+            yield Static(f"  Partition:    {p.device}", classes="info")
+            yield Static(f"  Filesystem:   {p.fs_type.upper()}", classes="info")
+            yield Static(f"  Current size: {p.size_gb:.1f} GB", classes="info")
+            yield Static("")
+            yield Static("  How much space do you want to FREE for macOS?", classes="info")
+            yield Static("  macOS needs at least 40 GB. Example: 60 GB", classes="info")
+            yield Static("")
+            yield Input(placeholder="e.g. 60 GB", id="free-input")
+            yield Static("", id="size-preview", classes="info")
+            yield Static("")
+            yield Button("Next →", id="next", classes="primary")
+            yield Button("← Back", id="back", classes="back")
+        yield Footer()
+
+    def on_input_changed(self, event: Input.Changed) -> None:
+        from partutil import parse_size_input
+        val = parse_size_input(event.value)
+        p = self._part
+        if val is None:
+            self.query_one("#size-preview", Static).update("")
+            return
+        new_size = p.size_bytes - val
+        new_gb   = new_size / (1024 ** 3)
+        freed_gb = val / (1024 ** 3)
+        if new_size < 5 * 1024 ** 3:
+            self.query_one("#size-preview", Static).update(
+                f"  ⚠  Remaining size would be {new_gb:.1f} GB — dangerously small"
+            )
+        else:
+            self.query_one("#size-preview", Static).update(
+                f"  {p.device} → {new_gb:.1f} GB   ({freed_gb:.1f} GB freed for macOS)"
+            )
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "next":
+            from partutil import parse_size_input
+            free_bytes = parse_size_input(self.query_one("#free-input", Input).value)
+            if not free_bytes:
+                self.notify("Enter a valid size (e.g. 60 GB)", severity="warning")
+                return
+            new_size = self._part.size_bytes - free_bytes
+            if new_size < 5 * 1024 ** 3:
+                self.notify("Remaining size too small — need at least 5 GB", severity="error")
+                return
+            if free_bytes >= self._part.size_bytes:
+                self.notify("Cannot free more than the full partition size", severity="error")
+                return
+            self.app.push_screen(PartResizeConfirmScreen(self._part, new_size))
+        elif event.button.id == "back":
+            self.app.pop_screen()
+
+
+class PartResizeConfirmScreen(Screen):
+    """Stern warning + typed confirmation before resizing."""
+
+    def __init__(self, part, new_size_bytes: int):
+        super().__init__()
+        self._part           = part
+        self._new_size       = new_size_bytes
+        self._confirm_phrase = f"SHRINK {part.device}"
+
+    def compose(self) -> ComposeResult:
+        p        = self._part
+        old_gb   = p.size_gb
+        new_gb   = self._new_size / (1024 ** 3)
+        freed_gb = old_gb - new_gb
+        yield Header()
+        with Vertical(classes="screen-inner"):
+            yield Static("── Confirm Resize ───────────────────────────────────────", classes="title")
+            yield Static("")
+            yield Static(f"  Partition:    {p.device}  ({p.fs_type.upper()})", classes="info")
+            yield Static(f"  Current size: {old_gb:.1f} GB", classes="info")
+            yield Static(f"  New size:     {new_gb:.1f} GB", classes="info")
+            yield Static(f"  Space freed:  {freed_gb:.1f} GB  (unallocated — macOS installer will use it)", classes="info")
+            yield Static("")
+            yield Static("  ⚠  BACK UP YOUR DATA BEFORE CONTINUING.", classes="warn")
+            yield Static("  ⚠  Power loss during resize may corrupt the partition.", classes="warn")
+            yield Static("  ⚠  This cannot be undone automatically.", classes="warn")
+            yield Static("")
+            yield Static(f"  To continue, type:  {self._confirm_phrase}", classes="info")
+            yield Static("")
+            yield Input(placeholder=self._confirm_phrase, id="confirm-input")
+            yield Static("")
+            yield Button("Resize", id="confirm", classes="danger")
+            yield Button("← Cancel", id="cancel", classes="back")
+        yield Footer()
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "confirm":
+            typed = self.query_one("#confirm-input", Input).value.strip()
+            if typed != self._confirm_phrase:
+                self.query_one("#confirm-input", Input).placeholder = f"Type exactly: {self._confirm_phrase}"
+                return
+            self.app.push_screen(PartResizeRunScreen(self._part, self._new_size))
+        elif event.button.id == "cancel":
+            self.app.pop_screen()
+
+
+class PartResizeRunScreen(Screen):
+    """Execute the partition resize and stream progress."""
+
+    DEFAULT_CSS = """
+    PartResizeRunScreen #resize-log { height: 1fr; border: solid $panel; }
+    """
+
+    def __init__(self, part, new_size_bytes: int):
+        super().__init__()
+        self._part     = part
+        self._new_size = new_size_bytes
+        self._done     = False
+
+    def compose(self) -> ComposeResult:
+        yield Header()
+        with Vertical(classes="screen-inner"):
+            yield Static(f"── Resizing {self._part.device} ──────────────────────────────", classes="title")
+            yield Static("", id="resize-status", classes="info")
+            with ScrollableContainer():
+                yield RichLog(id="resize-log", auto_scroll=True, markup=True)
+            yield Button("← Back", id="back", classes="back")
+        yield Footer()
+
+    def on_mount(self) -> None:
+        self._run()
+
+    @work(thread=True)
+    def _run(self) -> None:
+        from partutil import resize_partition
+
+        def log(msg: str):
+            self.app.call_from_thread(
+                lambda m=msg: self.query_one("#resize-log", RichLog).write(m)
+            )
+
+        self.app.call_from_thread(
+            lambda: self.query_one("#resize-status", Static).update("  Resizing — do not interrupt…")
+        )
+
+        result = resize_partition(self._part, self._new_size, log_cb=log)
+        self._done = True
+        freed_gb = self._part.size_gb - self._new_size / (1024 ** 3)
+
+        if result == "OK":
+            self.app.call_from_thread(lambda: self.query_one("#resize-status", Static).update(
+                f"  ✓  Done — {freed_gb:.1f} GB freed. Unallocated space is ready for macOS."
+            ))
+            self.app.call_from_thread(lambda: self.app.notify("Resize complete", severity="information"))
+        else:
+            self.app.call_from_thread(lambda: self.query_one("#resize-status", Static).update(
+                f"  ✗  {result}"
+            ))
+            self.app.call_from_thread(lambda: self.app.notify("Resize failed", severity="error"))
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "back":
+            if not self._done:
+                self.notify("Resize in progress — please wait", severity="warning")
+                return
             self.app.pop_screen()
 
 
