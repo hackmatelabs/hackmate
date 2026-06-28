@@ -1409,23 +1409,29 @@ class DiskMapScreen(Screen):
         self.repair      = repair
         self.skip_format = skip_format
 
+    DEFAULT_CSS = """
+    DiskMapScreen #disk-scroll {
+        height: 1fr;
+        border: solid $panel;
+    }
+    DiskMapScreen #disk-log {
+        height: 100%;
+    }
+    DiskMapScreen #conflict-area {
+        height: auto;
+        color: $warning;
+    }
+    """
+
     def compose(self) -> ComposeResult:
         yield Header()
-        yield Container(
-            Vertical(
-                Static("── Disk Map ─────────────────────────────────────────────", classes="title"),
-                Static("  Scanning disks…", id="disk-status", classes="info"),
-                Static(""),
-                ScrollableContainer(
-                    RichLog(id="disk-log", auto_scroll=False, markup=True),
-                    id="disk-scroll",
-                ),
-                Static("", id="conflict-area"),
-                Static(""),
-                Button("← Back", id="back", classes="back"),
-                classes="screen-inner"
-            )
-        )
+        with Vertical(classes="screen-inner"):
+            yield Static("── Disk Map ─────────────────────────────────────────────", classes="title")
+            yield Static("  Scanning disks…", id="disk-status", classes="info")
+            with ScrollableContainer(id="disk-scroll"):
+                yield RichLog(id="disk-log", auto_scroll=False, markup=True)
+            yield Static("", id="conflict-area")
+            yield Button("← Back", id="back", classes="back")
         yield Footer()
 
     def on_mount(self) -> None:
