@@ -7,9 +7,6 @@ import re
 from pathlib import Path
 from typing import Any
 
-
-# ─── Boot-args helpers ────────────────────────────────────────────────────────
-
 def parse_boot_args(args_str: str) -> dict[str, str | bool]:
     result: dict[str, str | bool] = {}
     for token in args_str.split():
@@ -20,7 +17,6 @@ def parse_boot_args(args_str: str) -> dict[str, str | bool]:
             result[token] = True
     return result
 
-
 def serialize_boot_args(args: dict[str, str | bool]) -> str:
     parts = []
     for key, val in args.items():
@@ -29,9 +25,6 @@ def serialize_boot_args(args: dict[str, str | bool]) -> str:
         elif val is not False and val != "":
             parts.append(f"{key}={val}")
     return " ".join(parts)
-
-
-# ─── Plist path access ────────────────────────────────────────────────────────
 
 # The long NVRAM UUID key
 _NVRAM_KEY = "7C436110-AB2A-4BBB-A880-FE41995C9F82"
@@ -47,18 +40,13 @@ def _resolve_path(cfg: dict, path: str) -> tuple[dict, str]:
         node = node[part]
     return node, parts[-1]
 
-
 def get_value(cfg: dict, path: str) -> Any:
     node, key = _resolve_path(cfg, path)
     return node[key]
 
-
 def set_value(cfg: dict, path: str, value: Any) -> None:
     node, key = _resolve_path(cfg, path)
     node[key] = value
-
-
-# ─── High-level getters ───────────────────────────────────────────────────────
 
 def get_boot_args(cfg: dict) -> dict[str, str | bool]:
     try:
@@ -67,11 +55,9 @@ def get_boot_args(cfg: dict) -> dict[str, str | bool]:
     except (KeyError, TypeError):
         return {}
 
-
 def set_boot_args(cfg: dict, args: dict[str, str | bool]) -> None:
     cfg.setdefault("NVRAM", {}).setdefault("Add", {}).setdefault(_NVRAM_KEY, {})
     cfg["NVRAM"]["Add"][_NVRAM_KEY]["boot-args"] = serialize_boot_args(args)
-
 
 def get_sip_enabled(cfg: dict) -> bool:
     """SIP enabled = csr-active-config is all zeros."""
@@ -81,13 +67,11 @@ def get_sip_enabled(cfg: dict) -> bool:
     except (KeyError, TypeError):
         return True
 
-
 def set_sip(cfg: dict, enabled: bool) -> None:
     cfg.setdefault("NVRAM", {}).setdefault("Add", {}).setdefault(_NVRAM_KEY, {})
     cfg["NVRAM"]["Add"][_NVRAM_KEY]["csr-active-config"] = (
         bytes(4) if enabled else bytes([0x03, 0x00, 0x00, 0x00])
     )
-
 
 def get_hide_auxiliary(cfg: dict) -> bool:
     try:
@@ -95,10 +79,8 @@ def get_hide_auxiliary(cfg: dict) -> bool:
     except (KeyError, TypeError):
         return True
 
-
 def set_hide_auxiliary(cfg: dict, val: bool) -> None:
     cfg.setdefault("Misc", {}).setdefault("Boot", {})["HideAuxiliary"] = val
-
 
 def get_timeout(cfg: dict) -> int:
     try:
@@ -106,10 +88,8 @@ def get_timeout(cfg: dict) -> int:
     except (KeyError, TypeError, ValueError):
         return 5
 
-
 def set_timeout(cfg: dict, val: int) -> None:
     cfg.setdefault("Misc", {}).setdefault("Boot", {})["Timeout"] = val
-
 
 def get_oc_logging(cfg: dict) -> bool:
     """OC file logging = Target 67."""
@@ -118,7 +98,6 @@ def get_oc_logging(cfg: dict) -> bool:
     except (KeyError, TypeError, ValueError):
         return False
 
-
 def set_oc_logging(cfg: dict, enabled: bool) -> None:
     cfg.setdefault("Misc", {}).setdefault("Debug", {})
     cfg["Misc"]["Debug"]["Target"] = 67 if enabled else 0
@@ -126,17 +105,14 @@ def set_oc_logging(cfg: dict, enabled: bool) -> None:
     cfg["Misc"]["Debug"]["ApplePanic"] = enabled
     cfg["Misc"]["Debug"]["DisableWatchDog"] = enabled
 
-
 def get_secure_boot_model(cfg: dict) -> str:
     try:
         return cfg["Misc"]["Security"]["SecureBootModel"]
     except (KeyError, TypeError):
         return "Disabled"
 
-
 def set_secure_boot_model(cfg: dict, val: str) -> None:
     cfg.setdefault("Misc", {}).setdefault("Security", {})["SecureBootModel"] = val
-
 
 def get_smbios(cfg: dict) -> str:
     try:
@@ -144,12 +120,8 @@ def get_smbios(cfg: dict) -> str:
     except (KeyError, TypeError):
         return ""
 
-
 def set_smbios(cfg: dict, val: str) -> None:
     cfg.setdefault("PlatformInfo", {}).setdefault("Generic", {})["SystemProductName"] = val
-
-
-# ─── iGPU framebuffer ─────────────────────────────────────────────────────────
 
 _IGPU_PATH = "PciRoot(0x0)/Pci(0x2,0x0)"
 
@@ -194,11 +166,9 @@ IGPU_FRAMEBUFFERS: dict[str, list[tuple[str, str]]] = {
     "8a51": [("0000528a", "Iris Plus — laptop")],
 }
 
-
 def suggest_framebuffers(gpu_device_id: str) -> list[tuple[str, str]]:
     """Return list of (hex, label) suggestions for a GPU device ID."""
     return IGPU_FRAMEBUFFERS.get(gpu_device_id.lower(), [])
-
 
 def get_igpu_platform_id(cfg: dict) -> str:
     try:
@@ -207,15 +177,11 @@ def get_igpu_platform_id(cfg: dict) -> str:
     except (KeyError, TypeError, AttributeError):
         return ""
 
-
 def set_igpu_platform_id(cfg: dict, hex_str: str) -> None:
     if not hex_str:
         return
     cfg.setdefault("DeviceProperties", {}).setdefault("Add", {}).setdefault(_IGPU_PATH, {})
     cfg["DeviceProperties"]["Add"][_IGPU_PATH]["AAPL,ig-platform-id"] = bytes.fromhex(hex_str)
-
-
-# ─── Audio layout suggestions ────────────────────────────────────────────────
 
 # AppleALC supported layouts per codec — most common/reliable ones only
 AUDIO_LAYOUTS: dict[str, list[tuple[int, str]]] = {
@@ -237,7 +203,6 @@ AUDIO_LAYOUTS: dict[str, list[tuple[int, str]]] = {
     "ALC897":  [(11, "most desktops"), (66, "alt")],
 }
 
-
 def suggest_audio_layouts(codec: str) -> list[tuple[int, str]]:
     """Return list of (layout_id, description) for the given audio codec."""
     codec = codec.upper()
@@ -246,18 +211,13 @@ def suggest_audio_layouts(codec: str) -> list[tuple[int, str]]:
             return layouts
     return []
 
-
-# ─── dGPU disabling ───────────────────────────────────────────────────────────
-
 _DGPU_PATH = "PciRoot(0x0)/Pci(0x1,0x0)/Pci(0x0,0x0)"
-
 
 def get_dgpu_disabled(cfg: dict) -> bool:
     try:
         return cfg["DeviceProperties"]["Add"][_DGPU_PATH].get("disable-gpu") == bytes([1, 0, 0, 0])
     except (KeyError, TypeError):
         return False
-
 
 def set_dgpu_disabled(cfg: dict, disabled: bool) -> None:
     dp = cfg.setdefault("DeviceProperties", {}).setdefault("Add", {})
@@ -271,9 +231,6 @@ def set_dgpu_disabled(cfg: dict, disabled: bool) -> None:
             if not dp[_DGPU_PATH]:
                 del dp[_DGPU_PATH]
 
-
-# ─── Boot-arg presets ─────────────────────────────────────────────────────────
-
 BOOT_ARG_PRESETS: dict[str, dict[str, str | bool]] = {
     "Verbose":       {"-v": True, "keepsyms": "1", "debug": "0x100"},
     "Disable Nvidia":{"nv_disable": "1"},
@@ -282,20 +239,13 @@ BOOT_ARG_PRESETS: dict[str, dict[str, str | bool]] = {
     "USB reset":     {"uia_exclude": ""},
 }
 
-
-# ─── Load / Save ──────────────────────────────────────────────────────────────
-
 def load_config(path: Path) -> dict:
     with open(path, "rb") as f:
         return plistlib.load(f)
 
-
 def save_config(path: Path, cfg: dict) -> None:
     with open(path, "wb") as f:
         plistlib.dump(cfg, f)
-
-
-# ─── USB discovery ────────────────────────────────────────────────────────────
 
 def find_configs() -> list[Path]:
     """Find config.plist files on mounted volumes."""
@@ -324,9 +274,6 @@ def find_configs() -> list[Path]:
             candidates.append(cfg)
 
     return candidates
-
-
-# ─── Advanced mode type coercion ──────────────────────────────────────────────
 
 def coerce_value(raw: str, type_hint: str) -> Any:
     if type_hint == "bool":

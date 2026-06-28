@@ -4,7 +4,6 @@ import string
 from dataclasses import dataclass
 from hardware import HardwareProfile
 
-
 @dataclass
 class SMBIOSData:
     model: str
@@ -13,8 +12,6 @@ class SMBIOSData:
     system_uuid: str
     rom: str            # 6-byte MAC-like value for ROM
 
-
-# ─── Serial number tables ─────────────────────────────────────────────────────
 # Format: LLLYYWWSSSCC
 #   LLL = factory location
 #   YY  = year
@@ -100,14 +97,11 @@ MLB_PREFIXES: dict[str, list[str]] = {
     "Macmini8,1":     ["C07K2500J9J3", "C07K2500HACD"],
 }
 
-
 def _rand_hex(n: int) -> str:
     return "".join(random.choices("0123456789ABCDEF", k=n))
 
-
 def _rand_upper(n: int) -> str:
     return "".join(random.choices(string.ascii_uppercase + string.digits, k=n))
-
 
 def generate_serial(model: str) -> str:
     factory = random.choice(FACTORIES)
@@ -124,7 +118,6 @@ def generate_serial(model: str) -> str:
 
     return f"{factory}{year_code}{week}{unique}{suffix}"
 
-
 def generate_mlb(model: str) -> str:
     prefixes = MLB_PREFIXES.get(model)
     if prefixes:
@@ -135,10 +128,8 @@ def generate_mlb(model: str) -> str:
     # generic fallback: real MLBs are 17 chars
     return f"C02{_rand_upper(8)}HACD{_rand_upper(2)}"
 
-
 def generate_uuid() -> str:
     return str(uuid.uuid4()).upper()
-
 
 def generate_rom() -> str:
     # ROM is 6 bytes shown as 12 hex chars, must look like a real MAC
@@ -149,7 +140,6 @@ def generate_rom() -> str:
     nic = _rand_hex(6)
     return oui + nic
 
-
 def generate(profile: HardwareProfile) -> SMBIOSData:
     model = profile.smbios_model or "MacBookPro15,2"
     return SMBIOSData(
@@ -159,7 +149,6 @@ def generate(profile: HardwareProfile) -> SMBIOSData:
         system_uuid=generate_uuid(),
         rom=generate_rom(),
     )
-
 
 if __name__ == "__main__":
     from hardware import scan

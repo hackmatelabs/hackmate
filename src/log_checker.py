@@ -8,7 +8,6 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-
 @dataclass
 class Finding:
     severity: str           # "critical", "warning", "info"
@@ -18,7 +17,6 @@ class Finding:
     fix_steps: list[str]
     context_lines: list[str] = field(default_factory=list)
     confidence: str = "likely"  # "definitive", "likely", "possible"
-
 
 @dataclass
 class _Pattern:
@@ -32,12 +30,8 @@ class _Pattern:
     tag: str = ""
     suppresses: list[str] = field(default_factory=list)
 
-
-# ── OC log pattern database ────────────────────────────────────────────────────
-
 OC_PATTERNS: list[_Pattern] = [
 
-    # ── USB ───────────────────────────────────────────────────────────────────
     _Pattern(
         regex=r"Still waiting for root device",
         severity="critical", category="usb",
@@ -83,7 +77,6 @@ OC_PATTERNS: list[_Pattern] = [
         confidence="likely", tag="usb-xhci",
     ),
 
-    # ── Boot / UEFI ────────────────────────────────────────────────────────────
     _Pattern(
         regex=r"Err\(0xE\).*root_hash|OCB:.*root_hash|EB.*LD.*root_hash",
         severity="critical", category="boot",
@@ -216,7 +209,6 @@ OC_PATTERNS: list[_Pattern] = [
         confidence="definitive",
     ),
 
-    # ── Memory map ────────────────────────────────────────────────────────────
     _Pattern(
         regex=r"OCABC.*MMIO.*stall|OCABC: MMIO",
         severity="critical", category="memory",
@@ -275,7 +267,6 @@ OC_PATTERNS: list[_Pattern] = [
         confidence="likely",
     ),
 
-    # ── CPU / Power ───────────────────────────────────────────────────────────
     _Pattern(
         regex=r"MSR.*0[xX][Ee]2|CFG.?[Ll]ock|cfg.lock.*enabled",
         severity="critical", category="cpu",
@@ -339,7 +330,6 @@ OC_PATTERNS: list[_Pattern] = [
         confidence="likely",
     ),
 
-    # ── Kexts ─────────────────────────────────────────────────────────────────
     _Pattern(
         regex=r"Could not load.*\.kext|Failed to inject.*kext|kext.*load.*fail",
         severity="critical", category="kext",
@@ -430,7 +420,6 @@ OC_PATTERNS: list[_Pattern] = [
         confidence="likely",
     ),
 
-    # ── ACPI / SSDTs ──────────────────────────────────────────────────────────
     _Pattern(
         regex=r"ACPI.*Error.*AE_NOT_FOUND|ACPI.*\_SB.*not.*found|SSDT.*path.*not.*exist",
         severity="warning", category="acpi",
@@ -506,7 +495,6 @@ OC_PATTERNS: list[_Pattern] = [
         confidence="likely",
     ),
 
-    # ── GPU / Display ──────────────────────────────────────────────────────────
     _Pattern(
         regex=r"WhateverGreen.*fail|WEG.*patch.*fail|ig.platform.id.*0x00000000",
         severity="critical", category="gpu",
@@ -570,7 +558,6 @@ OC_PATTERNS: list[_Pattern] = [
         confidence="definitive",
     ),
 
-    # ── Audio ──────────────────────────────────────────────────────────────────
     _Pattern(
         regex=r"AppleALC.*layout.*not found|layout.id.*not.*supported|alcid.*fail",
         severity="warning", category="audio",
@@ -603,7 +590,6 @@ OC_PATTERNS: list[_Pattern] = [
         confidence="likely",
     ),
 
-    # ── Network ───────────────────────────────────────────────────────────────
     _Pattern(
         regex=r"itlwm.*fail|AirportItlwm.*fail|intel.*wifi.*not.*load",
         severity="warning", category="network",
@@ -643,7 +629,6 @@ OC_PATTERNS: list[_Pattern] = [
         confidence="likely",
     ),
 
-    # ── Sleep / Wake ──────────────────────────────────────────────────────────
     _Pattern(
         regex=r"hibernation.*fail|sleepimage.*fail|HibernationFixup.*fail",
         severity="warning", category="sleep",
@@ -673,7 +658,6 @@ OC_PATTERNS: list[_Pattern] = [
         confidence="possible",
     ),
 
-    # ── Security / SIP ────────────────────────────────────────────────────────
     _Pattern(
         regex=r"SIP.*blocking|csr.active.config.*0x[^07]|amfi.*denied.*kext",
         severity="warning", category="security",
@@ -703,7 +687,6 @@ OC_PATTERNS: list[_Pattern] = [
         confidence="likely",
     ),
 
-    # ── Disk / NVMe ───────────────────────────────────────────────────────────
     _Pattern(
         regex=r"IONVMeFamily.*panic|NVMe.*crash|NVMe.*fatal",
         severity="critical", category="disk",
@@ -736,9 +719,6 @@ OC_PATTERNS: list[_Pattern] = [
         confidence="likely",
     ),
 ]
-
-
-# ── Kernel panic reason → fix database ────────────────────────────────────────
 
 PANIC_REASONS: list[tuple[str, Finding]] = [
     ("Still waiting for root device", Finding(
@@ -966,9 +946,6 @@ _ACIDANTHERA_HINTS: dict[str, str] = {
     "org.netkas.FakeSMC": "FakeSMC crashed — migrate to VirtualSMC instead.",
 }
 
-
-# ── Context extraction ─────────────────────────────────────────────────────────
-
 def _extract_context(lines: list[str], idx: int, radius: int = 2) -> list[str]:
     start = max(0, idx - radius)
     end   = min(len(lines), idx + radius + 1)
@@ -978,9 +955,6 @@ def _extract_context(lines: list[str], idx: int, radius: int = 2) -> list[str]:
         out.append(prefix + lines[i].rstrip()[:120])
     return out
 
-
-# ── Log type detection ─────────────────────────────────────────────────────────
-
 def _detect_log_type(text: str) -> str:
     if re.search(r"panic\(cpu \d+ caller 0x[0-9a-f]+\)", text, re.I) or \
        "Backtrace (CPU" in text:
@@ -988,9 +962,6 @@ def _detect_log_type(text: str) -> str:
     if any(m in text for m in ("OC:", "OCABC:", "OCB:", "OCDM:", "OCM:", "OCLP:")):
         return "oc_log"
     return "generic"
-
-
-# ── OC log analyzer ────────────────────────────────────────────────────────────
 
 def _analyze_oc_log(text: str) -> list[Finding]:
     lines = text.splitlines()
@@ -1020,9 +991,6 @@ def _analyze_oc_log(text: str) -> list[Finding]:
                 break
 
     return findings
-
-
-# ── Kernel panic analyzer ──────────────────────────────────────────────────────
 
 def _analyze_kernel_panic(text: str) -> list[Finding]:
     findings: list[Finding] = []
@@ -1119,14 +1087,8 @@ def _analyze_kernel_panic(text: str) -> list[Finding]:
 
     return findings
 
-
-# ── Generic / fallback ─────────────────────────────────────────────────────────
-
 def _analyze_generic(text: str) -> list[Finding]:
     return _analyze_oc_log(text)
-
-
-# ── Hardware-aware enrichment ──────────────────────────────────────────────────
 
 def _enrich(findings: list[Finding], profile) -> None:
     for f in findings:
@@ -1155,17 +1117,10 @@ def _enrich(findings: list[Finding], profile) -> None:
                     )
                     break
 
-
-# ── Sort + dedup ───────────────────────────────────────────────────────────────
-
 _SEV = {"critical": 0, "warning": 1, "info": 2}
-
 
 def _sort(findings: list[Finding]) -> list[Finding]:
     return sorted(findings, key=lambda f: (_SEV.get(f.severity, 9), f.category))
-
-
-# ── Public API ─────────────────────────────────────────────────────────────────
 
 def analyze(text: str, profile=None) -> list[Finding]:
     """
@@ -1211,7 +1166,6 @@ def analyze(text: str, profile=None) -> list[Finding]:
         _enrich(findings, profile)
 
     return _sort(findings)
-
 
 def analyze_file(path: str | Path, profile=None) -> list[Finding]:
     """Read a file and return findings."""

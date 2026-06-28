@@ -3,7 +3,6 @@ import re
 from dataclasses import dataclass, field
 from compat import IS_WINDOWS, IS_LINUX, IS_MACOS
 
-
 @dataclass
 class HardwareProfile:
     cpu_name: str = ""
@@ -42,13 +41,11 @@ class HardwareProfile:
 
     raw_pci: list = field(default_factory=list)
 
-
 def _run(cmd: list[str]) -> str:
     try:
         return subprocess.run(cmd, capture_output=True, text=True, timeout=10).stdout.strip()
     except Exception:
         return ""
-
 
 def _ps(command: str) -> str:
     try:
@@ -60,7 +57,6 @@ def _ps(command: str) -> str:
     except Exception:
         return ""
 
-
 def _lspci() -> list[str]:
     import platform
     if platform.system() == "Darwin":
@@ -70,7 +66,6 @@ def _lspci() -> list[str]:
     if not out and platform.system() == "Linux":
         out = _run(["lspci"])
     return out.splitlines()
-
 
 INTEL_GENERATIONS = {
     "206a": (2, "Sandy Bridge", "Kaby Lake"),
@@ -180,9 +175,6 @@ _OC_PLATFORM_MAP = {
     2:  "Sandy Bridge",
 }
 
-
-# ─── CPU detection ─────────────────────────────────────────────────────────────
-
 def _detect_cpu_linux(profile: HardwareProfile):
     cpuinfo = _run(["cat", "/proc/cpuinfo"])
     for line in cpuinfo.splitlines():
@@ -235,7 +227,6 @@ def _detect_cpu_linux(profile: HardwareProfile):
     if not profile.oc_platform:
         profile.oc_platform = _OC_PLATFORM_MAP.get(profile.cpu_generation, profile.cpu_codename or "Unknown")
 
-
 def _detect_cpu_windows(profile: HardwareProfile):
     name = _ps("(Get-WmiObject Win32_Processor).Name")
     profile.cpu_name = name.strip()
@@ -284,7 +275,6 @@ def _detect_cpu_windows(profile: HardwareProfile):
     except Exception:
         pass
 
-
 def _infer_intel_gen_from_name(profile: HardwareProfile):
     name = profile.cpu_name.lower()
     if "12th" in name or "alder" in name or "-12" in name:
@@ -323,7 +313,6 @@ def _infer_intel_gen_from_name(profile: HardwareProfile):
         profile.cpu_generation = 4
         profile.cpu_codename = "Haswell"
         profile.oc_platform = "Haswell"
-
 
 def _detect_amd_gen(profile: HardwareProfile):
     name = profile.cpu_name.lower()
@@ -368,9 +357,6 @@ def _detect_amd_gen(profile: HardwareProfile):
         profile.cpu_codename = "AMD (unknown)"
     profile.oc_platform = "Ryzen"
 
-
-# ─── Platform detection ────────────────────────────────────────────────────────
-
 def _detect_platform_linux(profile: HardwareProfile):
     battery = _run(["ls", "/sys/class/power_supply/"])
     profile.platform = "laptop" if "BAT" in battery else "desktop"
@@ -392,7 +378,6 @@ def _detect_platform_linux(profile: HardwareProfile):
 
     from compat import detect_touchpad_type
     profile.touchpad_type = detect_touchpad_type()
-
 
 def _detect_platform_windows(profile: HardwareProfile):
     chassis = _ps(
@@ -428,9 +413,6 @@ def _detect_platform_windows(profile: HardwareProfile):
     profile.touchpad_type = detect_touchpad_type()
     profile.has_touchpad = profile.touchpad_type != "none"
 
-
-# ─── GPU detection ─────────────────────────────────────────────────────────────
-
 def _extract_device_name(line: str) -> str:
     m = re.search(r'\]: (.+?) \[', line)
     if m:
@@ -439,7 +421,6 @@ def _extract_device_name(line: str) -> str:
     if len(parts) > 1:
         return parts[1].split("[")[0].strip()
     return line.split(":")[-1].strip()
-
 
 def _detect_gpu_linux(profile: HardwareProfile):
     for line in profile.raw_pci:
@@ -468,7 +449,6 @@ def _detect_gpu_linux(profile: HardwareProfile):
                     profile.gpu_vendor = "nvidia"
                     profile.gpu_name = _extract_device_name(line)
                     profile.gpu_device_id = ids
-
 
 def _detect_gpu_windows(profile: HardwareProfile):
     raw = _ps("(Get-WmiObject Win32_VideoController | ForEach-Object { $_.Name }) -join '||'").strip()
@@ -503,9 +483,6 @@ def _detect_gpu_windows(profile: HardwareProfile):
     if m:
         profile.gpu_device_id = m.group(1).upper()
 
-
-# ─── Audio detection ───────────────────────────────────────────────────────────
-
 def _get_hda_codec_linux() -> str:
     try:
         codecs = subprocess.run(["cat", "/proc/asound/card0/codec#0"], capture_output=True, text=True).stdout
@@ -515,7 +492,6 @@ def _get_hda_codec_linux() -> str:
     except Exception:
         pass
     return ""
-
 
 def _detect_audio_linux(profile: HardwareProfile):
     for line in profile.raw_pci:
@@ -530,7 +506,6 @@ def _detect_audio_linux(profile: HardwareProfile):
                     codec = _get_hda_codec_linux()
                     profile.audio_codec = codec if codec else ids
 
-
 def _detect_audio_windows(profile: HardwareProfile):
     raw = _ps("(Get-WmiObject Win32_SoundDevice | Select-Object -First 1).Name")
     profile.audio_name = raw.strip()
@@ -543,9 +518,6 @@ def _detect_audio_windows(profile: HardwareProfile):
         profile.audio_codec = "Realtek"
     else:
         profile.audio_codec = raw.strip()
-
-
-# ─── Network detection ─────────────────────────────────────────────────────────
 
 def _detect_network_linux(profile: HardwareProfile):
     for line in profile.raw_pci:
@@ -574,7 +546,6 @@ def _detect_network_linux(profile: HardwareProfile):
                     profile.ethernet_chipset = "rtl8111"
                 elif "ax88" in lower or "asix" in lower:
                     profile.ethernet_chipset = "ax88"
-
 
 def _detect_network_windows(profile: HardwareProfile):
     # Ethernet — Get-CimInstance works on all Windows 10/11 (Get-WmiObject is deprecated on Win11)
@@ -613,9 +584,6 @@ def _detect_network_windows(profile: HardwareProfile):
     elif "realtek" in name_lower: profile.wifi_chipset = "realtek"
     elif "mediatek" in name_lower: profile.wifi_chipset = "mediatek"
 
-
-# ─── SMBIOS ────────────────────────────────────────────────────────────────────
-
 def detect_smbios(profile: HardwareProfile):
     key = (profile.cpu_generation, profile.platform)
     if key in SMBIOS_MAP:
@@ -625,9 +593,6 @@ def detect_smbios(profile: HardwareProfile):
     else:
         profile.smbios_model = "MacBookPro15,2"
 
-
-# ─── macOS detection ───────────────────────────────────────────────────────────
-
 def _sp(data_type: str) -> str:
     try:
         return subprocess.run(
@@ -635,7 +600,6 @@ def _sp(data_type: str) -> str:
         ).stdout
     except Exception:
         return ""
-
 
 def _detect_cpu_macos(profile: HardwareProfile):
     profile.cpu_name = _run(["sysctl", "-n", "machdep.cpu.brand_string"])
@@ -669,7 +633,6 @@ def _detect_cpu_macos(profile: HardwareProfile):
     elif profile.cpu_vendor == "amd":
         _detect_amd_gen(profile)
 
-
 def _detect_gpu_macos(profile: HardwareProfile):
     sp = _sp("SPDisplaysDataType")
     for line in sp.splitlines():
@@ -687,7 +650,6 @@ def _detect_gpu_macos(profile: HardwareProfile):
             profile.gpu_vendor = "nvidia"
             profile.gpu_name = line.split(":")[-1].strip() if ":" in line else line
 
-
 def _detect_audio_macos(profile: HardwareProfile):
     sp = _sp("SPAudioDataType")
     for line in sp.splitlines():
@@ -700,7 +662,6 @@ def _detect_audio_macos(profile: HardwareProfile):
                 break
         elif "audio" in lower and ":" in line:
             profile.audio_name = line.split(":")[-1].strip()
-
 
 def _detect_network_macos(profile: HardwareProfile):
     sp = _sp("SPNetworkDataType")
@@ -718,7 +679,6 @@ def _detect_network_macos(profile: HardwareProfile):
         profile.wifi_chipset = "broadcom"
         profile.wifi_name = "Broadcom WiFi"
 
-
 def _detect_platform_macos(profile: HardwareProfile):
     model = _run(["sysctl", "-n", "hw.model"]).lower()
     profile.platform = "laptop" if "macbook" in model else "desktop"
@@ -727,9 +687,6 @@ def _detect_platform_macos(profile: HardwareProfile):
         profile.touchpad_type = "i2c"
     sp = _sp("SPStorageDataType").lower()
     profile.nvme_present = "nvme" in sp or "apple ssd" in sp
-
-
-# ─── Main scan ─────────────────────────────────────────────────────────────────
 
 def scan() -> HardwareProfile:
     profile = HardwareProfile()
@@ -756,7 +713,6 @@ def scan() -> HardwareProfile:
 
     detect_smbios(profile)
     return profile
-
 
 if __name__ == "__main__":
     p = scan()

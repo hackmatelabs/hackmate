@@ -9,7 +9,6 @@ from typing import Optional
 from hardware import HardwareProfile
 from compat import IS_WINDOWS
 
-
 @dataclass
 class KextEntry:
     name: str
@@ -19,13 +18,10 @@ class KextEntry:
     bundle_name: str = ""  # actual .kext bundle name if different from name
     exe_name: str = ""    # binary name inside Contents/MacOS/ if different from name
 
-
-# ─── Master kext database ─────────────────────────────────────────────────────
 # Every known OC-compatible kext. Selection logic below picks what's needed.
 
 DB: dict[str, KextEntry] = {
 
-    # ── Core ──────────────────────────────────────────────────────────────────
     "Lilu":              KextEntry("Lilu",            "acidanthera/Lilu",             "Lilu-",              "base patcher, must load first"),
     "VirtualSMC":        KextEntry("VirtualSMC",      "acidanthera/VirtualSMC",       "VirtualSMC-",        "SMC emulator (modern, Sandy Bridge+)"),
     "FakeSMC":           KextEntry("FakeSMC",         "RehabMan/OS-X-FakeSMC-kozlek", "FakeSMC-",           "SMC emulator (legacy, pre-Sandy Bridge)"),
@@ -37,14 +33,12 @@ DB: dict[str, KextEntry] = {
     "CryptexFixup":      KextEntry("CryptexFixup",    "acidanthera/CryptexFixup",     "CryptexFixup-",      "Ventura+ cryptex on older/AMD hardware"),
     "AMFIPass":          KextEntry("AMFIPass",        "dortania/AMFIPass",            "AMFIPass-",          "AMFI bypass for post-install patching"),
 
-    # ── FakeSMC plugins (legacy) ───────────────────────────────────────────────
     "FakeSMC_ACPISensors": KextEntry("FakeSMC_ACPISensors", "RehabMan/OS-X-FakeSMC-kozlek", "FakeSMC-",  "ACPI sensors plugin for FakeSMC"),
     "FakeSMC_CPUSensors":  KextEntry("FakeSMC_CPUSensors",  "RehabMan/OS-X-FakeSMC-kozlek", "FakeSMC-",  "CPU sensors plugin for FakeSMC"),
     "FakeSMC_GPUSensors":  KextEntry("FakeSMC_GPUSensors",  "RehabMan/OS-X-FakeSMC-kozlek", "FakeSMC-",  "GPU sensors plugin for FakeSMC"),
     "FakeSMC_LPCSensors":  KextEntry("FakeSMC_LPCSensors",  "RehabMan/OS-X-FakeSMC-kozlek", "FakeSMC-",  "LPC sensors plugin for FakeSMC"),
     "FakeSMC_SMMSensors":  KextEntry("FakeSMC_SMMSensors",  "RehabMan/OS-X-FakeSMC-kozlek", "FakeSMC-",  "SMM sensors plugin for FakeSMC"),
 
-    # ── VirtualSMC plugins ────────────────────────────────────────────────────
     "SMCBatteryManager": KextEntry("SMCBatteryManager","acidanthera/VirtualSMC",      "VirtualSMC-",        "battery status (in VirtualSMC zip)"),
     "SMCProcessor":      KextEntry("SMCProcessor",     "acidanthera/VirtualSMC",      "VirtualSMC-",        "CPU temp sensors (in VirtualSMC zip)"),
     "SMCSuperIO":        KextEntry("SMCSuperIO",       "acidanthera/VirtualSMC",      "VirtualSMC-",        "desktop fan sensors (in VirtualSMC zip)"),
@@ -53,19 +47,16 @@ DB: dict[str, KextEntry] = {
     "SMCAMDProcessor":   KextEntry("SMCAMDProcessor",  "trulyspinach/AMDRyzenCPUPowerManagement","SMCAMDProcessor-","AMD CPU sensors"),
     "SMCRadeonGPU":      KextEntry("SMCRadeonGPU",     "aluveitie/RadeonSensor",      "SMCRadeonGPU-",      "AMD GPU temp in HWMonitor"),
 
-    # ── Audio ─────────────────────────────────────────────────────────────────
     "AppleALC":          KextEntry("AppleALC",         "acidanthera/AppleALC",        "AppleALC-",          "audio codec patches via Lilu"),
     "VoodooHDA":         KextEntry("VoodooHDA",        "chris1111/VoodooHDA-OC",      "VoodooHDA-",         "fallback audio for unsupported codecs"),
     "CodecCommander":    KextEntry("CodecCommander",   "acidanthera/AppleALC",        "AppleALC-",          "fixes audio after sleep — bundled workaround via AppleALC"),
     "WhateverGreen":     KextEntry("WhateverGreen",    "acidanthera/WhateverGreen",   "WhateverGreen-",     "GPU framebuffer + audio HDMI/DP patches"),
 
-    # ── PS/2 input ────────────────────────────────────────────────────────────
     "VoodooPS2Controller":KextEntry("VoodooPS2Controller","acidanthera/VoodooPS2",    "VoodooPS2Controller-","PS/2 keyboard + mouse + trackpad"),
     "VoodooPS2Keyboard": KextEntry("VoodooPS2Keyboard","acidanthera/VoodooPS2",       "VoodooPS2Controller-","PS/2 keyboard (in VoodooPS2 zip)"),
     "VoodooPS2Mouse":    KextEntry("VoodooPS2Mouse",   "acidanthera/VoodooPS2",       "VoodooPS2Controller-","PS/2 mouse (in VoodooPS2 zip)"),
     "VoodooPS2Trackpad": KextEntry("VoodooPS2Trackpad","acidanthera/VoodooPS2",       "VoodooPS2Controller-","PS/2 trackpad (in VoodooPS2 zip)"),
 
-    # ── I2C input ─────────────────────────────────────────────────────────────
     "VoodooI2C":         KextEntry("VoodooI2C",        "VoodooI2C/VoodooI2C",         "VoodooI2C-",         "I2C trackpad/touchscreen base", exe_name="VoodooI2C"),
     "VoodooI2CHID":      KextEntry("VoodooI2CHID",     "VoodooI2C/VoodooI2C",         "VoodooI2C-",         "generic I2C-HID satellite (bundled in VoodooI2C zip)"),
     "VoodooI2CSynaptics":KextEntry("VoodooI2CSynaptics","VoodooI2C/VoodooI2C",        "VoodooI2C-",         "Synaptics I2C satellite (bundled in VoodooI2C zip)"),
@@ -78,7 +69,6 @@ DB: dict[str, KextEntry] = {
     "VoodooSMBus":       KextEntry("VoodooSMBus",      "VoodooI2C/VoodooSMBus",       "VoodooSMBus-",       "SMBus trackpad (Synaptics PS2 over SMBus)"),
     "VoodooRMI":         KextEntry("VoodooRMI",        "1Revenger1/VoodooRMI",        "VoodooRMI-",         "Synaptics RMI4 trackpad (better than PS2 on some laptops)"),
 
-    # ── Ethernet ──────────────────────────────────────────────────────────────
     "IntelMausiEthernet":KextEntry("IntelMausiEthernet","acidanthera/IntelMausi",        "IntelMausi-",        "Intel I219/I218/I217 Ethernet", bundle_name="IntelMausi", exe_name="IntelMausi"),
     "AppleIGC":          KextEntry("AppleIGC",         "SongXiaoXi/AppleIGC",         "AppleIGC-",          "Intel I225-V / I226-V 2.5GbE"),
     "AppleIntelE1000e":  KextEntry("AppleIntelE1000e", "chris1111/AppleIntelE1000e",  "AppleIntelE1000e-",  "Intel 82578/82577/82574/82567 Ethernet"),
@@ -93,13 +83,11 @@ DB: dict[str, KextEntry] = {
     "BCM5722D":          KextEntry("BCM5722D",         "SavageAUS/BCM5722D",          "BCM5722D-",          "Broadcom BCM5722 Ethernet"),
     "NullEthernet":      KextEntry("NullEthernet",     "RehabMan/OS-X-Null-Ethernet", "NullEthernet-",      "placeholder ethernet for iMessage/iCloud on WiFi-only"),
 
-    # ── WiFi ──────────────────────────────────────────────────────────────────
     "itlwm":             KextEntry("itlwm",            "OpenIntelWireless/itlwm",     "itlwm_",             "Intel WiFi (needs HeliPort app for menu bar)", exe_name="AirportItlwm"),
     "AirportItlwm":      KextEntry("AirportItlwm",     "OpenIntelWireless/itlwm",     "AirportItlwm_",      "Intel WiFi as native AirportBSD (macOS version specific!)"),
     "AirportBrcmFixup":  KextEntry("AirportBrcmFixup", "acidanthera/AirportBrcmFixup","AirportBrcmFixup-",  "Broadcom BCM94352Z/BCM943602CS WiFi patches"),
     "ATH9KFixup":        KextEntry("ATH9KFixup",       "chontos/ATH9KFixup",          "ATH9KFixup-",        "Atheros AR9xxx WiFi patches"),
 
-    # ── Bluetooth ─────────────────────────────────────────────────────────────
     "BrcmPatchRAM":      KextEntry("BrcmPatchRAM",     "acidanthera/BrcmPatchRAM",    "BrcmPatchRAM-",      "Broadcom BT (macOS 10.10 and below)"),
     "BrcmPatchRAM2":     KextEntry("BrcmPatchRAM2",    "acidanthera/BrcmPatchRAM",    "BrcmPatchRAM2-",     "Broadcom BT (macOS 10.11-11)"),
     "BrcmPatchRAM3":     KextEntry("BrcmPatchRAM3",    "acidanthera/BrcmPatchRAM",    "BrcmPatchRAM3-",     "Broadcom BT (macOS 12+)"),
@@ -111,13 +99,11 @@ DB: dict[str, KextEntry] = {
     "IntelBTPatcher":    KextEntry("IntelBTPatcher",   "OpenIntelWireless/IntelBluetoothFirmware","IntelBluetooth",      "Intel BT patches for macOS 12+"),
     "IntelBluetoothInjector":KextEntry("IntelBluetoothInjector","OpenIntelWireless/IntelBluetoothFirmware","IntelBluetooth",  "Intel BT injector (macOS 11 and below)"),
 
-    # ── Graphics ──────────────────────────────────────────────────────────────
     "NootRX":            KextEntry("NootRX",           "ChefKissInc/NootRX",          "NootRX-",            "AMD RX 6600/6700/6800/6900 (Navi 2x) on Ventura+"),
     "NootedRed":         KextEntry("NootedRed",        "ChefKissInc/NootedRed",       "NootedRed-",         "AMD Renoir/Cezanne/Rembrandt/Phoenix iGPU"),
     "NootedBlue":        KextEntry("NootedBlue",       "ChefKissInc/NootedBlue",      "NootedBlue-",        "Intel Arc (experimental)"),
     "RadeonSensor":      KextEntry("RadeonSensor",     "aluveitie/RadeonSensor",      "RadeonSensor-",      "AMD GPU temperature monitoring"),
 
-    # ── Power management ──────────────────────────────────────────────────────
     "NullCPUPowerManagement":KextEntry("NullCPUPowerManagement","baservand/NullCPUPowerManagement","NullCPUPowerManagement-","disable AppleIntelCPUPowerManagement (Sandy Bridge and older)"),
     "VoodooTSCSync":     KextEntry("VoodooTSCSync",    "RehabMan/VoodooTSCSync",      "VoodooTSCSync-",     "TSC sync for multi-socket / HEDT"),
     "AmdTSCSync":        KextEntry("AmdTSCSync",       "naveenkrdy/AmdTSCSync",       "AmdTSCSync-",        "TSC sync for AMD"),
@@ -126,23 +112,19 @@ DB: dict[str, KextEntry] = {
     "CpuTopologyRebuild":KextEntry("CpuTopologyRebuild","b00t0x/CpuTopologyRebuild",  "CpuTopologyRebuild-","Alder/Raptor Lake P+E core topology fix"),
     "HibernationFixup":  KextEntry("HibernationFixup", "acidanthera/HibernationFixup","HibernationFixup-",  "sleep/wake stability fix"),
 
-    # ── Battery ───────────────────────────────────────────────────────────────
     "ECEnabler":         KextEntry("ECEnabler",        "1Revenger1/ECEnabler",        "ECEnabler-",         "battery EC fields >8-bit (replaces ACPIBatteryManager patches)"),
     "ACPIBatteryManager":KextEntry("ACPIBatteryManager","RehabMan/OS-X-ACPI-Battery-Driver","ACPIBatteryManager-","battery (legacy, use ECEnabler instead on modern OC)"),
 
-    # ── USB ───────────────────────────────────────────────────────────────────
     "USBToolBox":        KextEntry("USBToolBox",       "USBToolBox/kext",             "USBToolBox-",        "USB port mapping tool"),
     "UTBMap":            KextEntry("UTBMap",           "",                            "",                   "USB port map (user-generated via USB Mapping after first boot)"),
     "USBInjectAll":      KextEntry("USBInjectAll",     "Sniki/OS-X-USB-Inject-All",   "USBInjectAll-",      "inject all USB ports (use only during mapping, not final EFI)"),
     "GenericUSBXHCI":    KextEntry("GenericUSBXHCI",   "RattletraPM/GenericUSBXHCI",  "GenericUSBXHCI-",    "AMD USB 3.x controller support"),
     "XHCI-unsupported":  KextEntry("XHCI-unsupported", "RehabMan/OS-X-USB-Inject-All","XHCI-unsupported-",  "unsupported USB 3.0 controllers (Sandy/Ivy Bridge)"),
 
-    # ── Storage ───────────────────────────────────────────────────────────────
     "CtlnaAHCIPort":     KextEntry("CtlnaAHCIPort",    "dortania/CtlnaAHCIPort",      "CtlnaAHCIPort-",     "SATA controller support for Big Sur+"),
     "AHCIPortInjector":  KextEntry("AHCIPortInjector", "RehabMan/OS-X-AHCI-Port-Injector","AHCIPortInjector-","inject AHCI ports (very old hardware)"),
     "JMicronATA":        KextEntry("JMicronATA",       "RehabMan/OS-X-JMicron-ATA",   "JMicronATA-",        "JMicron ATA (very old)"),
 
-    # ── FakePCIID ─────────────────────────────────────────────────────────────
     "FakePCIID":         KextEntry("FakePCIID",        "RehabMan/OS-X-Fake-PCI-ID",   "FakePCIID-",         "spoof PCI device IDs (base, required by all FakePCIID plugins)"),
     "FakePCIID_XHCIMux":         KextEntry("FakePCIID_XHCIMux",        "RehabMan/OS-X-Fake-PCI-ID","FakePCIID-","XHCI mux spoof"),
     "FakePCIID_Broadcom_WiFi":   KextEntry("FakePCIID_Broadcom_WiFi",  "RehabMan/OS-X-Fake-PCI-ID","FakePCIID-","Broadcom WiFi PCI ID spoof"),
@@ -150,25 +132,19 @@ DB: dict[str, KextEntry] = {
     "FakePCIID_Intel_HD_Graphics":KextEntry("FakePCIID_Intel_HD_Graphics","RehabMan/OS-X-Fake-PCI-ID","FakePCIID-","Intel HD Graphics PCI ID spoof"),
     "FakePCIID_BCM57XX_as_BCM57765":KextEntry("FakePCIID_BCM57XX_as_BCM57765","RehabMan/OS-X-Fake-PCI-ID","FakePCIID-","BCM57xx Ethernet spoof as BCM57765"),
 
-    # ── Laptop vendor ─────────────────────────────────────────────────────────
     "YogaSMC":           KextEntry("YogaSMC",          "zhen-zen/YogaSMC",            "YogaSMC",            "ThinkPad/IdeaPad FN keys, fan, keyboard backlight"),
     "AsusSMC":           KextEntry("AsusSMC",          "hieplpvip/AsusSMC",           "AsusSMC-",           "ASUS FN keys, keyboard backlight, fan"),
     "BrightnessKeys":    KextEntry("BrightnessKeys",   "acidanthera/BrightnessKeys",  "BrightnessKeys-",    "brightness Fn keys (F1/F2)"),
     "NoTouchID":         KextEntry("NoTouchID",        "al3xtjames/NoTouchID",        "NoTouchID-",         "suppress Touch ID prompts on non-T2 SMBIOS"),
 
-    # ── Thunderbolt ───────────────────────────────────────────────────────────
     "IOElectrify":       KextEntry("IOElectrify",      "Acidanthera/IOElectrify",     "IOElectrify-",       "Thunderbolt hot-plug support"),
     "ThunderboltReset":  KextEntry("ThunderboltReset", "osy56/ThunderboltReset",      "ThunderboltReset",   "Alpine Ridge TB controller reset on sleep/wake"),
 
-    # ── Card readers ──────────────────────────────────────────────────────────
     "RealtekCardReader": KextEntry("RealtekCardReader","0xFireWolf/RealtekCardReader", "RealtekCardReader-", "Realtek RTS5xxx SD card reader"),
     "RealtekCardReaderFriend":KextEntry("RealtekCardReaderFriend","0xFireWolf/RealtekCardReaderFriend","RealtekCardReaderFriend-","Lilu plugin companion for RealtekCardReader"),
     "Sinetek-rtsx":      KextEntry("Sinetek-rtsx",     "cholonam/Sinetek-rtsx",       "Sinetek-rtsx-",      "alternative Realtek RTSX card reader driver"),
 
 }
-
-
-# ─── ALC layout-id table ──────────────────────────────────────────────────────
 
 ALC_LAYOUTS: dict[str, list[int]] = {
     "ALC255":  [3, 17, 18, 21, 27, 29, 69, 71, 76, 82, 86, 100],
@@ -201,9 +177,6 @@ def get_alc_layout(codec: str) -> int:
             return layouts[0]
     return 1
 
-
-# ─── Detection helpers ────────────────────────────────────────────────────────
-
 def _dmi(field: str) -> str:
     if IS_WINDOWS:
         wmi_map = {
@@ -226,7 +199,6 @@ def _dmi(field: str) -> str:
         return Path(f"/sys/class/dmi/id/{field}").read_text().strip().lower()
     except Exception:
         return ""
-
 
 def _detect_touchpad_type() -> str:
     if IS_WINDOWS:
@@ -264,31 +236,25 @@ def _detect_touchpad_type() -> str:
     if "i2c-hid" in combined or ("i2c" in combined and IS_WINDOWS): return "i2c_hid"
     return "ps2"
 
-
 def _is_legacy(profile: HardwareProfile) -> bool:
     return profile.cpu_generation > 0 and profile.cpu_generation < 2
-
 
 def _is_amd_apu(profile: HardwareProfile) -> bool:
     return (profile.cpu_vendor == "amd"
             and profile.gpu_vendor in ("amd", "")
             and any(x in profile.gpu_name.lower() for x in ["vega", "radeon graphics", "renoir", "cezanne", "rembrandt", "phoenix", "navi"]))
 
-
 def _is_navi2x(profile: HardwareProfile) -> bool:
     name = profile.gpu_name.lower()
     return profile.gpu_vendor == "amd" and any(x in name for x in [
         "rx 6600", "rx 6700", "rx 6800", "rx 6900", "navi 21", "navi 22", "navi 23", "navi 24"])
 
-
 def _is_intel_arc(profile: HardwareProfile) -> bool:
     return profile.gpu_vendor == "intel" and "arc" in profile.gpu_name.lower()
-
 
 def _is_hedt(profile: HardwareProfile) -> bool:
     name = profile.cpu_name.lower()
     return any(x in name for x in ["threadripper", "xeon w-", "i9-79", "i9-78", "i7-79", "i7-78"])
-
 
 def _has_card_reader() -> bool:
     import platform
@@ -317,9 +283,6 @@ def _has_card_reader() -> bool:
     except Exception:
         return False
 
-
-# ─── Selection logic ──────────────────────────────────────────────────────────
-
 def select_kexts(profile: HardwareProfile, wifi_kext_mode: str = "itlwm") -> list[KextEntry]:
     selected: list[KextEntry] = []
     seen: set[str] = set()
@@ -334,7 +297,6 @@ def select_kexts(profile: HardwareProfile, wifi_kext_mode: str = "itlwm") -> lis
     tp = _detect_touchpad_type() if profile.platform == "laptop" else "none"
     legacy = _is_legacy(profile)
 
-    # ── Core ──────────────────────────────────────────────────────────────────
     add("Lilu")
     add("FakeSMC" if legacy else "VirtualSMC")
     add("RestrictEvents", "FeatureUnlock")
@@ -347,7 +309,6 @@ def select_kexts(profile: HardwareProfile, wifi_kext_mode: str = "itlwm") -> lis
     else:
         add("WhateverGreen")
 
-    # ── SMC plugins ───────────────────────────────────────────────────────────
     if legacy:
         add("FakeSMC_ACPISensors", "FakeSMC_CPUSensors", "FakeSMC_GPUSensors",
             "FakeSMC_LPCSensors", "FakeSMC_SMMSensors")
@@ -364,7 +325,6 @@ def select_kexts(profile: HardwareProfile, wifi_kext_mode: str = "itlwm") -> lis
         if profile.cpu_vendor == "amd":
             add("SMCAMDProcessor")
 
-    # ── Audio ─────────────────────────────────────────────────────────────────
     codec = profile.audio_codec.lower()
     alc_supported = any(k.lower() in codec for k in ALC_LAYOUTS)
     if alc_supported or not profile.audio_codec:
@@ -373,7 +333,6 @@ def select_kexts(profile: HardwareProfile, wifi_kext_mode: str = "itlwm") -> lis
         add("VoodooHDA")
     # CodecCommander (EAPD sleep fix) is handled by AppleALC on modern systems
 
-    # ── Input ─────────────────────────────────────────────────────────────────
     if profile.platform == "laptop":
         if tp == "rmi":
             add("VoodooRMI", "VoodooPS2Controller", "VoodooInput")
@@ -394,7 +353,6 @@ def select_kexts(profile: HardwareProfile, wifi_kext_mode: str = "itlwm") -> lis
 
         add("BrightnessKeys", "ECEnabler", "HibernationFixup", "NoTouchID")
 
-    # ── Ethernet ──────────────────────────────────────────────────────────────
     chip = profile.ethernet_chipset
     eth_map = {
         "i219": "IntelMausiEthernet", "i218": "IntelMausiEthernet", "i217": "IntelMausiEthernet",
@@ -415,7 +373,6 @@ def select_kexts(profile: HardwareProfile, wifi_kext_mode: str = "itlwm") -> lis
     elif not chip:
         add("NullEthernet")
 
-    # ── WiFi ──────────────────────────────────────────────────────────────────
     wchip = profile.wifi_chipset
     if wchip == "intel":
         chosen = "AirportItlwm" if wifi_kext_mode == "AirportItlwm" else "itlwm"
@@ -425,13 +382,11 @@ def select_kexts(profile: HardwareProfile, wifi_kext_mode: str = "itlwm") -> lis
     elif wchip == "atheros":
         add("ATH9KFixup")
 
-    # ── GPU extras ────────────────────────────────────────────────────────────
     if _is_navi2x(profile):
         add("NootRX")
     if profile.gpu_vendor == "amd" and not _is_amd_apu(profile):
         add("RadeonSensor")
 
-    # ── CPU extras ────────────────────────────────────────────────────────────
     add("CPUFriend")
     if profile.cpu_generation >= 12:
         add("CpuTopologyRebuild")
@@ -442,39 +397,30 @@ def select_kexts(profile: HardwareProfile, wifi_kext_mode: str = "itlwm") -> lis
     if _is_hedt(profile):
         add("ForgedInvariant")
 
-    # ── NVMe ──────────────────────────────────────────────────────────────────
     if profile.nvme_present:
         add("NVMeFix")
 
-    # ── Storage fixes ─────────────────────────────────────────────────────────
     # CtlnaAHCIPort needed on Big Sur+ for some SATA controllers
     if profile.cpu_generation <= 7:
         add("CtlnaAHCIPort")
 
-    # ── USB ───────────────────────────────────────────────────────────────────
     # USBToolBox.kext enables port discovery; UTBMap.kext is a placeholder the
     # user replaces after running USBToolBox inside macOS (HackMate → USB Mapping)
     add("USBToolBox", "UTBMap")
     if profile.cpu_generation <= 3:
         add("XHCI-unsupported")
 
-    # ── Thunderbolt ───────────────────────────────────────────────────────────
     # IOElectrify/ThunderboltReset are unmaintained; modern OC handles TB natively
 
-    # ── Vendor ────────────────────────────────────────────────────────────────
     if "lenovo" in vendor:
         add("YogaSMC")
     if "asus" in vendor or "asustek" in vendor:
         add("AsusSMC")
 
-    # ── Card reader ───────────────────────────────────────────────────────────
     if _has_card_reader():
         add("RealtekCardReader", "RealtekCardReaderFriend")
 
     return selected
-
-
-# ─── Download ─────────────────────────────────────────────────────────────────
 
 def _get_latest_release(repo: str) -> Optional[dict]:
     import ssl
@@ -512,7 +458,6 @@ def _get_latest_release(repo: str) -> Optional[dict]:
 
     return None
 
-
 def _find_asset(assets: list, pattern: str) -> Optional[dict]:
     for asset in assets:
         name = asset["name"].lower()
@@ -523,7 +468,6 @@ def _find_asset(assets: list, pattern: str) -> Optional[dict]:
         if pattern.lower() in name and name.endswith(".zip"):
             return asset
     return None
-
 
 def download_usbtoolbox_app(dest: Path, progress_cb=None) -> bool:
     """Download USBToolBox app (macOS or Windows) into dest/."""
@@ -573,7 +517,6 @@ def download_usbtoolbox_app(dest: Path, progress_cb=None) -> bool:
     except Exception:
         return False
 
-
 def download_heliport(dest: Path, progress_cb=None) -> bool:
     """Download HeliPort.app (needed with itlwm) into dest/HeliPort.app.zip."""
     if progress_cb:
@@ -599,14 +542,12 @@ def download_heliport(dest: Path, progress_cb=None) -> bool:
     except Exception:
         return False
 
-
 def _kext_valid(kext_path: Path) -> bool:
     return (
         kext_path.is_dir() and
         (kext_path / "Contents" / "Info.plist").exists() and
         (kext_path / "Contents" / "Info.plist").stat().st_size > 100
     )
-
 
 def download_kexts(kexts: list[KextEntry], dest: Path, progress_cb=None, verify: bool = False) -> dict[str, str]:
     dest.mkdir(parents=True, exist_ok=True)
@@ -695,7 +636,6 @@ def download_kexts(kexts: list[KextEntry], dest: Path, progress_cb=None, verify:
 
     shutil.rmtree(str(tmp), ignore_errors=True)
     return results
-
 
 if __name__ == "__main__":
     from hardware import scan

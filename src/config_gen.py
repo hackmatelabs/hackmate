@@ -5,9 +5,6 @@ from kexts import KextEntry, select_kexts, get_alc_layout
 from smbios import SMBIOSData
 from compat import IS_WINDOWS, dmi_vendor, cpu_core_count
 
-
-# ─── iGPU framebuffer platform-ids (little-endian bytes) ─────────────────────
-
 IG_PLATFORM_IDS: dict[str, bytes] = {
     # Sandy Bridge
     "hd3000":    bytes([0x00, 0x00, 0x01, 0x00]),   # AAPL,snb-platform-id
@@ -56,7 +53,6 @@ DEVICE_IDS: dict[str, bytes] = {
     "kbl_r":     bytes([0xA0, 0x3E, 0x00, 0x00]),   # spoof UHD 620 as 3EA0
     "cfl_h":     bytes([0x9B, 0x3E, 0x00, 0x00]),   # spoof as 3E9B
 }
-
 
 def _igpu_config(profile: HardwareProfile) -> tuple[bytes, bytes | None]:
     """Returns (ig-platform-id, device-id or None)"""
@@ -107,9 +103,6 @@ def _igpu_config(profile: HardwareProfile) -> tuple[bytes, bytes | None]:
         return IG_PLATFORM_IDS["uhd770"], None
 
     return IG_PLATFORM_IDS["uhd620"], None
-
-
-# ─── Kext load order ──────────────────────────────────────────────────────────
 
 LOAD_ORDER = [
     "Lilu", "FakeSMC", "VirtualSMC",
@@ -181,11 +174,9 @@ KERNEL_VERSIONS: dict[str, tuple[str, str]] = {
     "CryptexFixup":        ("22.0.0", ""),     # macOS 13+
 }
 
-
 def _sort_kexts(kexts: list[KextEntry]) -> list[KextEntry]:
     order = {name: i for i, name in enumerate(LOAD_ORDER)}
     return sorted(kexts, key=lambda k: order.get(k.name, 999))
-
 
 def _kext_entry(kext: KextEntry, enabled: bool = True) -> dict:
     has_exe = kext.name not in NO_EXECUTABLE
@@ -200,9 +191,6 @@ def _kext_entry(kext: KextEntry, enabled: bool = True) -> dict:
         "MinKernel":      min_k,
         "PlistPath":      "Contents/Info.plist",
     }
-
-
-# ─── ACPI SSDTs ───────────────────────────────────────────────────────────────
 
 def _required_ssdts(profile: HardwareProfile, kexts: list[KextEntry]) -> list[str]:
     ssdts = []
@@ -242,7 +230,6 @@ def _required_ssdts(profile: HardwareProfile, kexts: list[KextEntry]) -> list[st
 
     return ssdts
 
-
 def _acpi_add(ssdts: list[str]) -> list[dict]:
     return [
         {
@@ -252,7 +239,6 @@ def _acpi_add(ssdts: list[str]) -> list[dict]:
         }
         for ssdt in ssdts
     ]
-
 
 def _acpi_patches(profile: HardwareProfile) -> list[dict]:
     patches = []
@@ -287,9 +273,6 @@ def _acpi_patches(profile: HardwareProfile) -> list[dict]:
     patches.append(patch("_PRW to XPRW", "5F505257", "58505257"))
 
     return patches
-
-
-# ─── DeviceProperties ─────────────────────────────────────────────────────────
 
 def _device_properties(profile: HardwareProfile, layout_id: int) -> dict:
     props: dict[str, dict] = {}
@@ -329,9 +312,6 @@ def _device_properties(profile: HardwareProfile, layout_id: int) -> dict:
         }
 
     return {"Add": props, "Delete": {}}
-
-
-# ─── Kernel ───────────────────────────────────────────────────────────────────
 
 def _kernel_section(profile: HardwareProfile, kexts: list[KextEntry]) -> dict:
     sorted_kexts = _sort_kexts(kexts)
@@ -395,7 +375,6 @@ def _kernel_section(profile: HardwareProfile, kexts: list[KextEntry]) -> dict:
         },
     }
 
-
 def _amd_kernel_patches(profile: HardwareProfile) -> list[dict]:
     # Full AMD vanilla kernel patches from https://github.com/AMD-OSX/AMD_Vanilla
     # Required for AMD CPUs (Ryzen/Threadripper) to boot macOS
@@ -458,9 +437,6 @@ def _amd_kernel_patches(profile: HardwareProfile) -> list[dict]:
 
     ]
 
-
-# ─── NVRAM ────────────────────────────────────────────────────────────────────
-
 def _nvram_section(profile: HardwareProfile, layout_id: int, macos_major: int = 0) -> dict:
     boot_args = [
         "-v",                  # verbose on first boot (remove after working)
@@ -504,9 +480,6 @@ def _nvram_section(profile: HardwareProfile, layout_id: int, macos_major: int = 
         "WriteFlash":       True,
     }
 
-
-# ─── PlatformInfo ─────────────────────────────────────────────────────────────
-
 def _platform_info(smbios: SMBIOSData) -> dict:
     return {
         "Automatic":          True,
@@ -529,9 +502,6 @@ def _platform_info(smbios: SMBIOSData) -> dict:
         "UpdateSMBIOSMode":"Create",
         "UseRawUuidEncoding": False,
     }
-
-
-# ─── UEFI ─────────────────────────────────────────────────────────────────────
 
 def _uefi_section(profile: HardwareProfile) -> dict:
     drivers = [
@@ -627,9 +597,6 @@ def _uefi_section(profile: HardwareProfile) -> dict:
         "ReservedMemory": [],
     }
 
-
-# ─── Booter ───────────────────────────────────────────────────────────────────
-
 def _booter_section(profile: HardwareProfile) -> dict:
     is_z390_or_hedt = profile.cpu_generation >= 9
 
@@ -660,9 +627,6 @@ def _booter_section(profile: HardwareProfile) -> dict:
             "SyncRuntimePermissions":   False,
         },
     }
-
-
-# ─── Main builder ─────────────────────────────────────────────────────────────
 
 def generate(profile: HardwareProfile, smbios: SMBIOSData, macos_major: int = 0, wifi_kext_mode: str = "itlwm") -> dict:
     kexts = select_kexts(profile, wifi_kext_mode=wifi_kext_mode)
@@ -737,11 +701,9 @@ def generate(profile: HardwareProfile, smbios: SMBIOSData, macos_major: int = 0,
         "UEFI":             _uefi_section(profile),
     }
 
-
 def write_plist(config: dict, path: Path):
     with open(path, "wb") as f:
         plistlib.dump(config, f, fmt=plistlib.FMT_XML, sort_keys=False)
-
 
 if __name__ == "__main__":
     from hardware import scan

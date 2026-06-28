@@ -125,7 +125,6 @@ from smbios import generate as gen_smbios
 from config_gen import generate as gen_config, write_plist, _required_ssdts
 from recovery import compatible_versions, download_recovery, MacOSVersion
 
-
 CSS = """
 Screen                { background: #0d0d0d; }
 Header                { background: #111111; color: #00ff88; }
@@ -189,9 +188,6 @@ BANNER = (
     "██║  ██║██║  ██║╚██████╗██║  ██╗██║ ╚═╝ ██║██║  ██║   ██║   ███████╗\n"
     "╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝╚═╝     ╚═╝╚═╝  ╚═╝   ╚═╝   ╚══════╝"
 )
-
-
-# ─── Enable OC Logging ────────────────────────────────────────────────────────
 
 class EnableOCLoggingScreen(Screen):
     """Pick a USB, patch its config.plist to enable OpenCore file logging."""
@@ -288,9 +284,6 @@ class EnableOCLoggingScreen(Screen):
                 status.update,
                 f"  [red]✗ Failed to patch {cfg_path} — check permissions.[/red]"
             )
-
-
-# ─── Log Checker ──────────────────────────────────────────────────────────────
 
 class LogCheckerScreen(Screen):
 
@@ -452,9 +445,6 @@ class LogCheckerScreen(Screen):
     def _set_summary(self, msg: str, level: str = "info") -> None:
         self.query_one("#checker-summary", Static).update(msg)
 
-
-# ─── USB Mapping ─────────────────────────────────────────────────────────────
-
 class USBMappingScreen(Screen):
 
     def compose(self) -> ComposeResult:
@@ -557,9 +547,6 @@ class USBMappingScreen(Screen):
         except Exception as e:
             self.app.call_from_thread(self.notify, f"Failed: {e}", severity="error")
 
-
-# ─── Welcome ──────────────────────────────────────────────────────────────────
-
 class WelcomeScreen(Screen):
     def compose(self) -> ComposeResult:
         yield Header()
@@ -596,9 +583,6 @@ class WelcomeScreen(Screen):
             self.app.push_screen(LogCheckerScreen())
         elif event.button.id == "quit":
             self.app.exit()
-
-
-# ─── Restore Screen ───────────────────────────────────────────────────────────
 
 class RestoreScreen(Screen):
     def compose(self) -> ComposeResult:
@@ -645,7 +629,6 @@ class RestoreScreen(Screen):
             self.app.push_screen(RestoreConfirmScreen(backup, device))
         elif event.button.id == "back":
             self.app.pop_screen()
-
 
 class RestoreConfirmScreen(Screen):
     def __init__(self, backup: Path, device: str):
@@ -715,13 +698,9 @@ class RestoreConfirmScreen(Screen):
         except Exception as e:
             notify(f"Restore failed: {e}")
 
-
-# ─── Manual Hardware Screen ───────────────────────────────────────────────────
-
 class ManualHardwareScreen(Screen):
 
     CPU_OPTIONS = [
-        # ── Intel Desktop ──────────────────────────────────────────────────────
         ("intel-2",    "Intel Core i3/i5/i7-2xxx  —  Sandy Bridge (2nd gen desktop)"),
         ("intel-3",    "Intel Core i3/i5/i7-3xxx  —  Ivy Bridge (3rd gen desktop)"),
         ("intel-4",    "Intel Core i3/i5/i7-4xxx  —  Haswell (4th gen desktop)"),
@@ -731,7 +710,6 @@ class ManualHardwareScreen(Screen):
         ("intel-8d",   "Intel Core i3/i5/i7/i9-8xxx  —  Coffee Lake (8th gen desktop)"),
         ("intel-9d",   "Intel Core i5/i7/i9-9xxx  —  Coffee Lake Refresh (9th gen desktop)"),
         ("intel-10d",  "Intel Core i3/i5/i7/i9-10xxx  —  Comet Lake (10th gen desktop)"),
-        # ── Intel Laptop ───────────────────────────────────────────────────────
         ("intel-2m",   "Intel Core i5/i7-2xxx  —  Sandy Bridge (2nd gen laptop)"),
         ("intel-3m",   "Intel Core i5/i7-3xxx  —  Ivy Bridge (3rd gen laptop)"),
         ("intel-4m",   "Intel Core i5/i7-4xxx  —  Haswell (4th gen laptop)"),
@@ -745,7 +723,6 @@ class ManualHardwareScreen(Screen):
         ("intel-10cm", "Intel Core i3/i5/i7-10xxx H  —  Comet Lake-H (10th gen laptop)"),
         ("intel-10il", "Intel Core i3/i5/i7-10xxx U/Y  —  Ice Lake (10th gen laptop, Iris Plus)"),
         ("intel-11tl", "Intel Core i5/i7-11xxx  —  Tiger Lake (11th gen laptop, limited support)"),
-        # ── AMD Desktop ────────────────────────────────────────────────────────
         ("amd-zen1d",  "AMD Ryzen 3/5/7 1xxx  —  Zen (desktop)"),
         ("amd-zenpd",  "AMD Ryzen 3/5/7 2xxx  —  Zen+ (desktop)"),
         ("amd-zen2d",  "AMD Ryzen 5/7/9 3xxx  —  Zen 2 (desktop)"),
@@ -754,7 +731,6 @@ class ManualHardwareScreen(Screen):
         ("amd-tr5",    "AMD Threadripper 5xxx  —  Zen 3 (HEDT)"),
         ("amd-zen4d",  "AMD Ryzen 5/7/9 7xxx  —  Zen 4 (desktop, AM5)"),
         ("amd-zen5d",  "AMD Ryzen 5/7/9 9xxx  —  Zen 5 (desktop, AM5)"),
-        # ── AMD Laptop / APU ───────────────────────────────────────────────────
         ("amd-zen1m",  "AMD Ryzen 3/5/7 2xxx U  —  Zen (laptop APU)"),
         ("amd-zenpm",  "AMD Ryzen 3/5/7 3xxx U  —  Zen+ (laptop APU)"),
         ("amd-zen2m",  "AMD Ryzen 4xxx / 5xxx U  —  Zen 2 (laptop APU)"),
@@ -1031,9 +1007,6 @@ class ManualHardwareScreen(Screen):
         self.app.profile = profile
         self.app.push_screen(VersionScreen())
 
-
-# ─── Scanning ─────────────────────────────────────────────────────────────────
-
 class ScanScreen(Screen):
     def compose(self) -> ComposeResult:
         yield Header()
@@ -1095,9 +1068,6 @@ class ScanScreen(Screen):
         elif event.button.id in ("back", "back2"):
             self.app.pop_screen()
 
-
-# ─── macOS Version ────────────────────────────────────────────────────────────
-
 class VersionScreen(Screen):
     def compose(self) -> ComposeResult:
         profile: HardwareProfile = self.app.profile
@@ -1133,9 +1103,6 @@ class VersionScreen(Screen):
                 self.app.push_screen(USBScreen())
         elif event.button.id == "back":
             self.app.pop_screen()
-
-
-# ─── USB Selection ────────────────────────────────────────────────────────────
 
 class USBScreen(Screen):
     def compose(self) -> ComposeResult:
@@ -1175,9 +1142,6 @@ class USBScreen(Screen):
             self.app.push_screen(NoUSBPathScreen())
         elif event.button.id == "back":
             self.app.pop_screen()
-
-
-# ─── No USB — save EFI to folder ─────────────────────────────────────────────
 
 class NoUSBPathScreen(Screen):
     """Let the user pick a folder to save the EFI into instead of a USB."""
@@ -1236,9 +1200,6 @@ class NoUSBPathScreen(Screen):
         elif event.button.id == "back":
             self.app.pop_screen()
 
-
-# ─── Build Mode ───────────────────────────────────────────────────────────────
-
 class WiFiKextScreen(Screen):
     """WiFi kext selection."""
     def __init__(self, device: str, repair: bool, skip_format: bool):
@@ -1288,7 +1249,6 @@ class WiFiKextScreen(Screen):
         elif event.button.id == "back":
             self.app.pop_screen()
 
-
 class BuildModeScreen(Screen):
     def __init__(self, device: str):
         super().__init__()
@@ -1333,9 +1293,6 @@ class BuildModeScreen(Screen):
             self._next_screen(repair=True, skip_format=False)
         elif event.button.id == "back":
             self.app.pop_screen()
-
-
-# ─── dGPU Screen ─────────────────────────────────────────────────────────────
 
 class DGPUScreen(Screen):
     """Ask user whether to disable discrete GPU for macOS (Optimus laptops)."""
@@ -1384,9 +1341,6 @@ class DGPUScreen(Screen):
             self.app.push_screen(ConfirmScreen(self.device, repair=self.repair, skip_format=self.skip_format))
         elif event.button.id == "back":
             self.app.pop_screen()
-
-
-# ─── Confirm Screen ───────────────────────────────────────────────────────────
 
 class ConfirmScreen(Screen):
     def __init__(self, device: str, repair: bool = False, skip_format: bool = False):
@@ -1468,9 +1422,6 @@ class ConfirmScreen(Screen):
             self.app.push_screen(InstallScreen(self.device, repair=self.repair, skip_format=self.skip_format))
         elif event.button.id == "cancel":
             self.app.pop_screen()
-
-
-# ─── Install ──────────────────────────────────────────────────────────────────
 
 class InstallScreen(Screen):
     def __init__(self, device: str, repair: bool = False, skip_format: bool = False):
@@ -1594,13 +1545,11 @@ class InstallScreen(Screen):
 
         try:
             if local_mode:
-                # ── Local EFI folder mode — no USB, no recovery download ───────
                 ui(2, "Preparing EFI output folder...")
                 log("── Local EFI mode: generating EFI folder without USB", "header")
                 Path(mount).mkdir(parents=True, exist_ok=True)
                 log(f"Output folder: {mount}", "ok")
             elif repair or skip_format:
-                # ── Repair / Already Formatted: mount existing USB ────────────
                 ui(2, "Mounting USB partition...")
                 if repair:
                     log("── Repair mode: skipping format and recovery download", "header")
@@ -1628,7 +1577,6 @@ class InstallScreen(Screen):
                     size_mb = backup_zip.stat().st_size / 1024 / 1024
                     log(f"── EFI backed up: {file_count} files, {size_mb:.1f} MB → {backup_zip}", "ok")
             else:
-                # ── 1. Format USB ─────────────────────────────────────────────
                 ui(2, f"Formatting {device} as FAT32...")
                 log(f"── Formatting {device}...", "header")
                 self.app.call_from_thread(self._cmd_log, ["format_usb"] if IS_WINDOWS else ["parted", "mkfs.fat"])
@@ -1637,7 +1585,6 @@ class InstallScreen(Screen):
                     raise RuntimeError(f"Failed to format {device}")
                 log(f"Formatted {device} as FAT32 (GPT+ESP)", "ok")
 
-            # ── 2. Create / ensure EFI structure ─────────────────────────────
             ui(8, "Creating EFI structure...")
             efi       = Path(f"{mount}") / "EFI" if not IS_WINDOWS else Path(f"{mount}\\EFI")
             oc_dir    = efi / "OC"
@@ -1650,7 +1597,6 @@ class InstallScreen(Screen):
             log("EFI folder structure ready.", "ok")
 
             if not repair and not local_mode:
-                # ── 3. Download macOS recovery ────────────────────────────────
                 ui(10, f"Downloading {version.name} recovery from Apple...")
                 log(f"── Fetching {version.name} from Apple CDN...", "header")
                 recovery_dest = tmp / "recovery"
@@ -1689,7 +1635,6 @@ class InstallScreen(Screen):
             else:
                 log("  Skipping recovery download (repair mode)", "info")
 
-            # ── 4. Generate SMBIOS ────────────────────────────────────────────
             ui(35, "Generating SMBIOS...")
             log("── Generating SMBIOS...", "header")
             from smbios import generate as gen_smbios, SMBIOSData
@@ -1724,7 +1669,6 @@ class InstallScreen(Screen):
             log(f"  MLB:     {smbios.board_serial}", "ok")
             log(f"  UUID:    {smbios.system_uuid}", "ok")
 
-            # ── 5. Generate config.plist ──────────────────────────────────────
             ui(40, "Generating config.plist...")
             log("── Generating config.plist...", "header")
             from config_gen import generate as gen_config, write_plist, _required_ssdts
@@ -1738,7 +1682,6 @@ class InstallScreen(Screen):
             write_plist(config, config_path)
             log(f"  config.plist written ({config_path.stat().st_size} bytes)", "ok")
 
-            # ── 6. Download kexts ─────────────────────────────────────────────
             ui(45, "Selecting kexts...")
             log("── Selecting kexts...", "header")
             from kexts import select_kexts, download_kexts
@@ -1797,7 +1740,6 @@ class InstallScreen(Screen):
             else:
                 log("  USBToolBox download failed — get it from github.com/USBToolBox/Tool", "warn")
 
-            # ── 7. Download OpenCore ──────────────────────────────────────────
             MIN_EFI = 50 * 1024  # sane minimum — corrupt/truncated files are smaller
             oc_required = [
                 boot_dir / "BOOTx64.efi",
@@ -1870,7 +1812,6 @@ class InstallScreen(Screen):
                 else:
                     log("  Could not find OpenCore release asset", "error")
 
-            # ── 8. SSDTs via SSDTTime ─────────────────────────────────────────
             # In repair mode, back up existing SSDTs first so we can restore
             # them if generation fails — never leave the system with zero SSDTs.
             ssdt_backup_dir = None
@@ -1943,7 +1884,6 @@ class InstallScreen(Screen):
                 )
                 log(f"  {len(truly_manual)} SSDTs need manual install — see README_MANUAL_SSDTS.txt", "warn")
 
-            # ── 9. EFI sanity check ─────────────────────────────────────────
             ui(97, "Running EFI sanity check...")
             log("", "info")
             log("── EFI Sanity Check ──────────────────────────────", "header")
@@ -1976,7 +1916,6 @@ class InstallScreen(Screen):
             else:
                 log(f"  All {len(oks)} checks passed", "ok")
 
-            # ── 10. Unmount (skip for local EFI folder mode) ─────────────────
             if not local_mode:
                 ui(99, "Unmounting USB...")
                 unmount_usb(mount)
@@ -2023,9 +1962,6 @@ class InstallScreen(Screen):
         if event.button.id == "back":
             self.app.pop_screen()
 
-
-# ─── Config Editor ───────────────────────────────────────────────────────────
-
 class ConfigEditorUSBScreen(Screen):
     """Pick which USB / config.plist to edit."""
 
@@ -2061,7 +1997,6 @@ class ConfigEditorUSBScreen(Screen):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "back":
             self.app.pop_screen()
-
 
 class ConfigEditorScreen(Screen):
     """Simple / Advanced config.plist editor."""
@@ -2117,7 +2052,6 @@ class ConfigEditorScreen(Screen):
                 Static(f"  {self._path}", classes="info"),
                 Static(""),
                 ScrollableContainer(
-                    # ── Simple mode ──────────────────────────────────────
                     Vertical(
                         Static("  ── Boot Arg Presets ──────────────────────", classes="cfg-section"),
                         Horizontal(
@@ -2167,7 +2101,6 @@ class ConfigEditorScreen(Screen):
                         ),
                         id="simple-panel"
                     ),
-                    # ── Advanced mode ─────────────────────────────────────
                     Vertical(
                         Static("  ── Advanced: raw plist key editor ────────────────────", classes="cfg-section"),
                         Static(""),
@@ -2359,9 +2292,6 @@ class ConfigEditorScreen(Screen):
         except Exception:
             pass
 
-
-# ─── BIOS Checklist ──────────────────────────────────────────────────────────
-
 class BIOSChecklistScreen(Screen):
     """Show what BIOS settings to configure before booting the USB."""
     def __init__(self, version_name: str, device: str):
@@ -2416,9 +2346,6 @@ class BIOSChecklistScreen(Screen):
         if event.button.id == "done":
             self.app.pop_screen()
 
-
-# ─── Demo Mode ───────────────────────────────────────────────────────────────
-
 class DemoScreen(Screen):
     """Auto-playing walkthrough for screenshots/GIFs — launched with --demo."""
 
@@ -2453,7 +2380,6 @@ class DemoScreen(Screen):
 
         time.sleep(0.5)
 
-        # ── Stage 1: Hardware scan ────────────────────────────────────────────
         ui(5, "Scanning hardware...")
         time.sleep(0.8)
         log("── Hardware Detection ─────────────────────────────────", "header")
@@ -2474,7 +2400,6 @@ class DemoScreen(Screen):
 
         time.sleep(1.0)
 
-        # ── Stage 2: Kexts ───────────────────────────────────────────────────
         ui(20, "Downloading kexts from GitHub...")
         log("", "info")
         log("── Downloading Kexts ──────────────────────────────────", "header")
@@ -2492,7 +2417,6 @@ class DemoScreen(Screen):
 
         time.sleep(0.5)
 
-        # ── Stage 3: SSDTs ───────────────────────────────────────────────────
         ui(45, "Generating SSDTs from DSDT...")
         log("", "info")
         log("── Generating SSDTs ───────────────────────────────────", "header")
@@ -2509,7 +2433,6 @@ class DemoScreen(Screen):
 
         time.sleep(0.5)
 
-        # ── Stage 4: OpenCore + config ────────────────────────────────────────
         ui(62, "Downloading OpenCore...")
         log("", "info")
         log("── OpenCore + Config ──────────────────────────────────", "header")
@@ -2522,14 +2445,12 @@ class DemoScreen(Screen):
 
         time.sleep(0.5)
 
-        # ── Stage 5: Sanity checks ────────────────────────────────────────────
         ui(88, "Running EFI sanity checks...")
         log("", "info")
         log("── EFI Sanity Check ───────────────────────────────────", "header")
         time.sleep(0.3)
         log("  42 checks passed", "ok")
 
-        # ── Done ─────────────────────────────────────────────────────────────
         ui(100, "USB is ready!")
         log("", "info")
         log("══════════════════════════════════════════════════════", "header")
@@ -2538,9 +2459,6 @@ class DemoScreen(Screen):
         log("══════════════════════════════════════════════════════", "header")
         time.sleep(2)
         self.app.call_from_thread(self.app.exit)
-
-
-# ─── App ──────────────────────────────────────────────────────────────────────
 
 def _get_version() -> str:
     try:
@@ -2603,7 +2521,6 @@ class HackMate(App):
                 severity="warning",
                 timeout=10,
             )
-
 
 if __name__ == "__main__":
     HackMate().run()

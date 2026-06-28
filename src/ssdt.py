@@ -46,7 +46,6 @@ SSDT_MENU_KEYWORDS: dict[str, list[str]] = {
 # SSDTs SSDTTime has no equivalent for
 MANUAL_SSDTS: set[str] = set()
 
-# ── DSL Templates ─────────────────────────────────────────────────────────────
 # Double-braces {{ }} are literal braces in the f-string/format output.
 
 XOSI_DSL_TEMPLATE = """\
@@ -222,9 +221,6 @@ DefinitionBlock ("", "SSDT", 2, "CORP", "PMCR", 0x00000000)
 }}
 """
 
-
-# ── DSDT inspection ───────────────────────────────────────────────────────────
-
 def _inspect_dsdt(dsdt_path: Path) -> dict:
     """
     Scan the raw DSDT binary for key device names.
@@ -260,9 +256,6 @@ def _inspect_dsdt(dsdt_path: Path) -> dict:
         "has_gpi0":  has_gpi0,
     }
 
-
-# ── Template builders ─────────────────────────────────────────────────────────
-
 def _compile_dsl(dsl: str, name: str, acpi_dir: Path, iasl) -> bool:
     """Write DSL to temp file, compile with iasl, return True if .aml produced."""
     if not iasl:
@@ -279,11 +272,9 @@ def _compile_dsl(dsl: str, name: str, acpi_dir: Path, iasl) -> bool:
     except Exception:
         return False
 
-
 def _build_xosi_ssdt(acpi_dir: Path, ssdttime_dir: Path) -> bool:
     iasl = find_iasl(ssdttime_dir)
     return _compile_dsl(XOSI_DSL_TEMPLATE, "SSDT-XOSI", acpi_dir, iasl)
-
 
 def _build_gpio_ssdt(dsdt_path: Path, acpi_dir: Path, ssdttime_dir: Path, ssdt_name: str = "SSDT-GPI0") -> bool:
     try:
@@ -300,7 +291,6 @@ def _build_gpio_ssdt(dsdt_path: Path, acpi_dir: Path, ssdttime_dir: Path, ssdt_n
         return _compile_dsl(dsl, ssdt_name, acpi_dir, iasl)
     except Exception:
         return False
-
 
 def _build_from_template(ssdt: str, acpi_dir: Path, ssdttime_dir: Path,
                          dsdt_info: dict, cpu_generation: int) -> bool:
@@ -331,7 +321,6 @@ def _build_from_template(ssdt: str, acpi_dir: Path, ssdttime_dir: Path,
 
     return _compile_dsl(dsl, ssdt, acpi_dir, iasl)
 
-
 def _use_bundled(ssdt: str, acpi_dir: Path, cpu_generation: int) -> bool:
     """
     Tier 3: copy a precompiled .aml from src/assets/acpi/.
@@ -352,7 +341,6 @@ def _use_bundled(ssdt: str, acpi_dir: Path, cpu_generation: int) -> bool:
         _sh.copy2(str(src), str(acpi_dir / f"{ssdt}.aml"))
         return True
     return False
-
 
 def _ensure_ssdttime() -> Path:
     """Download and extract SSDTTime if not present. Returns path to SSDTTime.py."""
@@ -382,8 +370,6 @@ def _ensure_ssdttime() -> Path:
     chmod_iasl(SSDTTIME_DIR)
     return script
 
-
-
 def _parse_menu(output: str) -> dict[str, str]:
     mapping: dict[str, str] = {}
     for line in output.splitlines():
@@ -398,7 +384,6 @@ def _parse_menu(output: str) -> dict[str, str]:
                 mapping[ssdt] = num
     return mapping
 
-
 def _run(script: Path, input_text: str, timeout: int = 60) -> str:
     result = subprocess.run(
         [sys.executable, "-u", str(script.name)],
@@ -411,13 +396,11 @@ def _run(script: Path, input_text: str, timeout: int = 60) -> str:
     )
     return result.stdout + result.stderr
 
-
 def _pnlf_uid(cpu_generation: int) -> str:
     if cpu_generation in (2, 3): return "14"   # Sandy/Ivy Bridge
     if cpu_generation in (4, 5): return "15"   # Haswell/Broadwell
     if cpu_generation in (6, 7): return "16"   # Skylake/Kaby Lake
     return "19"                                 # Coffee Lake+ / AMD
-
 
 def generate(
     needed: list[str],
@@ -443,7 +426,6 @@ def generate(
     if not doable:
         return results
 
-    # ── 1. Get SSDTTime ──────────────────────────────────────────────────────
     cb("Downloading SSDTTime...")
     try:
         script = _ensure_ssdttime()
@@ -453,7 +435,6 @@ def generate(
         cb(f"  SSDTTime unavailable: {e} — using templates/bundles")
         script = None
 
-    # ── 2. Get DSDT + inspect ────────────────────────────────────────────────
     cb("Extracting DSDT from system ACPI tables...")
     dsdt = get_dsdt(tmp)
     if dsdt:
@@ -466,7 +447,6 @@ def generate(
 
     ssdttime_dir = script.parent if script else SSDTTIME_DIR
 
-    # ── 3. Probe SSDTTime menu ───────────────────────────────────────────────
     menu_map: dict[str, str] = {}
     if script and dsdt:
         cb("Probing SSDTTime menu...")
@@ -486,18 +466,15 @@ def generate(
         if menu_map:
             cb(f"  {len(menu_map)} menu options detected: {', '.join(menu_map.keys())}")
 
-    # ── 4. Generate each SSDT ────────────────────────────────────────────────
     acpi_dir.mkdir(parents=True, exist_ok=True)
     results_dir = script.parent / "Results" if script else None
 
     for ssdt in doable:
 
-        # ── SSDT-AWAC: skip immediately if hardware doesn't have AWAC ────────
         if ssdt == "SSDT-AWAC" and not dsdt_info.get("has_awac"):
             results[ssdt] = "SKIP: AWAC clock not present in this system — not required"
             continue
 
-        # ── SSDT-GPI0/GPIO: template-based, no SSDTTime option ───────────────
         if ssdt in ("SSDT-GPI0", "SSDT-GPIO"):
             cb(f"Generating {ssdt}...")
             if dsdt and _build_gpio_ssdt(dsdt, acpi_dir, ssdttime_dir, ssdt):
@@ -510,7 +487,6 @@ def generate(
                 results[ssdt] = "ERROR: GPI0/GPIO device not found in DSDT"
             continue
 
-        # ── SSDT-XOSI: prefer template; SSDTTime rarely has it ───────────────
         if ssdt == "SSDT-XOSI" and not (menu_map.get(ssdt) and script and dsdt):
             cb("Generating SSDT-XOSI from template...")
             if _build_xosi_ssdt(acpi_dir, ssdttime_dir):
@@ -521,7 +497,6 @@ def generate(
                 results[ssdt] = "ERROR: could not compile SSDT-XOSI template"
             continue
 
-        # ── Tier 1: SSDTTime ─────────────────────────────────────────────────
         choice = menu_map.get(ssdt)
         tier1_ok = False
 
@@ -555,20 +530,17 @@ def generate(
             results[ssdt] = "OK"
             continue
 
-        # ── Tier 2: template + iasl ───────────────────────────────────────────
         cb(f"Generating {ssdt} from template...")
         if _build_from_template(ssdt, acpi_dir, ssdttime_dir, dsdt_info, cpu_generation):
             cb(f"  {ssdt}.aml (template)")
             results[ssdt] = "OK"
             continue
 
-        # ── Tier 3: bundled precompiled .aml ─────────────────────────────────
         if _use_bundled(ssdt, acpi_dir, cpu_generation):
             cb(f"  {ssdt}.aml (bundled fallback)")
             results[ssdt] = "OK"
             continue
 
-        # ── All tiers failed ──────────────────────────────────────────────────
         if not choice and ssdt not in ("SSDT-GPI0", "SSDT-GPIO", "SSDT-XOSI"):
             results[ssdt] = f"SKIP: '{ssdt}' not found in SSDTTime and no template available"
         else:

@@ -11,9 +11,6 @@ import plistlib
 import struct
 from pathlib import Path
 
-
-# ─── Helpers ─────────────────────────────────────────────────────────────────
-
 def _is_valid_efi(path: Path) -> bool:
     """Check EFI binary has a valid PE/COFF header (MZ magic)."""
     try:
@@ -21,7 +18,6 @@ def _is_valid_efi(path: Path) -> bool:
         return magic == b'MZ'
     except Exception:
         return False
-
 
 def _kext_has_valid_structure(kext_path: Path, exec_path: str) -> tuple[bool, str]:
     """
@@ -43,12 +39,8 @@ def _kext_has_valid_structure(kext_path: Path, exec_path: str) -> tuple[bool, st
             return False, f"Executable {exec_path} is empty (0 bytes) — likely a bad download"
     return True, ""
 
-
 def _smbios_is_placeholder(value: str) -> bool:
     return not value or value in ("", "00000000", "000000000000") or value.startswith("0000000")
-
-
-# ─── Hardware mismatch checks ────────────────────────────────────────────────
 
 def _check_hardware_mismatch(cfg: dict, profile, results):
     def warn(msg): results.append(("warn",  msg))
@@ -59,7 +51,6 @@ def _check_hardware_mismatch(cfg: dict, profile, results):
     kext_set    = {e.get("BundlePath", "").split("/")[0] for e in kernel_add}
     dev_props   = cfg.get("DeviceProperties", {}).get("Add", {})
 
-    # ── iGPU platform-id ─────────────────────────────────────────────────────
     igpu_key = next((k for k in dev_props if "IGPU" in k.upper() or "GFX0" in k.upper() or "B0D2" in k.upper()), None)
     if igpu_key and profile.gpu_vendor == "intel":
         stored_id = dev_props[igpu_key].get("AAPL,ig-platform-id")
@@ -80,7 +71,6 @@ def _check_hardware_mismatch(cfg: dict, profile, results):
             except Exception:
                 pass
 
-    # ── Audio layout-id ───────────────────────────────────────────────────────
     audio_key = next((k for k in dev_props if "HDEF" in k.upper() or "HDAS" in k.upper() or "B0D3" in k.upper()), None)
     if audio_key:
         layout_raw = dev_props[audio_key].get("layout-id")
@@ -100,7 +90,6 @@ def _check_hardware_mismatch(cfg: dict, profile, results):
             except Exception:
                 pass
 
-    # ── WiFi kext vs detected hardware ───────────────────────────────────────
     wifi = profile.wifi_name.lower() if profile.wifi_name else ""
     if "intel" in wifi:
         if "itlwm.kext" not in kext_set and "AirportItlwm.kext" not in kext_set:
@@ -117,7 +106,6 @@ def _check_hardware_mismatch(cfg: dict, profile, results):
                 "WiFi will not work."
             )
 
-    # ── Ethernet kext vs detected hardware ───────────────────────────────────
     eth = profile.ethernet_name.lower() if profile.ethernet_name else ""
     if "intel" in eth:
         if not any("Intel" in k or "Mausi" in k for k in kext_set):
@@ -132,7 +120,6 @@ def _check_hardware_mismatch(cfg: dict, profile, results):
                 "Wired network will not work."
             )
 
-    # ── Platform vs SMBIOS ───────────────────────────────────────────────────
     pi = cfg.get("PlatformInfo", {}).get("Generic", {})
     sn = pi.get("SystemProductName", "")
     if sn:
@@ -149,9 +136,6 @@ def _check_hardware_mismatch(cfg: dict, profile, results):
             )
         else:
             ok(f"SMBIOS {sn} matches platform ({profile.platform})")
-
-
-# ─── Config completeness ─────────────────────────────────────────────────────
 
 def _check_config_completeness(cfg: dict, results):
     def err(msg):  results.append(("error", msg))
@@ -199,9 +183,6 @@ def _check_config_completeness(cfg: dict, results):
             f"security violations, set it to Disabled."
         )
 
-
-# ─── Kext conflict detection ─────────────────────────────────────────────────
-
 KNOWN_CONFLICTS = [
     ({"itlwm.kext", "AirportItlwm.kext"},
      "itlwm and AirportItlwm both present — they do the same job, keep only one. "
@@ -227,9 +208,6 @@ def _check_conflicts(kext_set: set, results):
         if conflict_set.issubset(kext_set):
             err(f"Conflict: {explanation}")
 
-
-# ─── Main check ───────────────────────────────────────────────────────────────
-
 def check(efi_root: Path, profile) -> list[tuple[str, str]]:
     results = []
 
@@ -245,7 +223,6 @@ def check(efi_root: Path, profile) -> list[tuple[str, str]]:
     driver_dir = oc_dir / "Drivers"
     config     = oc_dir / "config.plist"
 
-    # ── Core structure ────────────────────────────────────────────────────────
     for path, label in [
         (boot_dir / "BOOTx64.efi", "BOOTx64.efi"),
         (oc_dir   / "OpenCore.efi", "OpenCore.efi"),
@@ -258,7 +235,6 @@ def check(efi_root: Path, profile) -> list[tuple[str, str]]:
         else:
             ok(f"{label} present and valid")
 
-    # ── Drivers ───────────────────────────────────────────────────────────────
     required_drivers = {
         "OpenRuntime.efi": "required for memory map patches — without it macOS will not boot",
         "HfsPlus.efi":     "required to read HFS+ macOS partitions",
@@ -283,7 +259,6 @@ def check(efi_root: Path, profile) -> list[tuple[str, str]]:
         if path.exists() and not _is_valid_efi(path):
             warn(f"Optional driver {drv} exists but has a corrupt header — remove or redownload it")
 
-    # ── config.plist ─────────────────────────────────────────────────────────
     if not config.exists():
         return results
 
@@ -295,7 +270,6 @@ def check(efi_root: Path, profile) -> list[tuple[str, str]]:
 
     ok("config.plist parses successfully")
 
-    # ── ACPI files ────────────────────────────────────────────────────────────
     for entry in cfg.get("ACPI", {}).get("Add", []):
         fname = entry.get("Path", "")
         if not fname:
@@ -311,7 +285,6 @@ def check(efi_root: Path, profile) -> list[tuple[str, str]]:
         else:
             ok(f"ACPI: {fname}")
 
-    # ── Kext integrity ────────────────────────────────────────────────────────
     kernel_add = cfg.get("Kernel", {}).get("Add", [])
     kext_set   = set()
 
@@ -337,7 +310,6 @@ def check(efi_root: Path, profile) -> list[tuple[str, str]]:
         else:
             ok(f"Kext {bundle} structure valid")
 
-    # ── Drivers in config vs on disk ─────────────────────────────────────────
     for entry in cfg.get("UEFI", {}).get("Drivers", []):
         path_str = entry.get("Path", "") if isinstance(entry, dict) else entry
         if path_str and not (driver_dir / path_str).exists():
@@ -346,7 +318,6 @@ def check(efi_root: Path, profile) -> list[tuple[str, str]]:
                 f"Remove the entry from config.plist or redownload the driver."
             )
 
-    # ── Kext load order ───────────────────────────────────────────────────────
     lilu_dependents = {
         "VirtualSMC.kext", "AppleALC.kext", "WhateverGreen.kext",
         "NVMeFix.kext", "CPUFriend.kext", "BrightnessKeys.kext",
@@ -372,10 +343,8 @@ def check(efi_root: Path, profile) -> list[tuple[str, str]]:
                 )
         ok("Kext load order: Lilu loads before its dependents")
 
-    # ── Conflict detection ────────────────────────────────────────────────────
     _check_conflicts(kext_set, results)
 
-    # ── Hardware-specific checks ──────────────────────────────────────────────
     if profile.nvme_present and "NVMeFix.kext" not in kext_set:
         info(
             "NVMe drive detected but NVMeFix.kext is missing. "
@@ -411,10 +380,8 @@ def check(efi_root: Path, profile) -> list[tuple[str, str]]:
             "You need a supported AMD or NVIDIA (pre-Monterey) dGPU for graphics acceleration."
         )
 
-    # ── Config completeness ───────────────────────────────────────────────────
     _check_config_completeness(cfg, results)
 
-    # ── Hardware mismatch ─────────────────────────────────────────────────────
     _check_hardware_mismatch(cfg, profile, results)
 
     return results
