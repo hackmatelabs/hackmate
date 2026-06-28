@@ -291,6 +291,7 @@ def _is_hedt(profile: HardwareProfile) -> bool:
 
 
 def _has_card_reader() -> bool:
+    import platform
     if IS_WINDOWS:
         try:
             out = subprocess.run(
@@ -301,8 +302,20 @@ def _has_card_reader() -> bool:
             return int(out) > 0
         except Exception:
             return False
-    lspci = subprocess.run(["lspci", "-nn"], capture_output=True, text=True).stdout.lower()
-    return "rts5" in lspci or "card reader" in lspci or "rtsx" in lspci
+    if platform.system() == "Darwin":
+        try:
+            out = subprocess.run(
+                ["system_profiler", "SPUSBDataType"],
+                capture_output=True, text=True, timeout=8
+            ).stdout.lower()
+            return "rts5" in out or "card reader" in out or "rtsx" in out
+        except Exception:
+            return False
+    try:
+        out = subprocess.run(["lspci", "-nn"], capture_output=True, text=True, timeout=5).stdout.lower()
+        return "rts5" in out or "card reader" in out or "rtsx" in out
+    except Exception:
+        return False
 
 
 # ─── Selection logic ──────────────────────────────────────────────────────────
