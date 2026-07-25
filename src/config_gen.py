@@ -407,14 +407,13 @@ def _kernel_section(profile: HardwareProfile, kexts: list[KextEntry]) -> dict:
         "PowerTimeoutKernelPanic":    True,
         "ProvideCurrentCpuInfo":      True,
         "SetApfsTrimTimeout":         -1,
-        # UTBMap ships disabled (it's an empty placeholder until the user
-        # runs the post-install USB Mapping step — most never do, ~65 of
-        # ~570 hwdb reports are "USB ports are not mapped"). Default to
-        # lifting the 15-port limit so USB works out of the box on first
-        # boot; the USB Mapping step flips this back to False once a real
-        # per-port map is applied, which is more precise and shouldn't be
-        # left overridden by the blanket quirk.
-        "XhciPortLimit":              True,
+        # NOT a safe default: XhciPortLimit lifting the 15-port cap without
+        # a real per-port map causes kernel panics on macOS 12+ (see
+        # log_checker's own "usb-port-limit" pattern) — confirmed dead USB
+        # on real hardware when this was briefly defaulted True. A real
+        # map is the only fix; see auto_usb_map.py for the ACPI-derived one
+        # generated at build time.
+        "XhciPortLimit":              False,
     }
 
     if "hp" in dmi_vendor():

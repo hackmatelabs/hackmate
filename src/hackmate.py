@@ -2466,14 +2466,33 @@ class InstallScreen(Screen):
                     log("  HeliPort saved to EFI/HackMate-Extras/", "ok")
                 else:
                     log("  HeliPort download failed — get it from github.com/OpenIntelWireless/HeliPort", "warn")
-            ok = download_usbtoolbox_app(
+            usbtoolbox_zip = download_usbtoolbox_app(
                 extras_dir,
                 progress_cb=lambda m: log(f"  {m}", "info")
             )
-            if ok:
+            if usbtoolbox_zip:
                 log("  USBToolBox app saved to EFI/HackMate-Extras/", "ok")
             else:
                 log("  USBToolBox download failed — get it from github.com/USBToolBox/Tool", "warn")
+
+            # Automatic USB port mapping (Windows only — usbdump.exe is a
+            # Windows binary). Falls back to nothing (manual USB Mapping
+            # step still available) on any failure; never blocks the build.
+            if usbtoolbox_zip and IS_WINDOWS:
+                from auto_usb_map import generate_auto_map, write_map_kext
+                auto_map = generate_auto_map(usbtoolbox_zip, tmp, log=log)
+                if auto_map:
+                    write_map_kext(auto_map, kext_dir)
+                    for entry in cfg.get("Kernel", {}).get("Add", []):
+                        name = entry.get("BundlePath", "").split("/")[0]
+                        if name in ("UTBMap.kext", "USBToolBox.kext"):
+                            entry["Enabled"] = True
+                    cfg.setdefault("Kernel", {}).setdefault("Quirks", {})["XhciPortLimit"] = False
+                    corrected = sync_executable_paths(cfg, kext_dir)
+                    if corrected:
+                        log(f"  Corrected ExecutablePath for {len(corrected)} kext(s): {', '.join(corrected)}", "ok")
+                    config_path.write_bytes(plistlib.dumps(cfg, fmt=plistlib.FMT_XML))
+                    log("  UTBMap.kext auto-generated and enabled — run USB Mapping later for a more precise map", "ok")
 
             MIN_EFI = 50 * 1024  # sane minimum — corrupt/truncated files are smaller
             oc_required = [

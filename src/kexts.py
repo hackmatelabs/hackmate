@@ -541,8 +541,10 @@ def _find_asset(assets: list, pattern: str) -> Optional[dict]:
             return asset
     return None
 
-def download_usbtoolbox_app(dest: Path, progress_cb=None) -> bool:
-    """Download USBToolBox app (macOS or Windows) into dest/."""
+def download_usbtoolbox_app(dest: Path, progress_cb=None) -> Optional[Path]:
+    """Download USBToolBox app (macOS or Windows) into dest/. Returns the
+    saved zip's path (truthy) on success, so callers doing automatic USB
+    mapping can pull usbdump.exe out of it without a second download."""
     if progress_cb:
         progress_cb("Downloading USBToolBox app...")
     headers = _github_headers()
@@ -554,7 +556,7 @@ def download_usbtoolbox_app(dest: Path, progress_cb=None) -> bool:
             headers=headers, timeout=10,
         ))
     except Exception:
-        return False
+        return None
 
     asset = None
     for release in (releases_raw or []):
@@ -570,7 +572,7 @@ def download_usbtoolbox_app(dest: Path, progress_cb=None) -> bool:
             break
 
     if not asset:
-        return False
+        return None
 
     dest.mkdir(parents=True, exist_ok=True)
     out = dest / asset["name"]
@@ -578,9 +580,9 @@ def download_usbtoolbox_app(dest: Path, progress_cb=None) -> bool:
         out.write_bytes(http_get(asset["browser_download_url"], headers=headers, timeout=60))
         if progress_cb:
             progress_cb(f"USBToolBox saved to {out.name}")
-        return True
+        return out
     except Exception:
-        return False
+        return None
 
 def download_heliport(dest: Path, progress_cb=None) -> bool:
     """Download HeliPort.app (needed with itlwm) into dest/HeliPort.app.zip."""
