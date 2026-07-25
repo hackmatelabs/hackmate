@@ -146,11 +146,58 @@ def build_log(
         f"macos_version: {macos_version}",
         f"worked: {worked}",
         f"issues: {issues or 'none'}",
-        "notes: auto-submitted at build completion — confirms the EFI/USB "
-        "was generated without error, does not confirm the machine actually "
-        "booted macOS successfully (HackMate exits before that point).",
     ]
+    # The notes line used to be one fixed string claiming "the EFI/USB was
+    # generated without error" — on every report, including the failed ones,
+    # where it directly contradicted the issues field above it.
+    if worked == "build completed":
+        lines.append(
+            "notes: auto-submitted at build completion — confirms the EFI/USB "
+            "was generated without error, does not confirm the machine actually "
+            "booted macOS successfully (HackMate exits before that point)."
+        )
+    elif worked == "partial":
+        lines.append(
+            "notes: auto-submitted — run finished with warnings (see issues above)."
+        )
+    else:
+        lines.append(
+            "notes: auto-submitted after a failed run — the error above is "
+            "where the build stopped."
+        )
     return "\n".join(lines)
+
+
+_SENT_PATH = _real_home() / ".hackmate" / "hwdb_sent.json"
+_DEDUPE_WINDOW_S = 24 * 3600
+
+
+def _already_sent_recently(log_text: str) -> bool:
+    """A user retrying a failing build resubmits the exact same report each
+    attempt — hwdb has runs of 4+ identical issues minutes apart from one
+    machine. Hash the report minus its date line and skip repeats within 24h."""
+    import hashlib
+    import time
+    stable = "\n".join(
+        l for l in log_text.splitlines() if not l.startswith("date:")
+    )
+    digest = hashlib.sha256(stable.encode()).hexdigest()
+    now = time.time()
+    try:
+        sent = json.loads(_SENT_PATH.read_text())
+    except Exception:
+        sent = {}
+    # Prune old entries while we're here
+    sent = {h: t for h, t in sent.items() if now - t < _DEDUPE_WINDOW_S}
+    if digest in sent:
+        return True
+    sent[digest] = now
+    try:
+        _SENT_PATH.parent.mkdir(parents=True, exist_ok=True)
+        _SENT_PATH.write_text(json.dumps(sent))
+    except Exception:
+        pass
+    return False
 
 
 def submit_log(profile: HardwareProfile, feature: str, log_text: str, dual_boot: str = "") -> None:
@@ -159,6 +206,8 @@ def submit_log(profile: HardwareProfile, feature: str, log_text: str, dual_boot:
     if not RELAY_URL or not has_consented():
         return
     try:
+        if _already_sent_recently(log_text):
+            return
         filename = f"{_slug(profile.smbios_model or profile.cpu_codename or 'device')}.log"
         payload = json.dumps({
             "feature_folder": feature_folder(feature, dual_boot),

@@ -407,7 +407,14 @@ def _kernel_section(profile: HardwareProfile, kexts: list[KextEntry]) -> dict:
         "PowerTimeoutKernelPanic":    True,
         "ProvideCurrentCpuInfo":      True,
         "SetApfsTrimTimeout":         -1,
-        "XhciPortLimit":              False,   # use USB map
+        # UTBMap ships disabled (it's an empty placeholder until the user
+        # runs the post-install USB Mapping step — most never do, ~65 of
+        # ~570 hwdb reports are "USB ports are not mapped"). Default to
+        # lifting the 15-port limit so USB works out of the box on first
+        # boot; the USB Mapping step flips this back to False once a real
+        # per-port map is applied, which is more precise and shouldn't be
+        # left overridden by the blanket quirk.
+        "XhciPortLimit":              True,
     }
 
     if "hp" in dmi_vendor():
@@ -859,6 +866,13 @@ def strip_missing_ssdts(config: dict, missing: list[str]) -> tuple[int, int]:
     return len(tables) - len(kept_tables), len(patches) - len(kept_patches)
 
 def write_plist(config: dict, path: Path):
+    # Belt-and-braces: nine hwdb reports died right here with [Errno 2]
+    # because EFI/OC didn't exist — a diskpart "assign" that silently
+    # no-oped left every path pointing at a drive letter that was never
+    # actually mounted. The letter conflict is now caught at format time,
+    # but creating the parent costs nothing and turns any remaining gap
+    # into a clearer failure at the actual copy steps instead of here.
+    path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "wb") as f:
         plistlib.dump(config, f, fmt=plistlib.FMT_XML, sort_keys=False)
 

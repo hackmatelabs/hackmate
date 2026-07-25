@@ -402,7 +402,8 @@ def _ensure_ssdttime() -> Path:
 
     SSDTTIME_DIR.mkdir(parents=True, exist_ok=True)
     zip_path = SSDTTIME_DIR / "ssdttime.zip"
-    urllib.request.urlretrieve(SSDTTIME_ZIP_URL, str(zip_path))
+    from compat import http_get
+    zip_path.write_bytes(http_get(SSDTTIME_ZIP_URL, timeout=60))
 
     with zipfile.ZipFile(str(zip_path)) as z:
         z.extractall(str(SSDTTIME_DIR))

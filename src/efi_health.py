@@ -311,9 +311,17 @@ def _check_usb_map(cfg: dict, kext_dir: Path, out: list):
             (enabled_maps if enabled else disabled_maps).append((stem, ports))
 
     if not driver_on and not enabled_maps and not injector_on:
-        out.append(("warn", "No USB port map",
-                    "macOS allows only 15 ports per controller. Without a map, ports drop "
-                    "out at random and sleep can break."))
+        xhci_limit_off = cfg.get("Kernel", {}).get("Quirks", {}).get("XhciPortLimit", False)
+        if xhci_limit_off:
+            out.append(("ok",
+                        "No USB port map, but XhciPortLimit is on",
+                        "The 15-port limit is lifted as a fallback, so USB works without a "
+                        "per-port map. Less precise than a real map (all ports report as "
+                        "internal, which can affect sleep) — run USB Mapping for that."))
+        else:
+            out.append(("warn", "No USB port map",
+                        "macOS allows only 15 ports per controller. Without a map, ports drop "
+                        "out at random and sleep can break."))
         return
 
     mapped_ports = sum(p for _, p in enabled_maps)

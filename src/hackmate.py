@@ -565,6 +565,10 @@ class USBMappingScreen(Screen):
                         name = entry.get("BundlePath", "").split("/")[0]
                         if name in ("UTBMap.kext", "USBToolBox.kext"):
                             entry["Enabled"] = True
+                    # A real per-port map is now active — the XhciPortLimit
+                    # fallback (on by default so USB works pre-mapping) is
+                    # no longer needed and is less precise than the map.
+                    cfg.setdefault("Kernel", {}).setdefault("Quirks", {})["XhciPortLimit"] = False
                     # A USBToolBox map is a plist-only bundle; make the config say so.
                     sync_executable_paths(cfg, Path(mount) / "EFI" / "OC" / "Kexts")
                     with open(config_path, "wb") as f:
@@ -2488,53 +2492,11 @@ class InstallScreen(Screen):
             else:
                 ui(82, "Downloading OpenCore...")
                 log("── Downloading OpenCore...", "header")
-                oc_url = "https://api.github.com/repos/acidanthera/OpenCorePkg/releases/latest"
-                oc_headers = {"User-Agent": "HackMate/1.0"}
-                oc_token = os.environ.get("GITHUB_TOKEN")
-                if oc_token:
-                    oc_headers["Authorization"] = f"Bearer {oc_token}"
-                req = urllib.request.Request(oc_url, headers=oc_headers)
-                try:
-                    with urllib.request.urlopen(req, timeout=15) as r:
-                        oc_data = json.loads(r.read())
-                except urllib.error.HTTPError as e:
-                    if e.code in (403, 429):
-                        raise RuntimeError(
-                            "GitHub API rate limit exceeded (60 req/hr unauthenticated) while "
-                            "downloading OpenCore. Wait ~1 hour and rerun, or set a GITHUB_TOKEN "
-                            "environment variable."
-                        ) from e
-                    raise
+                from kexts import fetch_opencore
+                oc_zip = fetch_opencore(tmp, log)
 
-                oc_asset = None
-                for asset in oc_data.get("assets", []):
-                    name = asset["name"].lower()
-                    if "opencore-" in name and "release" in name and name.endswith(".zip"):
-                        oc_asset = asset
-                        break
-
-                if oc_asset:
-                    oc_zip = tmp / oc_asset["name"]
-                    expected_size = oc_asset.get("size", 0)
-                    last_err = None
-                    for attempt in range(3):
-                        try:
-                            oc_req = urllib.request.Request(
-                                oc_asset["browser_download_url"], headers={"User-Agent": "HackMate/1.0"}
-                            )
-                            with urllib.request.urlopen(oc_req, timeout=60) as r:
-                                oc_zip.write_bytes(r.read())
-                            actual_size = oc_zip.stat().st_size
-                            if expected_size and abs(actual_size - expected_size) > 1024:
-                                raise IOError(f"size mismatch (got {actual_size}, expected {expected_size})")
-                            last_err = None
-                            break
-                        except Exception as e:
-                            last_err = e
-                            log(f"  OpenCore download attempt {attempt + 1}/3 failed: {e}", "warn")
-                    if last_err:
-                        raise RuntimeError(f"OpenCore download failed after 3 attempts: {last_err}") from last_err
-                    log(f"  Downloaded {oc_asset['name']}", "ok")
+                if oc_zip:
+                    log(f"  Downloaded {oc_zip.name}", "ok")
 
                     oc_extract = tmp / "oc_extracted"
                     with zipfile.ZipFile(str(oc_zip)) as z:
@@ -2568,9 +2530,8 @@ class InstallScreen(Screen):
                         log("  HfsPlus.efi not in OC zip — fetching from OcBinaryData...", "info")
                         hfsplus_url = "https://raw.githubusercontent.com/acidanthera/OcBinaryData/master/Drivers/HfsPlus.efi"
                         try:
-                            req = urllib.request.Request(hfsplus_url, headers={"User-Agent": "HackMate/1.0"})
-                            with urllib.request.urlopen(req, timeout=15) as r:
-                                hfsplus_dest.write_bytes(r.read())
+                            from compat import http_get
+                            hfsplus_dest.write_bytes(http_get(hfsplus_url, timeout=15))
                             log("  HfsPlus.efi downloaded", "ok")
                         except Exception as e:
                             log(f"  HfsPlus.efi download failed: {e}", "error")

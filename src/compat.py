@@ -50,9 +50,72 @@ def require_admin():
 
 def _run(cmd: list) -> str:
     try:
-        return subprocess.run(cmd, capture_output=True, text=True, timeout=10).stdout.strip()
+        # On Windows, console tools (diskpart, powershell, wmic) write their
+        # output in the OEM codepage (cp866 on Russian systems, cp850/cp437
+        # elsewhere), while text=True decodes with the ANSI codepage — on any
+        # non-English install the two differ and every localized message or
+        # device name comes out as mojibake. Confirmed live from hwdb
+        # reports whose diskpart errors were unreadable box-drawing soup.
+        r = subprocess.run(cmd, capture_output=True, timeout=10)
+        if IS_WINDOWS:
+            return r.stdout.decode("oem", errors="replace").strip()
+        return r.stdout.decode(errors="replace").strip()
     except Exception:
         return ""
+
+
+def http_get(url: str, headers: dict | None = None, timeout: int = 30) -> bytes:
+    """Fetch a URL with the SSL fallback chain every download in HackMate
+    needs on Windows: the default context first, then certifi's CA bundle
+    (frozen EXEs often can't reach the system root store — the single
+    biggest cause of failed builds in hwdb reports, as
+    CERTIFICATE_VERIFY_FAILED), and only then unverified as a last resort
+    (downloads are integrity-checked against GitHub's reported asset size
+    by the callers that matter). Raises on final failure."""
+    import ssl
+    import urllib.request
+    import urllib.error
+
+    req = urllib.request.Request(url, headers=headers or {"User-Agent": "HackMate/1.0"})
+
+    contexts = [ssl.create_default_context()]
+    try:
+        import certifi
+        contexts.append(ssl.create_default_context(cafile=certifi.where()))
+    except ImportError:
+        pass
+    unverified = ssl.create_default_context()
+    unverified.check_hostname = False
+    unverified.verify_mode = ssl.CERT_NONE
+    contexts.append(unverified)
+
+    last_err = None
+    for ctx in contexts:
+        try:
+            with urllib.request.urlopen(req, context=ctx, timeout=timeout) as r:
+                return r.read()
+        except urllib.error.HTTPError:
+            # A real HTTP status (403/404/...) will not change with a
+            # different SSL context — surface it to the caller immediately
+            # so rate-limit handling still works.
+            raise
+        except (ssl.SSLError, urllib.error.URLError) as e:
+            last_err = e
+    raise last_err
+
+
+def real_home() -> Path:
+    """The invoking user's home, not root's — HackMate runs under sudo on
+    Linux, where Path.home() points at /root and caches/consent written
+    there are invisible to the actual user next run."""
+    sudo_user = os.environ.get("SUDO_USER")
+    if sudo_user and not IS_WINDOWS:
+        try:
+            import pwd
+            return Path(pwd.getpwnam(sudo_user).pw_dir)
+        except Exception:
+            pass
+    return Path.home()
 
 
 def dmi_vendor() -> str:
@@ -515,6 +578,20 @@ def _format_usb_windows(drive_letter: str, mount_letter: str = "Z") -> bool:
             f"(Get-Volume -DriveLetter {letter} -ErrorAction SilentlyContinue | Get-Partition -ErrorAction SilentlyContinue | Get-Disk).Number"
         ]).strip()
 
+    # Second fallback: the letter itself may be stale — a previous failed
+    # format can leave the partition cleaned with no letter at all, at which
+    # point neither Get-Partition nor Get-Volume can see it. If exactly one
+    # USB-bus disk is attached there is no ambiguity about which disk the
+    # user meant — use it. (31 hwdb reports died at this error; for many the
+    # USB was clearly still plugged in since a later retry succeeded.)
+    if not disk_num_raw.isdigit():
+        usb_disks = _run([
+            "powershell", "-NoProfile", "-Command",
+            "(Get-Disk | Where-Object {$_.BusType -eq 'USB'}).Number"
+        ]).split()
+        if len(usb_disks) == 1 and usb_disks[0].isdigit():
+            disk_num_raw = usb_disks[0]
+
     if not disk_num_raw.isdigit():
         raise RuntimeError(
             f"Could not resolve disk number for drive {letter}: — the USB may be RAW with no drive letter. "
@@ -569,8 +646,13 @@ def _format_usb_windows(drive_letter: str, mount_letter: str = "Z") -> bool:
         p = Path(tempfile.mktemp(suffix=".txt"))
         p.write_text(script_text)
         try:
-            r = subprocess.run(["diskpart", "/s", str(p)], capture_output=True, text=True, timeout=120)
-            return r.returncode, (r.stdout + r.stderr).strip()[-400:]
+            r = subprocess.run(["diskpart", "/s", str(p)], capture_output=True, timeout=120)
+            # diskpart prints in the OEM codepage — decoding with anything
+            # else turns localized error text into mojibake (seen live in
+            # hwdb reports from Russian/Portuguese/Spanish systems).
+            out = (r.stdout.decode("oem", errors="replace") +
+                   r.stderr.decode("oem", errors="replace"))
+            return r.returncode, out.strip()[-400:]
         finally:
             p.unlink(missing_ok=True)
 

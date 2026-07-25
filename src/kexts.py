@@ -8,7 +8,48 @@ from pathlib import Path
 from dataclasses import dataclass
 from typing import Optional
 from hardware import HardwareProfile
-from compat import IS_WINDOWS
+from compat import IS_WINDOWS, http_get, real_home
+
+_CACHE_ROOT = real_home() / ".hackmate" / "cache"
+
+
+def _cached_or_download(asset: dict, dest_dir: Path, cache_name: str = "kexts") -> Path:
+    """Download a GitHub release asset with an on-disk cache. A failed build
+    retried minutes later re-downloads everything today, and each retry burns
+    more of the 60/hr unauthenticated API budget — the retry storms in hwdb
+    (same user, same error, 4 submissions in a row) all start here. Cached
+    zips are validated against GitHub's reported size before reuse."""
+    cache_dir = _CACHE_ROOT / cache_name
+    cached = cache_dir / asset["name"]
+    expected_size = asset.get("size", 0)
+    if cached.exists() and (not expected_size or abs(cached.stat().st_size - expected_size) <= 1024):
+        return cached
+
+    data = http_get(asset["browser_download_url"], timeout=60)
+    out = dest_dir / asset["name"]
+    out.write_bytes(data)
+    if expected_size and abs(out.stat().st_size - expected_size) > 1024:
+        raise IOError(f"size mismatch (got {out.stat().st_size}, expected {expected_size})")
+    try:
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(str(out), str(cached))
+    except Exception:
+        pass  # cache is best-effort — a full disk must not fail the build
+    return out
+
+
+def _extract_zip(zip_path: Path, extract_dir: Path) -> None:
+    """extractall() minus the members no build ever needs: __MACOSX
+    AppleDouble junk and dSYM debug bundles. dSYM trees are deep and full of
+    odd names — extracting them onto a flaky FAT32 USB is exactly where two
+    hwdb reports died with WinError 433 mid-VirtualSMC — and they also waste
+    most of the space the kext zip takes on disk."""
+    with zipfile.ZipFile(str(zip_path)) as z:
+        for member in z.namelist():
+            low = member.lower()
+            if "__macosx" in low or ".dsym" in low:
+                continue
+            z.extract(member, str(extract_dir))
 
 @dataclass
 class KextEntry:
@@ -440,23 +481,19 @@ def _github_headers() -> dict:
     return headers
 
 def _get_latest_release(repo: str) -> Optional[dict]:
-    import ssl
     import urllib.error
     headers = _github_headers()
 
     def _fetch(url: str) -> Optional[dict]:
-        ctx = ssl.create_default_context()
         try:
-            req = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req, context=ctx, timeout=10) as r:
-                data = json.loads(r.read())
-                # Surface rate limit as a clear error instead of silent None
-                if isinstance(data, dict) and "rate limit" in data.get("message", "").lower():
-                    raise RuntimeError(
-                        "GitHub API rate limit exceeded (60 req/hr unauthenticated). "
-                        "Wait ~1 hour and rerun, or set a GITHUB_TOKEN environment variable."
-                    )
-                return data
+            data = json.loads(http_get(url, headers=headers, timeout=10))
+            # Surface rate limit as a clear error instead of silent None
+            if isinstance(data, dict) and "rate limit" in data.get("message", "").lower():
+                raise RuntimeError(
+                    "GitHub API rate limit exceeded (60 req/hr unauthenticated). "
+                    "Wait ~1 hour and rerun, or set a GITHUB_TOKEN environment variable."
+                )
+            return data
         except RuntimeError:
             raise
         except urllib.error.HTTPError as e:
@@ -508,19 +545,14 @@ def download_usbtoolbox_app(dest: Path, progress_cb=None) -> bool:
     """Download USBToolBox app (macOS or Windows) into dest/."""
     if progress_cb:
         progress_cb("Downloading USBToolBox app...")
-    import ssl as _ssl
-    ctx = _ssl.create_default_context()
     headers = _github_headers()
 
     # Find latest release that has a macOS or Windows asset
-    releases_raw = None
     try:
-        req = urllib.request.Request(
+        releases_raw = json.loads(http_get(
             "https://api.github.com/repos/USBToolBox/Tool/releases?per_page=10",
-            headers=headers,
-        )
-        with urllib.request.urlopen(req, context=ctx, timeout=10) as r:
-            releases_raw = json.loads(r.read())
+            headers=headers, timeout=10,
+        ))
     except Exception:
         return False
 
@@ -543,9 +575,7 @@ def download_usbtoolbox_app(dest: Path, progress_cb=None) -> bool:
     dest.mkdir(parents=True, exist_ok=True)
     out = dest / asset["name"]
     try:
-        req = urllib.request.Request(asset["browser_download_url"], headers=headers)
-        with urllib.request.urlopen(req, context=ctx, timeout=60) as r:
-            out.write_bytes(r.read())
+        out.write_bytes(http_get(asset["browser_download_url"], headers=headers, timeout=60))
         if progress_cb:
             progress_cb(f"USBToolBox saved to {out.name}")
         return True
@@ -577,10 +607,7 @@ def download_heliport(dest: Path, progress_cb=None) -> bool:
     dest.mkdir(parents=True, exist_ok=True)
     out = dest / asset["name"]
     try:
-        req = urllib.request.Request(asset["browser_download_url"],
-                                     headers={"User-Agent": "HackMate/1.0"})
-        with urllib.request.urlopen(req, timeout=60) as r:
-            out.write_bytes(r.read())
+        out.write_bytes(http_get(asset["browser_download_url"], timeout=60))
         if progress_cb:
             progress_cb(f"HeliPort saved to {out.name}")
         return True
@@ -654,8 +681,14 @@ _AIRPORTITLWM_KEYWORDS = {
 def download_kexts(kexts: list[KextEntry], dest: Path, progress_cb=None, verify: bool = False,
                    release_cache: dict[str, list] | None = None, macos_version: str = "") -> dict[str, str]:
     dest.mkdir(parents=True, exist_ok=True)
-    tmp = dest / "_tmp"
-    tmp.mkdir(exist_ok=True)
+    # Scratch space goes on the system disk, never on the USB itself: zips
+    # used to be downloaded and extracted under EFI/OC/Kexts/_tmp, so every
+    # extraction wrote hundreds of small files through the slowest, least
+    # reliable disk in the machine (WinError 433 "device does not exist"
+    # mid-extract in hwdb reports = the USB dropping out under that load),
+    # and ate into the 4GB FAT32 partition ("not enough space on the disk").
+    import tempfile
+    tmp = Path(tempfile.mkdtemp(prefix="hackmate_kexts_"))
     results: dict[str, str] = {}
     # Reuse releases already resolved by check_kext_sources — the unauthenticated
     # GitHub API allows only 60 requests an hour.
@@ -718,30 +751,14 @@ def download_kexts(kexts: list[KextEntry], dest: Path, progress_cb=None, verify:
                 results[kext.name] = f"ERROR: no asset matching '{kext.asset_pattern}'"
                 continue
 
-        zip_path = tmp / asset["name"]
         try:
-            import ssl as _ssl
-            _ctx = _ssl.create_default_context()
-            _req = urllib.request.Request(
-                asset["browser_download_url"],
-                headers={"User-Agent": "HackMate/1.0"},
-            )
-            with urllib.request.urlopen(_req, context=_ctx, timeout=60) as _r:
-                zip_path.write_bytes(_r.read())
+            zip_path = _cached_or_download(asset, tmp)
         except Exception as e:
             results[kext.name] = f"ERROR: download failed: {e}"
             continue
 
-        # Verify downloaded zip size matches what GitHub reported
-        expected_size = asset.get("size", 0)
-        actual_size = zip_path.stat().st_size
-        if expected_size and abs(actual_size - expected_size) > 1024:
-            results[kext.name] = f"ERROR: size mismatch (got {actual_size}, expected {expected_size})"
-            continue
-
         extract_dir = tmp / asset["name"].replace(".zip", "")
-        with zipfile.ZipFile(zip_path, "r") as z:
-            z.extractall(str(extract_dir))
+        _extract_zip(zip_path, extract_dir)
 
         kext_name = f"{kext.name}.kext"
         bundle = kext.bundle_name or kext.name
@@ -775,6 +792,84 @@ def download_kexts(kexts: list[KextEntry], dest: Path, progress_cb=None, verify:
 
     shutil.rmtree(str(tmp), ignore_errors=True)
     return results
+
+
+# Known-good OpenCore release used when the GitHub API is unavailable (rate
+# limit, outage). browser_download_url-style links do NOT count against the
+# 60/hr API budget, so this always works even when the API is exhausted.
+# Bump alongside OpenCore releases.
+OPENCORE_FALLBACK_VERSION = "1.0.7"
+OPENCORE_FALLBACK_URL = (
+    f"https://github.com/acidanthera/OpenCorePkg/releases/download/"
+    f"{OPENCORE_FALLBACK_VERSION}/OpenCore-{OPENCORE_FALLBACK_VERSION}-RELEASE.zip"
+)
+
+
+def fetch_opencore(tmp: Path, log=None) -> Path:
+    """Resolve and download the OpenCore RELEASE zip, returning its local path.
+
+    Order: GitHub API for the latest release (cached on disk once fetched) →
+    newest previously-cached zip → pinned fallback URL. The old code had no
+    cache and no fallback, so an API rate limit killed the whole build — the
+    second most common failure in hwdb reports (26 of 150)."""
+    def _log(msg, level="info"):
+        if log:
+            log(msg, level)
+
+    cache_dir = _CACHE_ROOT / "opencore"
+
+    # 1. Ask the API what the latest release is
+    oc_asset = None
+    api_err = None
+    try:
+        data = json.loads(http_get(
+            "https://api.github.com/repos/acidanthera/OpenCorePkg/releases/latest",
+            headers=_github_headers(), timeout=15,
+        ))
+        for asset in data.get("assets", []):
+            name = asset["name"].lower()
+            if "opencore-" in name and "release" in name and name.endswith(".zip"):
+                oc_asset = asset
+                break
+    except Exception as e:
+        api_err = e
+
+    if oc_asset:
+        last_err = None
+        for attempt in range(3):
+            try:
+                return _cached_or_download(oc_asset, tmp, cache_name="opencore")
+            except Exception as e:
+                last_err = e
+                _log(f"  OpenCore download attempt {attempt + 1}/3 failed: {e}", "warn")
+        api_err = last_err
+
+    # 2. API or download failed — reuse the newest cached zip
+    cached = sorted(cache_dir.glob("OpenCore-*-RELEASE.zip"), reverse=True)
+    if cached:
+        _log(f"  GitHub unavailable ({api_err}) — using cached {cached[0].name}", "warn")
+        return cached[0]
+
+    # 3. Nothing cached — pinned fallback release, no API involved
+    _log(f"  GitHub API unavailable ({api_err}) — falling back to OpenCore "
+         f"{OPENCORE_FALLBACK_VERSION}", "warn")
+    try:
+        out = tmp / OPENCORE_FALLBACK_URL.rsplit("/", 1)[-1]
+        out.write_bytes(http_get(OPENCORE_FALLBACK_URL, timeout=60))
+        try:
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(str(out), str(cache_dir / out.name))
+        except Exception:
+            pass
+        return out
+    except Exception as e:
+        raise RuntimeError(
+            f"OpenCore download failed — GitHub API said '{api_err}' and the "
+            f"fallback release could not be fetched either ({e}). Check your "
+            f"internet connection, or set a GITHUB_TOKEN environment variable "
+            f"if you are rate-limited."
+        ) from e
+
 
 if __name__ == "__main__":
     from hardware import scan
