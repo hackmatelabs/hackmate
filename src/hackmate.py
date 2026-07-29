@@ -177,7 +177,13 @@ ProgressBar              { margin: 1 0; }
 ProgressBar > .bar--bar  { color: #00ff88; }
 LoadingIndicator         { height: 1; color: #00ff88; }
 Static                   { color: #cccccc; }
+#log-area                { height: 1fr; border: solid #222222; background: #0a0a0a; }
+#log-row                 { height: 1fr; }
+#log                     { width: 1fr; border: none; background: #0a0a0a; color: #888888; }
+#cmd-log                 { width: 1fr; border-left: solid #1e1e1e; background: #070710;
                            color: #44ff88; display: none; }
+#log-bar                 { height: 1; background: #0b0b0b; border-top: solid #1a1a1a; }
+#log-bar-space           { width: 1fr; }
 Button.advanced-btn      { height: 1; border: none; min-width: 14; padding: 0 1;
                            background: transparent; color: #3a3a3a; }
 Button.advanced-btn:hover { color: #00ff88; }
@@ -189,11 +195,22 @@ Button.advanced-btn:hover { color: #00ff88; }
 .cfg-row              { height: 3; align: left middle; }
 .manual-row           { height: 1; align: left middle; }
 Switch                { margin: 0 1 0 0; }
+#editor-scroll        { height: 1fr; border: solid #1a1a1a; }
+#manual-scroll        { height: 1fr; border: solid #1a1a1a; }
+#simple-panel         { height: auto; }
+#advanced-panel       { height: auto; }
 .short-input          { width: 16; }
+#checker-scroll       { height: 1fr; border: solid #1a1a1a; }
+#checker-summary      { height: 1; }
 .finding-critical     { color: #ff4444; }
 .finding-warn         { color: #ffaa00; }
 .finding-info         { color: #888888; }
 .finding-context      { color: #2a2a2a; }
+#welcome-row          { height: 1fr; }
+#welcome-stats        { width: 26; padding: 1 0 0 3; border-left: solid #333333; }
+#health-targets       { height: 8; border: solid #333333; background: #111111; }
+#health-log           { height: 1fr; border: solid #222222; background: #0a0a0a; }
+#health-summary       { height: 2; }
 """
 
 BANNER = (
