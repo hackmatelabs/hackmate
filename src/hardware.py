@@ -52,11 +52,6 @@ def _run(cmd: list[str]) -> str:
 
 def _ps(command: str) -> str:
     try:
-        # Force UTF-8 through the pipe: PowerShell otherwise emits the OEM
-        # codepage while text=True decodes with the ANSI one — on any
-        # non-English Windows the two differ and every localized device name
-        # (audio codecs especially) arrives as mojibake. Confirmed live from
-        # hwdb reports full of unreadable Cyrillic/Portuguese device names.
         wrapped = "[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; " + command
         result = subprocess.run(
             ["powershell", "-NoProfile", "-Command", wrapped],
@@ -121,6 +116,8 @@ INTEL_GENERATIONS = {
 }
 
 SMBIOS_MAP = {
+    (1, "laptop"):  "MacBookPro8,1",
+    (1, "desktop"): "MacPro5,1",
     (2, "laptop"):  "MacBookPro8,1",
     (3, "laptop"):  "MacBookPro9,2",
     (4, "laptop"):  "MacBookPro11,1",
@@ -185,6 +182,7 @@ AUDIO_CODEC_IDS = {
 }
 
 _INTEL_CODENAMES = {
+    1: "Nehalem/Westmere",
     2: "Sandy Bridge", 3: "Ivy Bridge", 4: "Haswell", 5: "Broadwell",
     6: "Skylake", 7: "Kaby Lake", 8: "Coffee Lake", 9: "Coffee Lake Refresh",
     10: "Ice Lake / Comet Lake", 11: "Tiger Lake", 12: "Alder Lake",
@@ -203,10 +201,6 @@ def _parse_intel_model(name: str) -> tuple[int, str]:
     1xxx mobile model (1065G7→10, 1135G7→11, 1235U→12, 1334U→13)."""
     low = name.lower()
 
-    # Xeon E3/E5/E7: generation is carried by the vN suffix, and the model
-    # number ("E3-1230") must never reach the -NN substring checks — one
-    # live report filed an E3-1230 v6 (Kaby Lake) as "gen 12 Alder Lake"
-    # because "-12" matched inside "E3-1230".
     if "xeon" in low:
         m = re.search(r"\bv(\d)\b", low)
         if m:
@@ -216,6 +210,10 @@ def _parse_intel_model(name: str) -> tuple[int, str]:
         else:
             gen = 0
         return gen, _INTEL_CODENAMES.get(gen, "")
+
+    m1 = re.search(r"i[357]-(\d{3})\b", name, re.IGNORECASE)
+    if m1:
+        return 1, _INTEL_CODENAMES[1]
 
     m = re.search(r"i[3579]-(\d{4,5})", name, re.IGNORECASE)
     if not m:
@@ -229,9 +227,6 @@ def _parse_intel_model(name: str) -> tuple[int, str]:
         # 4-digit 10xxGx = Ice Lake, 5-digit 10xxx = Comet Lake
         codename = "Ice Lake" if len(num) == 4 else "Comet Lake"
     elif gen == 11:
-        # 4-digit 11xxGx = Tiger Lake (mobile); 5-digit 11xxx = Rocket Lake
-        # (desktop) — previously everything gen 11 was labelled Tiger Lake,
-        # including i5-11600K desktops (see hwdb).
         codename = "Tiger Lake" if len(num) == 4 else "Rocket Lake"
     return gen, codename
 
@@ -241,8 +236,18 @@ _OC_PLATFORM_MAP = {
     11: "Tiger Lake",  10: "Ice Lake",    9:  "Coffee Lake",
     8:  "Coffee Lake", 7:  "Kaby Lake",   6:  "Skylake",
     5:  "Broadwell",   4:  "Haswell",     3:  "Ivy Bridge",
-    2:  "Sandy Bridge",
+    2:  "Sandy Bridge", 1: "Nehalem/Westmere",
 }
+
+
+def _oc_platform_for(gen: int, platform: str, codename: str = "") -> str:
+    """Gen 11 splits by form factor: Tiger Lake is laptop-only, Rocket Lake is
+    desktop-only, and they need different OpenCore platform handling (Rocket
+    Lake's Xe iGPU has no macOS driver at all — see hardware_warnings())."""
+    if gen == 11:
+        return "Rocket Lake" if platform == "desktop" else "Tiger Lake"
+    return _OC_PLATFORM_MAP.get(gen, codename or "Unknown")
+
 
 def _detect_cpu_linux(profile: HardwareProfile):
     cpuinfo = _run(["cat", "/proc/cpuinfo"])
@@ -286,12 +291,9 @@ def _detect_cpu_linux(profile: HardwareProfile):
         _detect_amd_gen(profile)
 
     if not profile.oc_platform:
-        profile.oc_platform = _OC_PLATFORM_MAP.get(profile.cpu_generation, profile.cpu_codename or "Unknown")
+        profile.oc_platform = _oc_platform_for(profile.cpu_generation, profile.platform, profile.cpu_codename)
 
 def _detect_cpu_windows(profile: HardwareProfile):
-    # -First 1: on multi-socket systems .Name returns one line per CPU, and
-    # the joined blob ended up verbatim in the profile (seen live from a
-    # dual-Xeon machine whose cpu field was the same name twice).
     name = _ps("(Get-WmiObject Win32_Processor | Select-Object -First 1).Name")
     profile.cpu_name = name.strip()
     vendor = "intel" if "intel" in name.lower() else "amd" if "amd" in name.lower() else "unknown"
@@ -319,7 +321,7 @@ def _detect_cpu_windows(profile: HardwareProfile):
         _detect_amd_gen(profile)
 
     if vendor == "intel":
-        profile.oc_platform = _OC_PLATFORM_MAP.get(profile.cpu_generation, profile.cpu_codename or "Unknown")
+        profile.oc_platform = _oc_platform_for(profile.cpu_generation, profile.platform, profile.cpu_codename)
 
     # Core/thread count
     try:
@@ -333,12 +335,6 @@ def _detect_cpu_windows(profile: HardwareProfile):
         pass
 
 def _infer_intel_gen_from_name(profile: HardwareProfile):
-    # Keyword-only fallback for names with no parseable iN-XXXX model number
-    # ("Intel Coffee Lake" from a VM, "12th Gen Intel(R) Core(TM)" with the
-    # model stripped). The old "-12"/"-11"/... bare substring checks are
-    # gone: they matched inside unrelated model numbers ("E3-1230" → gen 12
-    # in a live hwdb report) — a model number that exists but didn't parse
-    # should stay unknown rather than mislabel.
     name = profile.cpu_name.lower()
     if "15th" in name or "arrow" in name or "core ultra 200" in name:
         profile.cpu_generation = 15
@@ -411,9 +407,6 @@ def _set_cpu_brand(profile: HardwareProfile):
 def _detect_amd_gen(profile: HardwareProfile):
     name = profile.cpu_name.lower()
     if "ryzen ai" in name:
-        # "Ryzen AI 9 HX 370" etc — Strix Point, no 4-digit model number at
-        # all, so the regex below never matches and these fell into the
-        # generic "Zen (Ryzen)" gen-8 bucket (seen live in hwdb).
         profile.cpu_generation = 12
         profile.cpu_codename = "Zen 5"
     elif "ryzen" in name or "threadripper" in name:
@@ -432,10 +425,6 @@ def _detect_amd_gen(profile: HardwareProfile):
                 profile.cpu_generation = 12
                 profile.cpu_codename = "Zen 4"
             elif model >= 7000:
-                # 7000-series mobile reuses older cores, marked by the THIRD
-                # digit: 7x20 = Zen 2, 7x30/7x35 = Zen 3(+), 7x40+ and all
-                # desktop (7600/7800X3D/...) are Zen 4. A 7530U was filed as
-                # Zen 4 in hwdb — wrong silicon.
                 third = (model // 10) % 10
                 if third == 2:
                     profile.cpu_generation = 10
@@ -450,8 +439,6 @@ def _detect_amd_gen(profile: HardwareProfile):
                 profile.cpu_generation = 11
                 profile.cpu_codename = "Zen 3+"
             elif model >= 5000:
-                # Mobile 5300U/5500U/5700U are Lucienne — rebadged Zen 2,
-                # not Cezanne Zen 3 like 5600U/5800U/5x00H.
                 if u_series and hundreds in (3, 5, 7):
                     profile.cpu_generation = 10
                     profile.cpu_codename = "Zen 2"
@@ -474,9 +461,6 @@ def _detect_amd_gen(profile: HardwareProfile):
         profile.cpu_generation = 8
         profile.cpu_codename = "Zen (Athlon)"
     elif any(k in name for k in ("fx-", "fx(tm)", "phenom", " a4-", " a6-", " a8-", " a10-", " a12-")):
-        # Bulldozer/Piledriver FX chips and pre-Zen APUs are not Zen at all —
-        # they were landing in hwdb as "AMD (unknown)" filed under amd-zen.
-        # macOS support for these is a different (worse) story than Ryzen.
         profile.cpu_generation = 0
         profile.cpu_codename = "Pre-Zen (unsupported vanilla)"
     else:
@@ -497,9 +481,6 @@ def _detect_platform_linux(profile: HardwareProfile):
 
     profile.nvme_present = "nvme" in _run(["lsblk", "-d", "-o", "NAME,TRAN"]).lower()
 
-    # Desktops have no touchpad by definition — a PS/2 keyboard or an
-    # i2c sensor hub on the board was enough to file desktops in hwdb with
-    # "touchpad_type: ps2", which then pulls pointless VoodooPS2 config.
     if profile.platform == "desktop":
         profile.has_touchpad = False
         profile.touchpad_type = "n/a"
@@ -519,11 +500,6 @@ def _detect_platform_windows(profile: HardwareProfile):
     chassis = _ps(
         "(Get-WmiObject Win32_SystemEnclosure).ChassisTypes | ForEach-Object { $_ }"
     )
-    # DMTF SMBIOS chassis types: 8=Portable, 9=Laptop, 10=Notebook,
-    # 11=Hand Held, 12=Docking Station, 14=Sub Notebook. 18 (Expansion
-    # Chassis) and 21 (Peripheral Chassis) are PCI/bus enclosures, not
-    # laptops — some desktop motherboards misreport one of these,
-    # which was wrongly classifying real desktop towers as laptops.
     laptop_types = {"8", "9", "10", "11", "12", "14"}
     for t in re.findall(r"\d+", chassis):
         if t in laptop_types:
@@ -551,8 +527,6 @@ def _detect_platform_windows(profile: HardwareProfile):
         profile.has_thunderbolt = False
 
     if profile.platform == "desktop":
-        # Same as Linux: PS/2 keyboards on desktops were being reported as
-        # touchpads (hwdb had iMac-target desktops with touchpad_type: ps2).
         profile.has_touchpad = False
         profile.touchpad_type = "n/a"
     else:
@@ -570,9 +544,6 @@ def _extract_device_name(line: str) -> str:
     return line.split(":")[-1].strip()
 
 def _detect_gpu_linux(profile: HardwareProfile):
-    # Collect (name, vendor-id, device-ids) for every display device first,
-    # then classify — order-dependent assignment misfiled discrete cards as
-    # the iGPU whenever lspci listed them first (constant in hwdb reports).
     names = []
     ids_by_name = {}
     for line in profile.raw_pci:
@@ -581,8 +552,6 @@ def _detect_gpu_linux(profile: HardwareProfile):
             m = re.search(r'\[([0-9a-f]{4}:[0-9a-f]{4})\]', line)
             ids = m.group(1).lower() if m else ""
             name = _extract_device_name(line)
-            # Vendor hint from the PCI id survives even when the device name
-            # itself doesn't contain the vendor word.
             if "8086" in ids and "intel" not in lower:
                 name = f"Intel {name}"
             elif "10de" in ids and "nvidia" not in lower:
@@ -630,9 +599,6 @@ def _classify_gpus(gpus: list[str]) -> tuple[str, str, str, str]:
             if not dgpu_name:
                 dgpu_name, dgpu_vendor = name, "nvidia"
         elif "amd" in lower or "radeon" in lower or "ati " in lower:
-            # AMD needs splitting: APU graphics ("Radeon(TM) Graphics",
-            # "Vega 8", "780M") are the iGPU; RX/R5/R7/R9/FirePro cards are
-            # discrete.
             discrete = bool(re.search(r"\brx[\s\d]|\br[579] \d{3}\b|firepro|radeon pro|\bxt\b|\bvega (56|64)\b", lower))
             if discrete:
                 if not dgpu_name:
@@ -656,8 +622,6 @@ def _detect_gpu_windows(profile: HardwareProfile):
         profile.gpu_name, profile.gpu_vendor = igpu_name, igpu_vendor
         profile.dgpu_name, profile.dgpu_vendor = dgpu_name, dgpu_vendor
     elif dgpu_name:
-        # No iGPU at all (F/KF-series Intel, most desktop Ryzen) — the
-        # discrete card is the primary GPU macOS will drive.
         profile.gpu_name, profile.gpu_vendor = dgpu_name, dgpu_vendor
     elif gpus:
         profile.gpu_name = gpus[0]
@@ -694,12 +658,6 @@ def _detect_audio_windows(profile: HardwareProfile):
     raw = _ps("(Get-WmiObject Win32_SoundDevice | ForEach-Object { $_.Name }) -join '||'").strip()
     devices = [d.strip() for d in raw.split("||") if d.strip()]
 
-    # "First sound device" is whatever Windows enumerated first — hwdb is
-    # full of audio_codec values like "Steam Streaming Microphone", "NVIDIA
-    # Virtual Audio Device" and USB interfaces, none of which is the onboard
-    # codec AppleALC needs a layout-id for. Rank instead: an explicit ALCxxx
-    # match beats a Realtek device, which beats the first thing that isn't
-    # obviously HDMI/USB/virtual audio.
     _NOT_ONBOARD = (
         "nvidia", "steam", "virtual", "usb", "bluetooth", "hdmi", "displayport",
         "display audio", "streaming", "focusrite", "webcam", "camera", "monitor",
@@ -757,9 +715,6 @@ def _detect_network_linux(profile: HardwareProfile):
                     profile.ethernet_chipset = "ax88"
 
 def _detect_network_windows(profile: HardwareProfile):
-    # Ethernet — -Physical is not fully reliable: VPN tunnel drivers like
-    # Tailscale's WinTun can still present as a physical adapter to Windows,
-    # so also exclude common tunnel/VPN keywords explicitly.
     raw = _ps("""
         $nic = Get-NetAdapter -Physical -ErrorAction Stop | Where-Object {
             $_.InterfaceDescription -notmatch 'Wi-Fi|Wireless|WiFi|802.11|Bluetooth|Tailscale|WinTun|Wintun|TAP|VPN|Tunnel|Virtual|Loopback'
@@ -794,13 +749,6 @@ def _detect_network_windows(profile: HardwareProfile):
     elif "mediatek" in name_lower: profile.wifi_chipset = "mediatek"
 
     if not profile.wifi_chipset:
-        # Win32_NetworkAdapter only lists a WiFi card by its friendly name if
-        # a driver is actually bound. Newer Intel WiFi 6/6E chips (AX200,
-        # AX201, AX210/AX1675, AX211) often have no inbox driver on a fresh
-        # Windows install set up just to run HackMate, so Windows shows
-        # them as an unclassified "Network controller" with nothing to match
-        # against by name at all. Fall back to the raw PCI hardware ID
-        # (from pci-ids.ucw.cz), which Windows exposes even undriven.
         intel_wifi_ids = "0070|0074|4070|2723|2725|0094"
         raw_pnp = _ps(f"""
             (Get-PnpDevice -PresentOnly | Where-Object {{
@@ -811,6 +759,44 @@ def _detect_network_windows(profile: HardwareProfile):
             profile.wifi_chipset = "intel"
             if not profile.wifi_name:
                 profile.wifi_name = "Intel WiFi (no driver installed)"
+
+def hardware_warnings(profile: HardwareProfile) -> list[str]:
+    """Known-bad configurations per the Dortania guide's Hardware Limitations
+    page (macos-limits.html) that HackMate can detect from fields already on
+    the profile, without adding new hardware probing. These are dead ends or
+    near-dead-ends today, independent of anything HackMate's pipeline can fix —
+    surfacing them here means a user finds out before building, not after a
+    failed boot."""
+    warnings: list[str] = []
+    name = profile.cpu_name.lower()
+
+    if profile.cpu_vendor == "amd" and profile.platform == "laptop":
+        warnings.append(
+            "AMD laptop CPUs (Ryzen mobile APUs) are not supported by the AMD "
+            "Vanilla patch set — this build will not boot."
+        )
+
+    if profile.platform == "laptop" and any(k in name for k in ("atom", "celeron", "pentium")):
+        warnings.append(
+            "Mobile Atom/Celeron/Pentium CPUs are not supported on laptops — "
+            "this build will not boot."
+        )
+
+    if profile.cpu_generation == 11 and profile.platform == "desktop" and not profile.dgpu_vendor:
+        warnings.append(
+            "Rocket Lake's integrated Xe graphics have no native macOS driver — "
+            "without a discrete GPU this machine will have no video output "
+            "after boot."
+        )
+
+    if profile.wifi_chipset == "atheros":
+        warnings.append(
+            "Atheros WiFi support tops out at macOS High Sierra (10.13) — it "
+            "will not work on any newer macOS version."
+        )
+
+    return warnings
+
 
 def detect_smbios(profile: HardwareProfile):
     key = (profile.cpu_generation, profile.platform)
@@ -859,9 +845,6 @@ def _detect_cpu_macos(profile: HardwareProfile):
                 profile.oc_platform = codename
                 break
 
-        # macOS's brand_string ("Intel(R) Core(TM) i5-8350U CPU @ 1.70GHz") never
-        # actually contains "7th"/"8th" wording, so the keyword match above always
-        # misses on real Macs — fall back to parsing the model number like Linux/Windows do.
         if not profile.cpu_generation:
             gen, codename = _parse_intel_model(profile.cpu_name)
             if gen:
@@ -872,7 +855,7 @@ def _detect_cpu_macos(profile: HardwareProfile):
             _infer_intel_gen_from_name(profile)
 
         if not profile.oc_platform:
-            profile.oc_platform = _OC_PLATFORM_MAP.get(profile.cpu_generation, profile.cpu_codename or "Unknown")
+            profile.oc_platform = _oc_platform_for(profile.cpu_generation, profile.platform, profile.cpu_codename)
     elif profile.cpu_vendor == "amd":
         _detect_amd_gen(profile)
 

@@ -167,8 +167,6 @@ def _check_acpi(cfg: dict, acpi_dir: Path, out: list):
                     f"{', '.join(usbx_providers)} each declare a USBX device. "
                     "Duplicate ACPI device definitions make table loading fail."))
 
-    # A rename points a firmware symbol at a replacement. If nothing supplies
-    # the replacement, every call to the original symbol now goes nowhere.
     for patch in acpi.get("Patch", []):
         if not patch.get("Enabled", True):
             continue

@@ -12,12 +12,6 @@ class SMBIOSData:
     system_uuid: str
     rom: str            # 6-byte MAC-like value for ROM
 
-# Format: LLLYYWWSSSCC
-#   LLL = factory location
-#   YY  = year
-#   WW  = week
-#   SSS = unique identifier
-#   CC  = model check digits
 
 FACTORIES = [
     "C02",  # Cork, Ireland (most common MBP)
@@ -31,9 +25,6 @@ FACTORIES = [
     "C3Q",  # Cork
 ]
 
-# Valid year/week chars for post-2010 Macs
-# Format: year digit + week digits
-# Year: C=2010, D=2011, F=2012, G=2013, H=2014, J=2015, K=2016, L=2017, M=2018, N=2019, P=2020, Q=2021, R=2022, S=2023
 YEAR_CODES = {
     2010: "C", 2011: "D", 2012: "F", 2013: "G", 2014: "H",
     2015: "J", 2016: "K", 2017: "L", 2018: "M", 2019: "N",
@@ -48,8 +39,6 @@ WEEK_CODES = [
     "40","41","42","43","44","45","46","47","48","49",
 ]
 
-# Check digit suffixes per SMBIOS model
-# These are real check digit pairs used by Apple
 MODEL_SUFFIXES: dict[str, list[str]] = {
     "MacBookPro8,1":  ["DH2", "DH3", "DH4", "DH5", "DH6", "DN3", "DN4"],
     "MacBookPro9,2":  ["DRV", "DRW", "DRX", "DVH", "DVJ"],
@@ -124,8 +113,6 @@ def generate_mlb(model: str) -> str:
     prefixes = MLB_PREFIXES.get(model)
     if prefixes:
         prefix = random.choice(prefixes)
-        # Pad out to a full-length MLB — a short board serial is rejected by
-        # Apple's activation servers, so iMessage/FaceTime never come up.
         return f"{prefix}{_rand_upper(MLB_LENGTH - len(prefix))}"
 
     return f"C02{_rand_upper(8)}HACD{_rand_upper(MLB_LENGTH - 15)}"
@@ -134,9 +121,6 @@ def generate_uuid() -> str:
     return str(uuid.uuid4()).upper()
 
 def generate_rom() -> str:
-    # ROM is 6 bytes shown as 12 hex chars, must look like a real MAC
-    # First byte must have bit 1 unset (unicast) and bit 0 unset (OUI)
-    # Use Apple OUIs: 00:17:f2, 28:cf:e9, 3c:07:54, 8c:85:90, ac:de:48
     apple_ouis = ["0017F2", "28CFE9", "3C0754", "8C8590", "ACDE48", "F0DBE2"]
     oui = random.choice(apple_ouis)
     nic = _rand_hex(6)

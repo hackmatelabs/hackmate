@@ -222,10 +222,6 @@ DefinitionBlock ("", "SSDT", 2, "CORP", "PMCR", 0x00000000)
 }}
 """
 
-# Pairs with the "GPRW to XGPR" rename in config_gen. The firmware's own GPRW is
-# renamed to XGPR, and this SSDT supplies the GPRW that every _PRW calls: GPE
-# 0x6D (USB) and 0x0D (XHCI) are masked to stop instant wake, and anything else
-# is delegated straight back to the original.
 GPRW_DSL_TEMPLATE = """\
 DefinitionBlock ("", "SSDT", 2, "HACK", "GPRW", 0x00000000)
 {
@@ -555,8 +551,6 @@ def generate(
             results[ssdt] = "SKIP: AWAC clock not present in this system — not required"
             continue
 
-        # Without a GPRW method in the DSDT there is nothing to rename aside,
-        # and no _PRW calls it — the instant-wake fix does not apply.
         if ssdt == "SSDT-GPRW" and dsdt and not dsdt_info.get("has_gprw"):
             results[ssdt] = "SKIP: no GPRW method in this DSDT — not required"
             continue

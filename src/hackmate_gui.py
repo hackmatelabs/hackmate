@@ -33,9 +33,6 @@ from smbios import generate as gen_smbios, SMBIOSData
 from config_gen import generate as gen_config, write_plist, _required_ssdts
 from recovery import compatible_versions, download_recovery, MacOSVersion
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Theme
-# ─────────────────────────────────────────────────────────────────────────────
 
 BG      = "#0d0d0d"
 PANEL   = "#111111"
@@ -71,13 +68,6 @@ def draw_banner(parent) -> tk.Frame:
 
 
 def _get_version() -> str:
-    # .release_tag is written at build time from the actual GitHub release
-    # tag (falls back to "dev" for manual/local runs). Previously this was
-    # a hardcoded "v2.0.0" literal that never changed across releases, so
-    # every build — v2.0.1, v2.0.2, whatever's shipped since — displayed
-    # the same wrong version, and every hwdb submission inherited the same
-    # stale value, making it impossible to tell pre-fix from post-fix
-    # reports from the data alone.
     try:
         tag = (Path(__file__).parent / ".release_tag").read_text().strip() or "dev"
     except Exception:
@@ -90,10 +80,6 @@ def _get_version() -> str:
 
 
 VERSION = _get_version()
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Widget helpers
-# ─────────────────────────────────────────────────────────────────────────────
 
 
 def title(parent, text):
@@ -349,11 +335,6 @@ def row(parent):
     return tk.Frame(parent, bg=BG)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Screen base + app shell
-# ─────────────────────────────────────────────────────────────────────────────
-
-
 class Screen(tk.Frame):
     def __init__(self, app):
         super().__init__(app.container, bg=BG)
@@ -481,11 +462,6 @@ class HackMateApp(tk.Tk):
                                    "warning", 10, None)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Welcome / Scan / Manual hardware / Version
-# ─────────────────────────────────────────────────────────────────────────────
-
-
 class HwdbConsentScreen(Screen):
     """Shown once, on first launch. A real no — declining changes nothing
     else about how HackMate works, it only skips log submission."""
@@ -589,6 +565,10 @@ class ScanScreen(Screen):
             f"  Kexts     {len(kexts)} selected",
             f"  NVMe      {'Yes' if profile.nvme_present else 'No'}   Thunderbolt: {'Yes' if profile.has_thunderbolt else 'No'}",
         ]
+        from hardware import hardware_warnings
+        for w in hardware_warnings(profile):
+            lines.append("")
+            lines.append(f"  ⚠ {w}")
         self.status.config(text="")
         self.result.config(text="\n".join(lines))
         self.app.profile = profile
@@ -898,11 +878,6 @@ class VersionScreen(Screen):
             self.app.push_screen(USBScreen)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# USB select / build mode / wifi / dGPU / dual boot
-# ─────────────────────────────────────────────────────────────────────────────
-
-
 class USBScreen(Screen):
     def on_show(self):
         drives = get_usb_drives()
@@ -1191,11 +1166,6 @@ class DualBootScreen(Screen):
         self.app.push_screen(ConfirmScreen, self.device, self.repair, self.skip_format)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Confirm + Install (core build process)
-# ─────────────────────────────────────────────────────────────────────────────
-
-
 class ConfirmScreen(Screen):
     def __init__(self, app, device: str, repair: bool = False, skip_format: bool = False):
         super().__init__(app)
@@ -1355,12 +1325,6 @@ class InstallScreen(Screen):
         skip_format: bool = self.skip_format
         tmp = Path(get_tmp_dir())
         tmp.mkdir(parents=True, exist_ok=True)
-        # Repair mode doesn't reformat the drive, so it needs the drive's
-        # actual current letter just like Already Formatted does — only a
-        # fresh Full Build can assume the fixed "Z:" HackMate itself assigns
-        # during formatting. Without this, repair always assumed Z: even
-        # when Windows had mounted the drive somewhere else, and failed with
-        # a raw WinError pointing at a drive letter nothing was ever on.
         mount = get_mount_path(device, skip_format=(skip_format or repair))
 
         def ui(pct, msg):
@@ -1402,11 +1366,6 @@ class InstallScreen(Screen):
                     backup_dir.mkdir(parents=True, exist_ok=True)
                     backup_zip = backup_dir / f"EFI_backup_{ts}.zip"
                     file_count = 0
-                    # Python 3.12 tightened relative_to()'s matching: the bare
-                    # drive string "Z:" isn't treated as the same anchor as
-                    # the rooted "Z:\EFI\..." paths rglob() returns, and
-                    # raises "is not in the subpath of" even though it's
-                    # obviously the same drive. Root it the same way.
                     mount_root = Path(f"{mount}\\") if IS_WINDOWS else Path(f"{mount}")
                     with zf.ZipFile(backup_zip, "w", zf.ZIP_DEFLATED) as z:
                         for f in existing_efi.rglob("*"):
@@ -1543,8 +1502,6 @@ class InstallScreen(Screen):
                 if result.startswith("ERROR"):
                     log(f"  WARN: {name} — {result}", "warn")
 
-            # Drop kexts that failed to download, then point every surviving entry at
-            # the binary its bundle actually contains.
             import plistlib
             from config_gen import sync_executable_paths
             cfg = plistlib.loads(config_path.read_bytes())
@@ -1579,11 +1536,6 @@ class InstallScreen(Screen):
             else:
                 log("  USBToolBox download failed — get it from github.com/USBToolBox/Tool", "warn")
 
-            # Automatic USB port mapping — DSDT-derived, works on every
-            # platform; usbdump.exe (Windows only) is a secondary fallback
-            # inside generate_auto_map(). Falls back to nothing (manual USB
-            # Mapping step still available) on any failure; never blocks
-            # the build.
             from auto_usb_map import generate_auto_map, write_map_kext
             auto_map = generate_auto_map(usbtoolbox_zip, tmp, log=log)
             if auto_map:
@@ -1688,8 +1640,6 @@ class InstallScreen(Screen):
                 shutil.rmtree(str(acpi_dir))
                 shutil.copytree(str(ssdt_backup_dir), str(acpi_dir))
 
-            # Drop tables that were never generated, along with any ACPI rename that
-            # pointed at them — an orphaned rename is worse than no patch at all.
             if skip_ssdts or err_ssdts:
                 import plistlib
                 from config_gen import strip_missing_ssdts
@@ -1814,10 +1764,6 @@ class InstallScreen(Screen):
                     "repair" if locals().get("repair") else (
                         "skip_format" if locals().get("skip_format") else "full"))
                 v = locals().get("version")
-                # str(e) alone loses all location info — a bare message like
-                # "unsupported operand type(s) for +: 'NoneType' and 'str'"
-                # is undebuggable without knowing where it happened. Append
-                # the failing frame (file:line + the actual source line).
                 issues = str(e)
                 tb = traceback.extract_tb(e.__traceback__)
                 if tb:
@@ -1830,11 +1776,6 @@ class InstallScreen(Screen):
                 hwdb_submit.submit_log(profile, feature, log_text, dual_boot=locals().get("dual_boot", ""))
             except Exception:
                 pass
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Restore / repair flow
-# ─────────────────────────────────────────────────────────────────────────────
 
 
 class RestoreScreen(Screen):
@@ -1941,11 +1882,6 @@ class RestoreConfirmScreen(Screen):
             notify(f"Restore complete — EFI from {self.backup.stem} written to {self.device}")
         except Exception as e:
             notify(f"Restore failed: {e}")
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Config editor
-# ─────────────────────────────────────────────────────────────────────────────
 
 
 class ConfigEditorUSBScreen(Screen):
@@ -2267,11 +2203,6 @@ class ConfigEditorScreen(Screen):
                 pass
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Disk map + partition wizard
-# ─────────────────────────────────────────────────────────────────────────────
-
-
 class DiskMapScreen(Screen):
     """Show disk layout, detected OSes, and conflicts."""
 
@@ -2557,11 +2488,6 @@ class PartResizeRunScreen(Screen):
             self.app.call_from_thread(self.app.notify, "Resize failed", "error")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Log checker + enable OC logging + USB mapping + BIOS checklist
-# ─────────────────────────────────────────────────────────────────────────────
-
-
 class EnableOCLoggingScreen(Screen):
     """Pick a USB, patch its config.plist to enable OpenCore file logging."""
 
@@ -2829,14 +2755,8 @@ class USBMappingScreen(Screen):
                         cfg = plistlib.load(f)
                     for entry in cfg.get("Kernel", {}).get("Add", []):
                         name = entry.get("BundlePath", "").split("/")[0]
-                        # USBToolBox.kext is the driver that consumes the map —
-                        # disabling it leaves UTBMap inert (matches the TUI's
-                        # apply-map flow, which never disabled it).
                         if name in ("UTBMap.kext", "USBToolBox.kext"):
                             entry["Enabled"] = True
-                    # A real per-port map is now active — the XhciPortLimit
-                    # fallback (on by default so USB works pre-mapping) is
-                    # no longer needed and is less precise than the map.
                     cfg.setdefault("Kernel", {}).setdefault("Quirks", {})["XhciPortLimit"] = False
                     with open(config_path, "wb") as f:
                         plistlib.dump(cfg, f)

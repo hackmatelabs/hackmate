@@ -169,14 +169,9 @@ NO_EXECUTABLE = {
     "FakeSMC_LPCSensors", "FakeSMC_SMMSensors",
     "NullEthernet",
     "VoodooGPIO",
-    # USBToolBox port maps are pure Info.plist bundles — giving them an
-    # ExecutablePath makes OpenCore fail to inject the map once it's enabled.
     "UTBMap", "UTBDefault",
 }
 
-# Min/Max kernel versions for version-specific kexts.
-# Windows must not overlap between kexts that replace one another, or both load
-# at once and conflict. Darwin: 14=10.10, 18=10.14, 19=10.15, 20=11, 21=12, 22=13
 KERNEL_VERSIONS: dict[str, tuple[str, str]] = {
     "BrcmPatchRAM":        ("", "14.9.9"),     # macOS 10.10 and below
     "BrcmPatchRAM2":       ("15.0.0", "18.9.9"),  # macOS 10.11-10.14
@@ -222,8 +217,6 @@ def _required_ssdts(profile: HardwareProfile, kexts: list[KextEntry]) -> list[st
     if gen in (2, 3):
         ssdts.append("SSDT-IMEI")
 
-    # Embedded controller. The laptop table also declares _SB.USBX, so laptops
-    # must not additionally load SSDT-USBX or the device is defined twice.
     if profile.platform == "laptop":
         ssdts.append("SSDT-EC-USBX")
     else:
@@ -248,9 +241,6 @@ def _required_ssdts(profile: HardwareProfile, kexts: list[KextEntry]) -> list[st
 
     return ssdts
 
-# An ACPI rename is only safe when the SSDT that defines its replacement is
-# actually loaded. Renaming _OSI to XOSI without SSDT-XOSI, for example, points
-# every firmware _OSI call at a method that does not exist.
 PATCH_REQUIRES_SSDT: dict[str, str] = {
     "OSID to XSID":  "SSDT-XOSI",
     "_OSI to XOSI":  "SSDT-XOSI",
@@ -300,14 +290,9 @@ def _acpi_patches(profile: HardwareProfile, ssdts: list[str]) -> list[dict]:
             return
         patches.append(patch(comment, find, replace, **kw))
 
-    # XOSI spoof — lets the DSDT's Windows-only branches run under macOS.
-    # SSDT-XOSI supplies the XOSI method these renames point at.
     add("OSID to XSID", "4F534944", "58534944")
     add("_OSI to XOSI", "5F4F5349", "584F5349")
 
-    # Instant-wake fix. The DSDT's _PRW objects call GPRW; we rename the stock
-    # GPRW aside to XGPR so SSDT-GPRW can supply a GPRW that masks GPE 0x6D/0x0D
-    # and delegates everything else back to XGPR.
     add("GPRW to XGPR", "47505257", "58475052")
 
     return patches
@@ -407,12 +392,6 @@ def _kernel_section(profile: HardwareProfile, kexts: list[KextEntry]) -> dict:
         "PowerTimeoutKernelPanic":    True,
         "ProvideCurrentCpuInfo":      True,
         "SetApfsTrimTimeout":         -1,
-        # NOT a safe default: XhciPortLimit lifting the 15-port cap without
-        # a real per-port map causes kernel panics on macOS 12+ (see
-        # log_checker's own "usb-port-limit" pattern) — confirmed dead USB
-        # on real hardware when this was briefly defaulted True. A real
-        # map is the only fix; see auto_usb_map.py for the ACPI-derived one
-        # generated at build time.
         "XhciPortLimit":              False,
     }
 
@@ -460,8 +439,6 @@ def _kernel_section(profile: HardwareProfile, kexts: list[KextEntry]) -> dict:
     }
 
 def _amd_kernel_patches(profile: HardwareProfile) -> list[dict]:
-    # Full AMD vanilla kernel patches from https://github.com/AMD-OSX/AMD_Vanilla
-    # Required for AMD CPUs (Ryzen/Threadripper) to boot macOS
     cores = cpu_core_count()
     core_hex = format(cores, "02x")
 
@@ -533,11 +510,6 @@ def _nvram_section(profile: HardwareProfile, layout_id: int, macos_major: int = 
     if macos_major >= 15:
         # Sequoia+: RestrictEvents VMM spoof so macOS doesn't see unsupported Intel hardware
         boot_args.append("revpatch=sbvmm")
-        # Lilu hardcodes a max-supported-kernel-version check per release and
-        # refuses to let ANY of its plugins inject (WhateverGreen, AppleALC,
-        # itlwm, VirtualSMC, ...) on a macOS newer than what that Lilu build
-        # currently whitelists — shows up as generic injection failures like
-        # "Invalid Parameter" on brand-new macOS versions. Bypass the gate.
         boot_args.append("-lilubetaall")
 
     if profile.cpu_vendor == "amd":
@@ -865,12 +837,6 @@ def strip_missing_ssdts(config: dict, missing: list[str]) -> tuple[int, int]:
     return len(tables) - len(kept_tables), len(patches) - len(kept_patches)
 
 def write_plist(config: dict, path: Path):
-    # Belt-and-braces: nine hwdb reports died right here with [Errno 2]
-    # because EFI/OC didn't exist — a diskpart "assign" that silently
-    # no-oped left every path pointing at a drive letter that was never
-    # actually mounted. The letter conflict is now caught at format time,
-    # but creating the parent costs nothing and turns any remaining gap
-    # into a clearer failure at the actual copy steps instead of here.
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "wb") as f:
         plistlib.dump(config, f, fmt=plistlib.FMT_XML, sort_keys=False)

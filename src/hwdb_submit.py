@@ -21,16 +21,9 @@ from datetime import date
 
 from hardware import HardwareProfile
 
-# Holds no secret itself; the real GitHub token lives server-side in the
-# relay (packaging/hwdb_relay/), never in this client.
 RELAY_URL = "https://hackmate-hwdb-relay.riftaway7.workers.dev"
 
 def _get_version() -> str:
-    # Mirrors hackmate.py/hackmate_gui.py's _get_version() — .release_tag is
-    # written at build time from the actual GitHub release tag. This used
-    # to be a hardcoded "v2.0.0" literal, so every hwdb submission ever made
-    # claimed "v2.0.0" regardless of what was actually running, making it
-    # impossible to tell pre-fix from post-fix reports from the data alone.
     try:
         return (Path(__file__).parent / ".release_tag").read_text().strip() or "dev"
     except Exception:
@@ -147,9 +140,6 @@ def build_log(
         f"worked: {worked}",
         f"issues: {issues or 'none'}",
     ]
-    # The notes line used to be one fixed string claiming "the EFI/USB was
-    # generated without error" — on every report, including the failed ones,
-    # where it directly contradicted the issues field above it.
     if worked == "build completed":
         lines.append(
             "notes: auto-submitted at build completion — confirms the EFI/USB "

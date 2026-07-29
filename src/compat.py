@@ -50,12 +50,6 @@ def require_admin():
 
 def _run(cmd: list) -> str:
     try:
-        # On Windows, console tools (diskpart, powershell, wmic) write their
-        # output in the OEM codepage (cp866 on Russian systems, cp850/cp437
-        # elsewhere), while text=True decodes with the ANSI codepage — on any
-        # non-English install the two differ and every localized message or
-        # device name comes out as mojibake. Confirmed live from hwdb
-        # reports whose diskpart errors were unreadable box-drawing soup.
         r = subprocess.run(cmd, capture_output=True, timeout=10)
         if IS_WINDOWS:
             return r.stdout.decode("oem", errors="replace").strip()
@@ -95,9 +89,6 @@ def http_get(url: str, headers: dict | None = None, timeout: int = 30) -> bytes:
             with urllib.request.urlopen(req, context=ctx, timeout=timeout) as r:
                 return r.read()
         except urllib.error.HTTPError:
-            # A real HTTP status (403/404/...) will not change with a
-            # different SSL context — surface it to the caller immediately
-            # so rate-limit handling still works.
             raise
         except (ssl.SSLError, urllib.error.URLError) as e:
             last_err = e
@@ -258,15 +249,6 @@ def detect_touchpad_type() -> str:
     """Returns 'ps2', 'i2c', or 'none'"""
     if IS_WINDOWS:
         try:
-            # Windows never puts "I2C" in a touchpad's FriendlyName — it's a
-            # bus protocol, not something exposed to the UI. Real I2C HID
-            # touchpads show up as a generic "HID-compliant touch pad" or a
-            # bare vendor name (ELAN, Synaptics), with no I2C indication at
-            # all, so searching for a literal "i2c" substring essentially
-            # never matches on any real machine. I2C HID devices are
-            # ACPI-enumerated (standard Windows HID-over-I2C architecture),
-            # unlike USB or PS/2 pointing devices — that's the reliable
-            # signal to check instead.
             i2c_hit = subprocess.run(
                 ["powershell", "-NoProfile", "-Command",
                  "if (Get-PnpDevice -Class HIDClass -PresentOnly | Where-Object { "
@@ -381,12 +363,6 @@ def _get_usb_drives_windows() -> list[tuple[str, str, str]]:
             disks = [disks]
         usb_disk_numbers = {str(d.get("Number", "")): d.get("Size", 0) for d in disks}
 
-        # A GPT USB stick with an EFI System Partition — exactly what a
-        # previous OpenCore/HackMate attempt leaves behind — never gets a
-        # drive letter from Windows; ESPs are hidden from letter assignment
-        # by design. Without this, such a stick is invisible to HackMate
-        # entirely, no matter how many times it's reconnected. Assign one
-        # before enumerating so it actually shows up.
         subprocess.run(
             ["powershell", "-NoProfile", "-Command",
              "Get-Partition | Where-Object { -not $_.DriveLetter -and $_.DiskNumber -in @(" +
@@ -463,12 +439,6 @@ def _format_usb_linux(device: str, mount_point: str) -> bool:
     disk = re.sub(r'p?\d+$', '', device) if re.search(r'\d$', device) else device
     part_device = (disk + "p1") if disk[-1].isdigit() else (disk + "1")
 
-    # The device path is resolved once at drive-selection time; if the USB
-    # was unplugged/replugged (or another device changed the kernel's sdX
-    # numbering) before the format step actually runs, `disk` can point at
-    # nothing. parted's own error for that ("Could not stat device ... No
-    # such file or directory") is easy to mistake for something else —
-    # confirmed live from two identical reports for the same machine.
     if not Path(disk).exists():
         raise RuntimeError(
             f"{disk} is no longer present — the USB drive may have been unplugged or "
@@ -478,14 +448,6 @@ def _format_usb_linux(device: str, mount_point: str) -> bool:
     import glob
 
     def _unmount_all(pattern: str) -> None:
-        # Desktop automounters (udisks2 under GNOME/KDE) watch for partition
-        # table changes and can remount a partition within a fraction of a
-        # second of it appearing — including right after parted creates one,
-        # racing the very next command. A plain umount isn't always enough
-        # if something still has a handle open, so fall back to a lazy
-        # unmount. Confirmed live: repeated failures on the same machine at
-        # both "parted ... mklabel" ("partition(s) are being used") and
-        # "mkfs.fat" ("contains a mounted filesystem").
         for part in sorted(glob.glob(pattern)):
             result = subprocess.run(["umount", part], capture_output=True)
             if result.returncode != 0:
@@ -501,28 +463,16 @@ def _format_usb_linux(device: str, mount_point: str) -> bool:
             subprocess.run(["partprobe", disk], capture_output=True)
             time.sleep(1)
 
-            # The new partition may already have been auto-mounted by the
-            # desktop environment the instant it appeared — unmount it
-            # again before formatting.
             _unmount_all(part_device)
             _run_checked(["mkfs.fat", "-F32", "-n", "HACKINTOSH", part_device])
             last_err = None
             break
         except RuntimeError as e:
             last_err = e
-            # A missing tool (e.g. parted not installed) fails identically
-            # on every attempt and retrying can't fix it — stop immediately
-            # instead of wasting time and 3 retries on something retrying
-            # will never solve.
             if "isn't installed" in str(e):
                 break
             time.sleep(2)
     if last_err:
-        # Only blame the automounter race when the error actually looks like
-        # one — appending that explanation to an unrelated failure (like a
-        # missing tool) is actively misleading. Confirmed live: a "parted
-        # isn't installed" error got a nonsensical "kept getting remounted
-        # automatically" explanation tacked onto it.
         is_mount_race = any(s in str(last_err).lower() for s in
                              ("mounted", "busy", "being used", "no volume"))
         if is_mount_race:
@@ -533,11 +483,6 @@ def _format_usb_linux(device: str, mount_point: str) -> bool:
             )
         raise RuntimeError(str(last_err))
 
-    # mkfs.fat's writes may not be fully flushed to the block device yet on
-    # slower drives — mounting immediately after can see a stale/incomplete
-    # superblock ("wrong fs type, bad superblock" from mount) even though
-    # the filesystem was actually created correctly. sync() plus a short
-    # pause, with one retry, clears this.
     subprocess.run(["sync"], capture_output=True)
     time.sleep(1)
 
@@ -578,12 +523,6 @@ def _format_usb_windows(drive_letter: str, mount_letter: str = "Z") -> bool:
             f"(Get-Volume -DriveLetter {letter} -ErrorAction SilentlyContinue | Get-Partition -ErrorAction SilentlyContinue | Get-Disk).Number"
         ]).strip()
 
-    # Second fallback: the letter itself may be stale — a previous failed
-    # format can leave the partition cleaned with no letter at all, at which
-    # point neither Get-Partition nor Get-Volume can see it. If exactly one
-    # USB-bus disk is attached there is no ambiguity about which disk the
-    # user meant — use it. (31 hwdb reports died at this error; for many the
-    # USB was clearly still plugged in since a later retry succeeded.)
     if not disk_num_raw.isdigit():
         usb_disks = _run([
             "powershell", "-NoProfile", "-Command",
@@ -598,12 +537,6 @@ def _format_usb_windows(drive_letter: str, mount_letter: str = "Z") -> bool:
             f"Open Disk Management, format the USB as FAT32, then use the 'Already Formatted' button."
         )
 
-    # target_letter (default Z:) is hardcoded, not queried — if it's already
-    # claimed by another drive (network share, second internal disk, etc.)
-    # diskpart's "assign" silently no-ops instead of erroring, and every
-    # write after this (config.plist, kexts, ...) fails ~30% later with a
-    # confusing "No such file or directory" pointed at a drive letter that
-    # was never actually ours. Catch it here instead, immediately.
     already_used = _run([
         "powershell", "-NoProfile", "-Command",
         f"Test-Path {target_letter}:\\"
@@ -615,22 +548,9 @@ def _format_usb_windows(drive_letter: str, mount_letter: str = "Z") -> bool:
             f"unmap whatever's using {target_letter}: — then try again."
         )
 
-    # Split into two diskpart invocations with a short pause between them.
-    # Right after "create partition primary", Windows hasn't always finished
-    # mapping the new partition to a volume object yet — running "format" in
-    # the same script, immediately after, can fail with "There is no volume
-    # selected. Please select a volume and try again." even though the
-    # partition was just created successfully. A brief real-world pause
-    # between partitioning and formatting clears this (confirmed from a
-    # user's full diskpart transcript showing exactly this sequence).
     create_script = (
         f"select disk {disk_num_raw}\n"
         "clean\n"
-        # Windows' built-in FAT32 formatter refuses volumes over 32GB
-        # ("Virtual Disk Service error: The volume size is too big"), so a
-        # bare "create partition primary" on any USB 32GB+ fails outright.
-        # Actual content here is EFI + recovery (~600MB) + kexts, nowhere
-        # near that ceiling — cap the partition well under it.
         "create partition primary size=4096\n"
         "exit\n"
     )
@@ -647,21 +567,12 @@ def _format_usb_windows(drive_letter: str, mount_letter: str = "Z") -> bool:
         p.write_text(script_text)
         try:
             r = subprocess.run(["diskpart", "/s", str(p)], capture_output=True, timeout=120)
-            # diskpart prints in the OEM codepage — decoding with anything
-            # else turns localized error text into mojibake (seen live in
-            # hwdb reports from Russian/Portuguese/Spanish systems).
             out = (r.stdout.decode("oem", errors="replace") +
                    r.stderr.decode("oem", errors="replace"))
             return r.returncode, out.strip()[-400:]
         finally:
             p.unlink(missing_ok=True)
 
-    # diskpart is notoriously flaky about timing right after a disk is wiped
-    # ("clean") and immediately repartitioned — Windows hasn't always
-    # finished releasing the old volume, which shows up as
-    # ERROR_INVALID_PARAMETER (0x80070057) or ERROR_NO_SUCH_DEVICE
-    # (0x800701b1) even though the disk itself is fine. A short retry
-    # clears most of these instead of failing outright.
     import time as _time
     last_detail = ""
     for attempt in range(3):
@@ -682,10 +593,6 @@ def _format_usb_windows(drive_letter: str, mount_letter: str = "Z") -> bool:
     else:
         raise RuntimeError(f"diskpart failed after 3 attempts:\n{last_detail}")
 
-    # diskpart can report success while "assign" itself quietly no-oped
-    # (e.g. driver hasn't caught up yet) — confirm the letter is really
-    # there before handing back control, instead of failing confusingly
-    # deep into config/kext generation.
     mounted = _run([
         "powershell", "-NoProfile", "-Command",
         f"Test-Path {target_letter}:\\"
@@ -767,13 +674,6 @@ def get_mount_path(device: str = "", skip_format: bool = False) -> str:
         if skip_format and device:
             letter = device.strip(":\\/").upper()
             if letter and letter.isalpha():
-                # "Already Formatted" assumes the drive is already mounted
-                # with a filesystem — if it's actually RAW (no filesystem at
-                # all), Windows has no path to write to and every later
-                # mkdir/write fails with a raw, confusing WinError instead
-                # of explaining what's actually wrong. Confirmed live: a
-                # user hit "Could not resolve disk number" first (RAW disk),
-                # then tried Already Formatted next and got exactly this.
                 if not os.path.exists(f"{letter}:\\"):
                     raise RuntimeError(
                         f"{letter}: isn't accessible — the drive may be RAW (no filesystem) "

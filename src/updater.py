@@ -15,9 +15,6 @@ API_URL      = f"https://api.github.com/repos/{REPO}/commits/{BRANCH}"
 COMPARE_URL  = f"https://api.github.com/repos/{REPO}/compare/{{base}}...{{head}}"
 VERSION_FILE = Path(__file__).parent / ".version"
 
-# Every module hackmate.py can import. A file missing from this list is never
-# downloaded, so shipping a new module without adding it here leaves anyone who
-# auto-updates with an ImportError on launch.
 FILES = [
     "hackmate.py",
     "hackmate_gui.py",
@@ -161,8 +158,6 @@ def check_and_update(silent: bool = False) -> bool:
     local_sha = _get_local_sha()
     base_dir  = Path(__file__).parent
 
-    # When running as a frozen EXE, we can't update .py files —
-    # the bundle is read-only. Instead, point the user to the new release.
     if _is_frozen():
         if remote_sha == local_sha:
             print("up to date.")
@@ -196,9 +191,6 @@ def check_and_update(silent: bool = False) -> bool:
         if not missing:
             print("up to date.")
             return False
-        # Already on the right commit but some modules never landed — an older
-        # updater didn't know about them. Repair silently; asking here would let
-        # the user decline into an app that cannot import its own modules.
         print(f"repairing {len(missing)} missing file(s)...")
         failed = [f for f in missing if not _download_file(f, remote_sha)]
         for f in missing:

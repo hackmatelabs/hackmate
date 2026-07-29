@@ -66,7 +66,7 @@ DB: dict[str, KextEntry] = {
 
     "Lilu":              KextEntry("Lilu",            "acidanthera/Lilu",             "Lilu-",              "base patcher, must load first"),
     "VirtualSMC":        KextEntry("VirtualSMC",      "acidanthera/VirtualSMC",       "VirtualSMC-",        "SMC emulator (modern, Sandy Bridge+)"),
-    "FakeSMC":           KextEntry("FakeSMC",         "RehabMan/OS-X-FakeSMC-kozlek", "FakeSMC-",           "SMC emulator (legacy, pre-Sandy Bridge)"),
+    "FakeSMC":           KextEntry("FakeSMC",         "CloverHackyColor/FakeSMC3_with_plugins", "FakeSMC", "SMC emulator (legacy, pre-Sandy Bridge)"),
     "RestrictEvents":    KextEntry("RestrictEvents",  "acidanthera/RestrictEvents",   "RestrictEvents-",    "various system event patches"),
     "FeatureUnlock":     KextEntry("FeatureUnlock",   "acidanthera/FeatureUnlock",    "FeatureUnlock-",     "Sidecar, AirPlay, Universal Control on unsupported SMBIOS"),
     "CPUFriend":         KextEntry("CPUFriend",       "acidanthera/CPUFriend",        "CPUFriend-",         "CPU frequency/power management"),
@@ -74,23 +74,17 @@ DB: dict[str, KextEntry] = {
     "DebugEnhancer":     KextEntry("DebugEnhancer",   "acidanthera/DebugEnhancer",    "DebugEnhancer-",     "kernel debug logging"),
     "CryptexFixup":      KextEntry("CryptexFixup",    "acidanthera/CryptexFixup",     "CryptexFixup-",      "Ventura+ cryptex on older/AMD hardware"),
 
-    "FakeSMC_ACPISensors": KextEntry("FakeSMC_ACPISensors", "RehabMan/OS-X-FakeSMC-kozlek", "FakeSMC-",  "ACPI sensors plugin for FakeSMC"),
-    "FakeSMC_CPUSensors":  KextEntry("FakeSMC_CPUSensors",  "RehabMan/OS-X-FakeSMC-kozlek", "FakeSMC-",  "CPU sensors plugin for FakeSMC"),
-    "FakeSMC_GPUSensors":  KextEntry("FakeSMC_GPUSensors",  "RehabMan/OS-X-FakeSMC-kozlek", "FakeSMC-",  "GPU sensors plugin for FakeSMC"),
-    "FakeSMC_LPCSensors":  KextEntry("FakeSMC_LPCSensors",  "RehabMan/OS-X-FakeSMC-kozlek", "FakeSMC-",  "LPC sensors plugin for FakeSMC"),
-    "FakeSMC_SMMSensors":  KextEntry("FakeSMC_SMMSensors",  "RehabMan/OS-X-FakeSMC-kozlek", "FakeSMC-",  "SMM sensors plugin for FakeSMC"),
 
     "SMCBatteryManager": KextEntry("SMCBatteryManager","acidanthera/VirtualSMC",      "VirtualSMC-",        "battery status (in VirtualSMC zip)"),
     "SMCProcessor":      KextEntry("SMCProcessor",     "acidanthera/VirtualSMC",      "VirtualSMC-",        "CPU temp sensors (in VirtualSMC zip)"),
     "SMCSuperIO":        KextEntry("SMCSuperIO",       "acidanthera/VirtualSMC",      "VirtualSMC-",        "desktop fan sensors (in VirtualSMC zip)"),
     "SMCLightSensor":    KextEntry("SMCLightSensor",   "acidanthera/VirtualSMC",      "VirtualSMC-",        "ambient light sensor (in VirtualSMC zip)"),
     "SMCDellSensors":    KextEntry("SMCDellSensors",   "acidanthera/VirtualSMC",      "VirtualSMC-",        "Dell fan/temp sensors (in VirtualSMC zip)"),
-    "SMCAMDProcessor":   KextEntry("SMCAMDProcessor",  "trulyspinach/AMDRyzenCPUPowerManagement","SMCAMDProcessor-","AMD CPU sensors"),
-    "SMCRadeonGPU":      KextEntry("SMCRadeonGPU",     "aluveitie/RadeonSensor",      "SMCRadeonGPU-",      "AMD GPU temp in HWMonitor"),
+    "SMCAMDProcessor":   KextEntry("SMCAMDProcessor",  "trulyspinach/SMCAMDProcessor","SMCAMDProcessor",   "AMD CPU sensors"),
+    "SMCRadeonGPU":      KextEntry("SMCRadeonGPU",     "aluveitie/RadeonSensor",      "RadeonSensor-",      "AMD GPU temp in HWMonitor (bundled in RadeonSensor zip)"),
 
     "AppleALC":          KextEntry("AppleALC",         "acidanthera/AppleALC",        "AppleALC-",          "audio codec patches via Lilu"),
-    "VoodooHDA":         KextEntry("VoodooHDA",        "chris1111/VoodooHDA-OC",      "VoodooHDA-",         "fallback audio for unsupported codecs"),
-    "CodecCommander":    KextEntry("CodecCommander",   "acidanthera/AppleALC",        "AppleALC-",          "fixes audio after sleep — bundled workaround via AppleALC"),
+    "VoodooHDA":         KextEntry("VoodooHDA",        "CloverHackyColor/VoodooHDA", "VoodooHDA",           "fallback audio for unsupported codecs"),
     "WhateverGreen":     KextEntry("WhateverGreen",    "acidanthera/WhateverGreen",   "WhateverGreen-",     "GPU framebuffer + audio HDMI/DP patches"),
 
     "VoodooPS2Controller":KextEntry("VoodooPS2Controller","acidanthera/VoodooPS2",    "VoodooPS2Controller-","PS/2 keyboard + mouse + trackpad"),
@@ -107,11 +101,13 @@ DB: dict[str, KextEntry] = {
     "VoodooI2CGoodix":   KextEntry("VoodooI2CGoodix",  "lazd/VoodooI2CGoodix",        "VoodooI2CGoodix-",   "Goodix touchscreen satellite"),
     "VoodooGPIO":        KextEntry("VoodooGPIO",       "VoodooI2C/VoodooI2C",         "VoodooI2C-",         "GPIO pinning (bundled in VoodooI2C zip)"),
     "VoodooInput":       KextEntry("VoodooInput",      "acidanthera/VoodooInput",     "VoodooInput-",       "multitouch input magic trackpad emulation"),
-    "VoodooSMBus":       KextEntry("VoodooSMBus",      "VoodooI2C/VoodooSMBus",       "VoodooSMBus-",       "SMBus trackpad (Synaptics PS2 over SMBus)"),
-    "VoodooRMI":         KextEntry("VoodooRMI",        "1Revenger1/VoodooRMI",        "VoodooRMI-",         "Synaptics RMI4 trackpad (better than PS2 on some laptops)"),
+    "VoodooSMBus":       KextEntry("VoodooSMBus",      "VoodooSMBus/VoodooSMBus",     "VoodooSMBus-",       "SMBus trackpad (Synaptics PS2 over SMBus)"),
+    "VoodooRMI":         KextEntry("VoodooRMI",        "VoodooSMBus/VoodooRMI",       "VoodooRMI-",         "Synaptics RMI4 trackpad (better than PS2 on some laptops)"),
+    "AlpsHID":           KextEntry("AlpsHID",          "blankmac/AlpsHID",            "AlpsHID",            "ALPS I2C touchpad + trackpoint (satellite, needs VoodooI2C/VoodooI2CHID)"),
 
     "IntelMausiEthernet":KextEntry("IntelMausiEthernet","acidanthera/IntelMausi",        "IntelMausi-",        "Intel I219/I218/I217 Ethernet", bundle_name="IntelMausi", exe_name="IntelMausi"),
-    "AppleIGC":          KextEntry("AppleIGC",         "SongXiaoXi/AppleIGC",         "AppleIGC-",          "Intel I225-V / I226-V 2.5GbE"),
+    "AppleIGC":          KextEntry("AppleIGC",         "SongXiaoXi/AppleIGC",         "AppleIGC",           "Intel I225-V / I226-V 2.5GbE"),
+    "AppleIGB":          KextEntry("AppleIGB",         "donatengit/AppleIGB",         "AppleIGB",           "alternative Intel I210/I211/82576+ Ethernet (IntelMausi-style; upstream's newest tags ship DEBUG-only builds)"),
     "AppleIntelE1000e":  KextEntry("AppleIntelE1000e", "chris1111/AppleIntelE1000e",  "AppleIntelE1000e-",  "Intel 82578/82577/82574/82567 Ethernet"),
     "AppleIntelI210Ethernet":KextEntry("AppleIntelI210Ethernet","donatengit/AppleIntelI210Ethernet","AppleIntelI210-","Intel I211/I210 Ethernet"),
     "RealtekRTL8111":    KextEntry("RealtekRTL8111",   "Mieze/RTL8111_driver_for_OS_X","RealtekRTL8111-",   "Realtek RTL8111/RTL8168"),
@@ -122,19 +118,19 @@ DB: dict[str, KextEntry] = {
     "AtherosL1Ethernet": KextEntry("AtherosL1Ethernet","RehabMan/OS-X-Atheros-L1-Ethernet","AtherosL1-",    "Atheros L1 Gigabit (very old)"),
     "AtherosL1eEthernet":KextEntry("AtherosL1eEthernet","RehabMan/OS-X-Atheros-L1e-Ethernet","AtherosL1e-", "Atheros L1e Fast Ethernet"),
     "BCM5722D":          KextEntry("BCM5722D",         "SavageAUS/BCM5722D",          "BCM5722D-",          "Broadcom BCM5722 Ethernet"),
-    "NullEthernet":      KextEntry("NullEthernet",     "RehabMan/OS-X-Null-Ethernet", "NullEthernet-",      "placeholder ethernet for iMessage/iCloud on WiFi-only"),
+    "NullEthernet":      KextEntry("NullEthernet",     "jcreed69/NullEthernet",       "NullEthernet",       "placeholder ethernet for iMessage/iCloud on WiFi-only"),
 
     "itlwm":             KextEntry("itlwm",            "OpenIntelWireless/itlwm",     "itlwm_",             "Intel WiFi (needs HeliPort app for menu bar)"),
     "AirportItlwm":      KextEntry("AirportItlwm",     "OpenIntelWireless/itlwm",     "AirportItlwm_",      "Intel WiFi as native AirportBSD (macOS version specific!)"),
     "AirportBrcmFixup":  KextEntry("AirportBrcmFixup", "acidanthera/AirportBrcmFixup","AirportBrcmFixup-",  "Broadcom BCM94352Z/BCM943602CS WiFi patches"),
-    "ATH9KFixup":        KextEntry("ATH9KFixup",       "chontos/ATH9KFixup",          "ATH9KFixup-",        "Atheros AR9xxx WiFi patches"),
+    "ATH9KFixup":        KextEntry("ATH9KFixup",       "black-dragon74/ATH9KFixup",   "release",            "Atheros AR9xxx WiFi patches"),
 
     "BrcmPatchRAM":      KextEntry("BrcmPatchRAM",     "acidanthera/BrcmPatchRAM",    "BrcmPatchRAM-",      "Broadcom BT (macOS 10.10 and below)"),
-    "BrcmPatchRAM2":     KextEntry("BrcmPatchRAM2",    "acidanthera/BrcmPatchRAM",    "BrcmPatchRAM2-",     "Broadcom BT (macOS 10.11-11)"),
-    "BrcmPatchRAM3":     KextEntry("BrcmPatchRAM3",    "acidanthera/BrcmPatchRAM",    "BrcmPatchRAM3-",     "Broadcom BT (macOS 12+)"),
-    "BrcmFirmwareData":  KextEntry("BrcmFirmwareData", "acidanthera/BrcmPatchRAM",    "BrcmFirmwareData-",  "Broadcom BT firmware data"),
-    "BrcmFirmwareRepo":  KextEntry("BrcmFirmwareRepo", "acidanthera/BrcmPatchRAM",    "BrcmFirmwareRepo-",  "Broadcom BT firmware repo (for in-memory loading)"),
-    "BrcmBluetoothInjector":KextEntry("BrcmBluetoothInjector","acidanthera/BrcmPatchRAM","BrcmBluetoothInjector-","Broadcom BT injector (macOS 12 and below)"),
+    "BrcmPatchRAM2":     KextEntry("BrcmPatchRAM2",    "acidanthera/BrcmPatchRAM",    "BrcmPatchRAM-",      "Broadcom BT (macOS 10.11-11)"),
+    "BrcmPatchRAM3":     KextEntry("BrcmPatchRAM3",    "acidanthera/BrcmPatchRAM",    "BrcmPatchRAM-",      "Broadcom BT (macOS 12+)"),
+    "BrcmFirmwareData":  KextEntry("BrcmFirmwareData", "acidanthera/BrcmPatchRAM",    "BrcmPatchRAM-",      "Broadcom BT firmware data"),
+    "BrcmFirmwareRepo":  KextEntry("BrcmFirmwareRepo", "acidanthera/BrcmPatchRAM",    "BrcmPatchRAM-",      "Broadcom BT firmware repo (for in-memory loading)"),
+    "BrcmBluetoothInjector":KextEntry("BrcmBluetoothInjector","acidanthera/BrcmPatchRAM","BrcmPatchRAM-",   "Broadcom BT injector (macOS 12 and below)"),
     "BlueToolFixup":     KextEntry("BlueToolFixup",    "acidanthera/BrcmPatchRAM",    "BrcmPatchRAM-",      "BT stack fix for macOS 12+ (in BrcmPatchRAM zip)"),
     "IntelBluetoothFirmware":KextEntry("IntelBluetoothFirmware","OpenIntelWireless/IntelBluetoothFirmware","IntelBluetooth",      "Intel BT firmware loader"),
     "IntelBTPatcher":    KextEntry("IntelBTPatcher",   "OpenIntelWireless/IntelBluetoothFirmware","IntelBluetooth",      "Intel BT patches for macOS 12+"),
@@ -148,9 +144,12 @@ DB: dict[str, KextEntry] = {
     "VoodooTSCSync":     KextEntry("VoodooTSCSync",    "RehabMan/VoodooTSCSync",      "VoodooTSCSync-",     "TSC sync for multi-socket / HEDT"),
     "AmdTSCSync":        KextEntry("AmdTSCSync",       "naveenkrdy/AmdTSCSync",       "AmdTSCSync-",        "TSC sync for AMD"),
     "ForgedInvariant":   KextEntry("ForgedInvariant",  "ChefKissInc/ForgedInvariant", "ForgedInvariant-",   "TSC sync alternative for AMD/HEDT"),
-    "AMDRyzenCPUPowerManagement":KextEntry("AMDRyzenCPUPowerManagement","trulyspinach/AMDRyzenCPUPowerManagement","AMDRyzenCPUPowerManagement-","AMD Ryzen CPU power management"),
+    "AMDRyzenCPUPowerManagement":KextEntry("AMDRyzenCPUPowerManagement","trulyspinach/SMCAMDProcessor","AMDRyzenCPUPowerManagement","AMD Ryzen CPU power management"),
     "CpuTopologyRebuild":KextEntry("CpuTopologyRebuild","b00t0x/CpuTopologyRebuild",  "CpuTopologyRebuild-","Alder/Raptor Lake P+E core topology fix"),
     "HibernationFixup":  KextEntry("HibernationFixup", "acidanthera/HibernationFixup","HibernationFixup-",  "sleep/wake stability fix"),
+    "RTCMemoryFixup":    KextEntry("RTCMemoryFixup",   "acidanthera/RTCMemoryFixup",  "RTCMemoryFixup-",    "emulates CMOS/RTC offsets (fixes NVRAM reset loops on some boards)"),
+    "IntelMKLFixup":     KextEntry("IntelMKLFixup",    "Carnations-Botanica/IntelMKLFixup","IntelMKLFixup-", "patches Intel MKL for AMD CPU compatibility"),
+    "Innie":             KextEntry("Innie",            "cdf/Innie",                   "Innie-",             "makes external NVMe/PCIe drives appear internal (Recovery/FileVault icon fix)"),
 
     "ECEnabler":         KextEntry("ECEnabler",        "1Revenger1/ECEnabler",        "ECEnabler-",         "battery EC fields >8-bit (replaces ACPIBatteryManager patches)"),
     "ACPIBatteryManager":KextEntry("ACPIBatteryManager","RehabMan/OS-X-ACPI-Battery-Driver","ACPIBatteryManager-","battery (legacy, use ECEnabler instead on modern OC)"),
@@ -159,6 +158,7 @@ DB: dict[str, KextEntry] = {
     "UTBMap":            KextEntry("UTBMap",           "",                            "",                   "USB port map (user-generated via USB Mapping after first boot)"),
     "USBInjectAll":      KextEntry("USBInjectAll",     "Sniki/OS-X-USB-Inject-All",   "USBInjectAll-",      "inject all USB ports (use only during mapping, not final EFI)"),
     "XHCI-unsupported":  KextEntry("XHCI-unsupported", "RehabMan/OS-X-USB-Inject-All","XHCI-unsupported-",  "unsupported USB 3.0 controllers (Sandy/Ivy Bridge)"),
+    "GenericUSBXHCI":    KextEntry("GenericUSBXHCI",   "al3xtjames/GenericUSBXHCI",   "GenericUSBXHCI-",    "alternative driver for 3rd-party (ASMedia/NEC/Renesas) USB3 controllers"),
 
     "AHCIPortInjector":  KextEntry("AHCIPortInjector", "RehabMan/OS-X-AHCI-Port-Injector","AHCIPortInjector-","inject AHCI ports (very old hardware)"),
     "JMicronATA":        KextEntry("JMicronATA",       "RehabMan/OS-X-JMicron-ATA",   "JMicronATA-",        "JMicron ATA (very old)"),
@@ -175,8 +175,8 @@ DB: dict[str, KextEntry] = {
     "BrightnessKeys":    KextEntry("BrightnessKeys",   "acidanthera/BrightnessKeys",  "BrightnessKeys-",    "brightness Fn keys (F1/F2)"),
     "NoTouchID":         KextEntry("NoTouchID",        "al3xtjames/NoTouchID",        "NoTouchID-",         "suppress Touch ID prompts on non-T2 SMBIOS"),
 
-    "RealtekCardReader": KextEntry("RealtekCardReader","0xFireWolf/RealtekCardReader", "RealtekCardReader-", "Realtek RTS5xxx SD card reader"),
-    "RealtekCardReaderFriend":KextEntry("RealtekCardReaderFriend","0xFireWolf/RealtekCardReaderFriend","RealtekCardReaderFriend-","Lilu plugin companion for RealtekCardReader"),
+    "RealtekCardReader": KextEntry("RealtekCardReader","0xFireWolf/RealtekCardReader", "RealtekCardReader", "Realtek RTS5xxx SD card reader"),
+    "RealtekCardReaderFriend":KextEntry("RealtekCardReaderFriend","0xFireWolf/RealtekCardReaderFriend","RealtekCardReaderFriend","Lilu plugin companion for RealtekCardReader"),
     "Sinetek-rtsx":      KextEntry("Sinetek-rtsx",     "cholonam/Sinetek-rtsx",       "Sinetek-rtsx-",      "alternative Realtek RTSX card reader driver"),
 
 }
@@ -268,6 +268,7 @@ def _detect_touchpad_type() -> str:
     if "atmel" in combined and "i2c" in combined:    return "i2c_atmel"
     if "goodix" in combined:                         return "i2c_goodix"
     if "fte" in combined and "i2c" in combined:      return "i2c_fte"
+    if "alps" in combined and "i2c" in combined:     return "i2c_alps"
     if "i2c-hid" in combined or ("i2c" in combined and IS_WINDOWS): return "i2c_hid"
     return "ps2"
 
@@ -279,10 +280,6 @@ def _is_amd_apu(profile: HardwareProfile) -> bool:
             and profile.gpu_vendor in ("amd", "")
             and any(x in profile.gpu_name.lower() for x in ["vega", "radeon graphics", "renoir", "cezanne", "rembrandt", "phoenix", "navi"]))
 
-# Navi 21/22/23 (RX 6600-6950 series) PCI device IDs, from pci-ids.ucw.cz.
-# Windows can report just "Advanced Micro Devices, Inc." with no model name
-# when only a generic/inbox driver is loaded (no AMD driver installed) —
-# the device ID still identifies the exact card even when the name doesn't.
 _NAVI2X_DEVICE_IDS = {
     "73A1", "73A2", "73A3", "73A4", "73A5", "73AB", "73AE", "73AF", "73BF",
     "73C3", "73C4", "73CE", "73DF",
@@ -347,17 +344,13 @@ def select_kexts(profile: HardwareProfile, wifi_kext_mode: str = "itlwm") -> lis
     add("FakeSMC" if legacy else "VirtualSMC")
     add("RestrictEvents", "FeatureUnlock")
 
-    # AMD APU uses NootedRed instead of WhateverGreen.
-    # Intel Arc has no macOS driver at all, so it just gets WhateverGreen
-    # (harmless no-op) — efi_check warns about the unsupported GPU separately.
     if _is_amd_apu(profile):
         add("NootedRed")
     else:
         add("WhateverGreen")
 
     if legacy:
-        add("FakeSMC_ACPISensors", "FakeSMC_CPUSensors", "FakeSMC_GPUSensors",
-            "FakeSMC_LPCSensors", "FakeSMC_SMMSensors")
+        pass  # sensor plugins removed from DB — no working release exists anywhere (see DB comment)
     else:
         add("SMCProcessor")
         if profile.platform == "laptop":
@@ -391,6 +384,7 @@ def select_kexts(profile: HardwareProfile, wifi_kext_mode: str = "itlwm") -> lis
                 "i2c_atmel":    "VoodooI2CAtmel",
                 "i2c_fte":      "VoodooI2CFTE",
                 "i2c_goodix":   "VoodooI2CGoodix",
+                "i2c_alps":     "AlpsHID",
             }.get(tp, "VoodooI2CHID")
             add(sat)
             # VoodooGPIO is bundled inside VoodooI2C — don't add standalone
@@ -441,8 +435,6 @@ def select_kexts(profile: HardwareProfile, wifi_kext_mode: str = "itlwm") -> lis
     if legacy:
         add("NullCPUPowerManagement")
     if profile.cpu_vendor == "amd":
-        # Matches Dortania's AMD Vanilla set. AMFIPass (an OCLP root-patching
-        # kext) and GenericUSBXHCI (pre-native-XHCI era) are not part of it.
         add("AMDRyzenCPUPowerManagement", "AmdTSCSync", "CryptexFixup")
     if _is_hedt(profile):
         add("ForgedInvariant")
@@ -450,8 +442,6 @@ def select_kexts(profile: HardwareProfile, wifi_kext_mode: str = "itlwm") -> lis
     if profile.nvme_present:
         add("NVMeFix")
 
-    # USBToolBox.kext enables port discovery; UTBMap.kext is a placeholder the
-    # user replaces after running USBToolBox inside macOS (HackMate → USB Mapping)
     add("USBToolBox", "UTBMap")
     if profile.cpu_generation <= 3:
         add("XHCI-unsupported")
@@ -497,11 +487,6 @@ def _get_latest_release(repo: str) -> Optional[dict]:
         except RuntimeError:
             raise
         except urllib.error.HTTPError as e:
-            # GitHub returns rate-limit/abuse responses as a 403/429 status,
-            # not a 200 with a "rate limit" body — urlopen raises HTTPError
-            # for those before the JSON-parsing branch above ever runs, so
-            # every kext silently came back as a generic connection failure
-            # instead of the real reason. Read the (still JSON) error body.
             if e.code in (403, 429):
                 try:
                     body = json.loads(e.read())
@@ -591,11 +576,6 @@ def download_heliport(dest: Path, progress_cb=None) -> bool:
     try:
         release = _get_latest_release("OpenIntelWireless/HeliPort")
     except RuntimeError as e:
-        # _get_latest_release deliberately re-raises rate-limit errors so
-        # callers can show a clean message — every other kext download
-        # already catches this, this one was missed, so a rate limit here
-        # crashed the whole build with a raw traceback instead of just
-        # marking HeliPort as failed like everything around it.
         if progress_cb:
             progress_cb(f"HeliPort download failed: {e}")
         return False
@@ -663,13 +643,6 @@ def _kext_valid(kext_path: Path) -> bool:
         (kext_path / "Contents" / "Info.plist").stat().st_size > 100
     )
 
-# AirportItlwm ships a separate release asset per macOS version (its kext
-# binary is not forward/backward compatible across major versions) — unlike
-# every other kext here, matching just "AirportItlwm_" picks whichever one
-# happens to sort first among all of them, not the one for the macOS the
-# user actually selected. Confirmed live: a user targeting Monterey got a
-# kext that failed to prelink, fixed only by manually grabbing the
-# Monterey-specific build themselves.
 _AIRPORTITLWM_KEYWORDS = {
     "10.13": "highsierra",
     "10.14": "mojave",
@@ -683,17 +656,9 @@ _AIRPORTITLWM_KEYWORDS = {
 def download_kexts(kexts: list[KextEntry], dest: Path, progress_cb=None, verify: bool = False,
                    release_cache: dict[str, list] | None = None, macos_version: str = "") -> dict[str, str]:
     dest.mkdir(parents=True, exist_ok=True)
-    # Scratch space goes on the system disk, never on the USB itself: zips
-    # used to be downloaded and extracted under EFI/OC/Kexts/_tmp, so every
-    # extraction wrote hundreds of small files through the slowest, least
-    # reliable disk in the machine (WinError 433 "device does not exist"
-    # mid-extract in hwdb reports = the USB dropping out under that load),
-    # and ate into the 4GB FAT32 partition ("not enough space on the disk").
     import tempfile
     tmp = Path(tempfile.mkdtemp(prefix="hackmate_kexts_"))
     results: dict[str, str] = {}
-    # Reuse releases already resolved by check_kext_sources — the unauthenticated
-    # GitHub API allows only 60 requests an hour.
     seen_repos: dict[str, list] = dict(release_cache or {})
 
     for i, kext in enumerate(kexts):
@@ -765,15 +730,6 @@ def download_kexts(kexts: list[KextEntry], dest: Path, progress_cb=None, verify:
         kext_name = f"{kext.name}.kext"
         bundle = kext.bundle_name or kext.name
         base = bundle.lower()
-        # Zips built on macOS (Finder's "Compress", or ditto -c) carry a
-        # parallel __MACOSX/ tree of AppleDouble metadata files whose paths
-        # still include the original ".kext" folder name as a component —
-        # extracting one creates a second, fake "*.kext" directory containing
-        # nothing but junk (no real Contents/Info.plist). Since it shares the
-        # exact same name as the real bundle, an unfiltered search picks
-        # whichever one the filesystem happens to list first — nondeterministic,
-        # and confirmed live via a real EFI health check flagging a kext with
-        # no readable Info.plist.
         all_kexts = [
             p for p in extract_dir.rglob("*.kext")
             if p.is_dir() and "__MACOSX" not in p.parts
@@ -796,10 +752,6 @@ def download_kexts(kexts: list[KextEntry], dest: Path, progress_cb=None, verify:
     return results
 
 
-# Known-good OpenCore release used when the GitHub API is unavailable (rate
-# limit, outage). browser_download_url-style links do NOT count against the
-# 60/hr API budget, so this always works even when the API is exhausted.
-# Bump alongside OpenCore releases.
 OPENCORE_FALLBACK_VERSION = "1.0.7"
 OPENCORE_FALLBACK_URL = (
     f"https://github.com/acidanthera/OpenCorePkg/releases/download/"

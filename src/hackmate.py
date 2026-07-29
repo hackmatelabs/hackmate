@@ -177,13 +177,7 @@ ProgressBar              { margin: 1 0; }
 ProgressBar > .bar--bar  { color: #00ff88; }
 LoadingIndicator         { height: 1; color: #00ff88; }
 Static                   { color: #cccccc; }
-#log-area                { height: 1fr; border: solid #222222; background: #0a0a0a; }
-#log-row                 { height: 1fr; }
-#log                     { width: 1fr; border: none; background: #0a0a0a; color: #888888; }
-#cmd-log                 { width: 1fr; border-left: solid #1e1e1e; background: #070710;
                            color: #44ff88; display: none; }
-#log-bar                 { height: 1; background: #0b0b0b; border-top: solid #1a1a1a; }
-#log-bar-space           { width: 1fr; }
 Button.advanced-btn      { height: 1; border: none; min-width: 14; padding: 0 1;
                            background: transparent; color: #3a3a3a; }
 Button.advanced-btn:hover { color: #00ff88; }
@@ -195,22 +189,11 @@ Button.advanced-btn:hover { color: #00ff88; }
 .cfg-row              { height: 3; align: left middle; }
 .manual-row           { height: 1; align: left middle; }
 Switch                { margin: 0 1 0 0; }
-#editor-scroll        { height: 1fr; border: solid #1a1a1a; }
-#manual-scroll        { height: 1fr; border: solid #1a1a1a; }
-#simple-panel         { height: auto; }
-#advanced-panel       { height: auto; }
 .short-input          { width: 16; }
-#checker-scroll       { height: 1fr; border: solid #1a1a1a; }
-#checker-summary      { height: 1; }
 .finding-critical     { color: #ff4444; }
 .finding-warn         { color: #ffaa00; }
 .finding-info         { color: #888888; }
 .finding-context      { color: #2a2a2a; }
-#welcome-row          { height: 1fr; }
-#welcome-stats        { width: 26; padding: 1 0 0 3; border-left: solid #333333; }
-#health-targets       { height: 8; border: solid #333333; background: #111111; }
-#health-log           { height: 1fr; border: solid #222222; background: #0a0a0a; }
-#health-summary       { height: 2; }
 """
 
 BANNER = (
@@ -552,8 +535,6 @@ class USBMappingScreen(Screen):
                 shutil.rmtree(str(kext_dest))
             shutil.copytree(str(kext_src), str(kext_dest))
 
-            # Enable UTBMap in config.plist. USBToolBox.kext stays enabled — it is
-            # the driver that consumes the map, so disabling it leaves UTBMap inert.
             config_path = Path(mount) / "EFI" / "OC" / "config.plist"
             if config_path.exists():
                 try:
@@ -565,9 +546,6 @@ class USBMappingScreen(Screen):
                         name = entry.get("BundlePath", "").split("/")[0]
                         if name in ("UTBMap.kext", "USBToolBox.kext"):
                             entry["Enabled"] = True
-                    # A real per-port map is now active — the XhciPortLimit
-                    # fallback (on by default so USB works pre-mapping) is
-                    # no longer needed and is less precise than the map.
                     cfg.setdefault("Kernel", {}).setdefault("Quirks", {})["XhciPortLimit"] = False
                     # A USBToolBox map is a plist-only bundle; make the config say so.
                     sync_executable_paths(cfg, Path(mount) / "EFI" / "OC" / "Kexts")
@@ -1304,6 +1282,10 @@ class ScanScreen(Screen):
             f"  Kexts     {len(kexts)} selected",
             f"  NVMe      {'Yes' if profile.nvme_present else 'No'}   Thunderbolt: {'Yes' if profile.has_thunderbolt else 'No'}",
         ]
+        from hardware import hardware_warnings
+        for w in hardware_warnings(profile):
+            lines.append("")
+            lines.append(f"  ⚠ {w}")
         self.query_one("#scan-status", Static).update("")
         self.query_one("#scan-result", Static).update("\n".join(lines))
         self.app.profile = profile
@@ -2196,12 +2178,6 @@ class InstallScreen(Screen):
         skip_format: bool           = self.skip_format
         tmp = Path(get_tmp_dir())
         tmp.mkdir(parents=True, exist_ok=True)
-        # Repair mode doesn't reformat the drive, so it needs the drive's
-        # actual current letter just like Already Formatted does — only a
-        # fresh Full Build can assume the fixed "Z:" HackMate itself assigns
-        # during formatting. Without this, repair always assumed Z: even
-        # when Windows had mounted the drive somewhere else, and failed with
-        # a raw WinError pointing at a drive letter nothing was ever on.
         mount = get_mount_path(device, skip_format=(skip_format or repair))
 
         def ui(pct, msg):
@@ -2231,9 +2207,6 @@ class InstallScreen(Screen):
             mount = self.app.efi_output_path
 
         try:
-            # Resolve every kext download before the USB is formatted. A dead
-            # source found later would be silently dropped from config.plist,
-            # and the user would only notice when that hardware doesn't work.
             ui(1, "Checking kext sources...")
             log("── Checking kext download sources...", "header")
             from kexts import select_kexts, check_kext_sources, download_kexts
@@ -2246,12 +2219,6 @@ class InstallScreen(Screen):
             dead = [n for n, r in src_results.items() if r.startswith("ERROR")]
             checked = [n for n, r in src_results.items() if not r.startswith("SKIP")]
             if dead and len(dead) == len(checked):
-                # Every kext failing at once usually isn't a connectivity
-                # problem (recovery already downloaded fine over a totally
-                # separate connection to Apple's CDN) — it's almost always
-                # GitHub's 60 req/hr unauthenticated API limit, which was
-                # previously masked by this exact generic message. Surface
-                # the real reason from the first result instead of guessing.
                 sample = src_results[dead[0]]
                 if "rate limit" in sample.lower():
                     log(f"  {sample.split('ERROR: ', 1)[-1]}", "warn")
@@ -2290,11 +2257,6 @@ class InstallScreen(Screen):
                     backup_dir.mkdir(parents=True, exist_ok=True)
                     backup_zip = backup_dir / f"EFI_backup_{ts}.zip"
                     file_count = 0
-                    # Python 3.12 tightened relative_to()'s matching: the bare
-                    # drive string "Z:" isn't treated as the same anchor as
-                    # the rooted "Z:\EFI\..." paths rglob() returns, and
-                    # raises "is not in the subpath of" even though it's
-                    # obviously the same drive. Root it the same way.
                     mount_root = Path(f"{mount}\\") if IS_WINDOWS else Path(f"{mount}")
                     with zf.ZipFile(backup_zip, "w", zf.ZIP_DEFLATED) as z:
                         for f in existing_efi.rglob("*"):
@@ -2432,8 +2394,6 @@ class InstallScreen(Screen):
                 if result.startswith("ERROR"):
                     log(f"  WARN: {name} — {result}", "warn")
 
-            # Remove failed kexts from config.plist so missing .kext files don't prevent booting,
-            # then point every surviving entry at the binary its bundle actually contains.
             import plistlib
             from config_gen import sync_executable_paths
             cfg = plistlib.loads(config_path.read_bytes())
@@ -2475,11 +2435,6 @@ class InstallScreen(Screen):
             else:
                 log("  USBToolBox download failed — get it from github.com/USBToolBox/Tool", "warn")
 
-            # Automatic USB port mapping — DSDT-derived, works on every
-            # platform; usbdump.exe (Windows only) is a secondary fallback
-            # inside generate_auto_map(). Falls back to nothing (manual USB
-            # Mapping step still available) on any failure; never blocks
-            # the build.
             from auto_usb_map import generate_auto_map, write_map_kext
             auto_map = generate_auto_map(usbtoolbox_zip, tmp, log=log)
             if auto_map:
@@ -2558,8 +2513,6 @@ class InstallScreen(Screen):
                 else:
                     log("  Could not find OpenCore release asset", "error")
 
-            # In repair mode, back up existing SSDTs first so we can restore
-            # them if generation fails — never leave the system with zero SSDTs.
             ssdt_backup_dir = None
             if repair and acpi_dir.exists() and any(acpi_dir.iterdir()):
                 ssdt_backup_dir = tmp / "acpi_backup"
@@ -2585,17 +2538,11 @@ class InstallScreen(Screen):
             skip_ssdts = [n for n, s in ssdt_results.items() if s.startswith("SKIP")]
             err_ssdts  = [n for n, s in ssdt_results.items() if s.startswith("ERROR")]
 
-            # If all SSDTs failed in repair mode, restore the backup so the
-            # system isn't left with an empty ACPI folder
             if repair and ssdt_backup_dir and not ok_ssdts:
                 log("  All SSDTs failed — restoring previous SSDTs", "warn")
                 shutil.rmtree(str(acpi_dir))
                 shutil.copytree(str(ssdt_backup_dir), str(acpi_dir))
 
-            # ssdt.py handles 3-tier fallback internally (SSDTTime → template → bundled .aml).
-            # If any SSDT still shows SKIP/ERROR here, it genuinely couldn't be generated —
-            # remove it from config.plist, along with any ACPI rename that pointed at it,
-            # so OpenCore neither loads a missing file nor applies an orphaned rename.
             if skip_ssdts or err_ssdts:
                 import plistlib
                 from config_gen import strip_missing_ssdts
@@ -2619,8 +2566,6 @@ class InstallScreen(Screen):
             for n in err_ssdts:
                 log(f"  {n} — {ssdt_results[n]}", "error")
 
-            # Write README only for SSDTs that genuinely need manual intervention
-            # (not for hardware-appropriate skips like SSDT-AWAC on non-AWAC systems)
             truly_manual = [n for n in skip_ssdts + err_ssdts
                             if not ("not required" in ssdt_results.get(n, "") or
                                     "not present" in ssdt_results.get(n, ""))]
@@ -2725,10 +2670,6 @@ class InstallScreen(Screen):
                     "repair" if locals().get("repair") else (
                         "skip_format" if locals().get("skip_format") else "full"))
                 v = locals().get("version")
-                # str(e) alone loses all location info — a bare message like
-                # "unsupported operand type(s) for +: 'NoneType' and 'str'"
-                # is undebuggable without knowing where it happened. Append
-                # the failing frame (file:line + the actual source line).
                 issues = str(e)
                 tb = traceback.extract_tb(e.__traceback__)
                 if tb:
@@ -3245,13 +3186,6 @@ class DemoScreen(Screen):
         self.app.call_from_thread(self.app.exit)
 
 def _get_version() -> str:
-    # .release_tag is written at build time from the actual GitHub release
-    # tag (falls back to "dev" for manual/local runs). Previously this was
-    # a hardcoded "v2.0.0" literal that never changed across releases, so
-    # every build — v2.0.1, v2.0.2, whatever's shipped since — displayed
-    # the same wrong version, and every hwdb submission inherited the same
-    # stale value, making it impossible to tell pre-fix from post-fix
-    # reports from the data alone.
     try:
         tag = (Path(__file__).parent / ".release_tag").read_text().strip() or "dev"
     except Exception:

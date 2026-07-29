@@ -9,8 +9,6 @@ from dataclasses import dataclass
 MACRECOVERY_URL = "https://raw.githubusercontent.com/acidanthera/OpenCorePkg/master/Utilities/macrecovery/macrecovery.py"
 
 def _macrecovery_path() -> Path:
-    # In a PyInstaller frozen EXE, __file__ is inside _MEIPASS (read-only).
-    # macrecovery.py is bundled there; return that path directly.
     if getattr(sys, "frozen", False):
         return Path(sys._MEIPASS) / "macrecovery.py"
     return Path(__file__).parent / "macrecovery.py"
@@ -62,11 +60,6 @@ MACOS_VERSIONS = [
 def compatible_versions(cpu_gen: int, gpu_vendor: str, cpu_vendor: str = "intel") -> list[MacOSVersion]:
     result = []
     for v in MACOS_VERSIONS:
-        # Per the Dortania guide, AMD Ryzen/Threadripper CPUs do not follow
-        # Intel's generation-based macOS compatibility restrictions. All Ryzen
-        # CPUs (Zen through Zen 5) support macOS Sierra through current with
-        # appropriate AMD Vanilla kernel patches. The only hardware filter for
-        # AMD is GPU compatibility (NVIDIA not supported on Mojave+).
         if cpu_vendor != "amd":
             if cpu_gen < v.min_gen:
                 continue
@@ -188,17 +181,10 @@ def _download_recovery_once(version: MacOSVersion, dest: Path, progress_cb=None)
     if progress_cb:
         progress_cb("Connecting to Apple servers...")
 
-    # If Apple's CDN stalls mid-request, urlopen calls inside macrecovery.py have no
-    # timeout of their own — without a watchdog here, this hangs forever with zero
-    # feedback instead of failing with a retryable error.
     STALL_TIMEOUT = 120  # seconds with no output before giving up
 
     try:
         if getattr(sys, "frozen", False):
-            # In a PyInstaller EXE, sys.executable is HackMate.exe — can't use it to run scripts.
-            # Run macrecovery.py in-process via runpy on a worker thread (so a stall can be
-            # detected and reported instead of blocking the whole app), streaming stdout
-            # line-by-line as it's written rather than buffering until completion.
             import runpy, io, threading, time
 
             last_lines: list[str] = []
@@ -211,11 +197,6 @@ def _download_recovery_once(version: MacOSVersion, dest: Path, progress_cb=None)
 
                 def write(self, s):
                     self._activity[0] = time.monotonic()
-                    # macrecovery.py reports download progress with \r (in-place
-                    # refresh), not \n — without this translation those updates
-                    # sit in the buffer until the download fully finishes and
-                    # prints a real newline, so the UI looks frozen at whatever
-                    # percentage it last showed for the whole download.
                     self._pending += s.replace("\r", "\n")
                     while "\n" in self._pending:
                         line, self._pending = self._pending.split("\n", 1)

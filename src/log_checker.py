@@ -1132,9 +1132,6 @@ def analyze(text: str, profile=None) -> list[Finding]:
 
     if log_type == "kernel_panic":
         findings = _analyze_kernel_panic(text)
-        # Also scan OC patterns — panic files sometimes embed OC log output.
-        # Skip any OC pattern whose category is already covered by the panic parser
-        # (avoids two findings for the same root cause, e.g. IONVMeFamily).
         covered_categories = {f.category for f in findings if f.confidence in ("definitive", "likely")}
         extra = _analyze_oc_log(text)
         existing_titles = {f.title for f in findings}

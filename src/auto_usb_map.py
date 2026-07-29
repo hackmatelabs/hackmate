@@ -50,9 +50,6 @@ MAP_BUNDLE_IDENTIFIER = "com.dhinakg.USBToolBox.map"
 DRIVER_BUNDLE_IDENTIFIER = "com.dhinakg.USBToolBox.kext"
 MAX_PORTS_PER_CONTROLLER = 15  # AppleUSBXHCI's hardcoded personality table size
 
-# USBToolBox/tool Scripts/shared.py USBPhysicalPortTypes — 0 (USB-A) is the
-# most common physical shape and macOS doesn't use this for anything
-# functional beyond System Report cosmetics, so it's a safe unknown fallback.
 TYPE_USB_A = 0
 TYPE_INTERNAL = 255
 
@@ -71,20 +68,12 @@ _INFO_PLIST_TEMPLATE = {
 }
 
 
-# ---------------------------------------------------------------------------
-# DSDT-derived port discovery (all platforms)
-# ---------------------------------------------------------------------------
-
 _DEVICE_OPEN_RE = re.compile(r"Device\s*\(([A-Za-z0-9_^\\.]{1,10})\)\s*\{")
 _ADR_NAME_RE = re.compile(r"Name\s*\(_ADR,\s*([^,\)]+)\)")
 _ADR_METHOD_RETURN_RE = re.compile(r"Method\s*\(_ADR\b.*?Return\s*\(([^)]+)\)", re.DOTALL)
 _UPC_PRESENT_RE = re.compile(r"(?:Name|Method)\s*\(_UPC\b")
 _UPC_NAME_PKG_RE = re.compile(r"Name\s*\(_UPC,\s*Package\s*\([^)]*\)\s*\{(.*?)\}", re.DOTALL)
 
-# Generic hub-wrapper device names some vendors nest ports under, one level
-# below the real controller (XHC.RHUB.HS01 rather than XHC.HS01) — skip past
-# these when picking a controller identifier so the map key names the actual
-# controller, not the wrapper.
 _HUB_WRAPPER_NAMES = {"RHUB", "RHB", "HUBN", "HUB0", "HUB1", "HUBP"}
 
 
@@ -346,10 +335,6 @@ def _serialize_hub(hub: dict) -> dict:
             "type_c": False,
             "user_connectable": True,
         }
-        # Exact match, not the upstream endswith() check — Windows'
-        # USB_CONNECTION_STATUS enum has "NoDeviceConnected" as a distinct
-        # member, and "NoDeviceConnected".endswith("DeviceConnected") is
-        # True, which would misclassify every empty port as occupied.
         if str(status) != "DeviceConnected":
             hub_info["ports"].append(port_info)
             continue
