@@ -28,6 +28,8 @@ Supports Linux, Windows, and macOS as host operating systems.
 
 ## 📢 Announcements
 
+**latest update** — went thru and fixed rocket lake getting mislabeled as tiger lake (was messing up gpu/platform detection), added warnings for hardware that just straight up wont boot (amd laptop cpus, mobile atom/celeron/pentium, rocket lake w/ no dgpu = no video output, atheros wifi past high sierra). also did a full audit of the kext db against live github data — fixed like 11 kexts that were silently broken (repo got renamed/deleted or the download pattern stopped matching, e.g. FakeSMC, VoodooHDA, NullEthernet, the whole BrcmPatchRAM bluetooth family), added 6 new ones that were missing, and yanked 3 that have zero working source anywhere rn. cleaned up a buncha unnecessary comment bloat in the code too.
+
 **v2.0.0 is out** — the biggest correctness release so far. An audit of the whole generation pipeline turned up bugs that produced EFIs which booted but were quietly broken. All are fixed:
 
 - **`setup.py` crashed on macOS.** Stock macOS ships Python 3.9, and setup.py used 3.10-only syntax, so it died before doing anything. It now runs on 3.8+, and builds the venv from a modern interpreter instead of one that cannot launch HackMate.
