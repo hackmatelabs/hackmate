@@ -385,10 +385,17 @@ class HackMateApp(tk.Tk):
 
         import hwdb_submit
         if hwdb_submit.consent_already_asked():
-            self.push_screen(WelcomeScreen)
+            self.push_next_after_consent()
         else:
             self.push_screen(HwdbConsentScreen)
         self.after(3_600_000, self._check_for_update_loop)
+
+    def push_next_after_consent(self):
+        import discord_prompt
+        if discord_prompt.already_shown():
+            self.push_screen(WelcomeScreen)
+        else:
+            self.push_screen(DiscordScreen)
 
     # ── navigation ──────────────────────────────────────────────────────
     def push_screen(self, screen_cls, *args, **kwargs):
@@ -492,12 +499,60 @@ class HwdbConsentScreen(Screen):
             import hwdb_submit
             hwdb_submit.set_consent(consent)
             self.app.pop_screen()
-            self.app.push_screen(WelcomeScreen)
+            self.app.push_next_after_consent()
 
         btn_row = tk.Frame(wrap, bg=BG)
         btn_row.pack(anchor="w", pady=(16, 0), fill="x")
         button(btn_row, "Yes, share build logs", lambda: _choose(True), "primary").pack(fill="x", pady=3, ipady=2)
         button(btn_row, "No, don't share anything", lambda: _choose(False), "primary").pack(fill="x", pady=3, ipady=2)
+
+
+class DiscordScreen(Screen):
+    """Shown once, on first launch, after the hwdb consent choice. 'Maybe
+    later' is disabled for a few seconds so it isn't an instant reflex-click
+    past — still fully skippable, just not the very first frame."""
+
+    def on_show(self):
+        import discord_prompt
+        wrap = tk.Frame(self, bg=BG)
+        wrap.pack(fill="both", expand=True, padx=30, pady=20)
+        title(wrap, "── Join the HackMate Discord? ──────────────────────────").pack(anchor="w")
+        lines = [
+            "  Get help, report bugs, and see new features early —",
+            "  that's where support and the community actually live.",
+            "",
+            f"  {discord_prompt.INVITE_URL}",
+        ]
+        for line in lines:
+            info(wrap, line).pack(anchor="w")
+
+        def _finish():
+            discord_prompt.mark_shown()
+            self.app.pop_screen()
+            self.app.push_screen(WelcomeScreen)
+
+        def _join():
+            import webbrowser
+            webbrowser.open(discord_prompt.INVITE_URL)
+            _finish()
+
+        btn_row = tk.Frame(wrap, bg=BG)
+        btn_row.pack(anchor="w", pady=(16, 0), fill="x")
+        button(btn_row, "Join Discord", _join, "primary").pack(fill="x", pady=3, ipady=2)
+        self._later_btn = button(btn_row, f"Maybe later ({discord_prompt.WAIT_SECONDS})", _finish, "primary")
+        self._later_btn.config(state="disabled")
+        self._later_btn.pack(fill="x", pady=3, ipady=2)
+
+        self._remaining = discord_prompt.WAIT_SECONDS
+        self.app.after(1000, self._tick)
+
+    def _tick(self):
+        self._remaining -= 1
+        if self._remaining <= 0:
+            self._later_btn.config(state="normal", text="Maybe later")
+        else:
+            self._later_btn.config(text=f"Maybe later ({self._remaining})")
+            self.app.after(1000, self._tick)
 
 
 class WelcomeScreen(Screen):

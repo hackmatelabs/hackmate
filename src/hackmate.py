@@ -619,7 +619,60 @@ class HwdbConsentScreen(Screen):
         elif event.button.id == "consent-no":
             hwdb_submit.set_consent(False)
         self.app.pop_screen()
-        self.app.push_screen(WelcomeScreen())
+        self.app.push_next_after_consent()
+
+
+class DiscordScreen(Screen):
+    """Shown once, on first launch, after the hwdb consent choice. 'Maybe
+    later' is disabled for a few seconds so it isn't an instant reflex-click
+    past — still fully skippable, just not the very first frame."""
+
+    def compose(self) -> ComposeResult:
+        import discord_prompt
+        yield Header()
+        yield Container(
+            Vertical(
+                Static("── Join the HackMate Discord? ──────────────────────────", classes="title"),
+                Static(""),
+                Static("  Get help, report bugs, and see new features early —", classes="info"),
+                Static("  that's where support and the community actually live.", classes="info"),
+                Static(""),
+                Static(f"  {discord_prompt.INVITE_URL}", classes="info"),
+                Static(""),
+                Button("Join Discord", id="discord-join", classes="primary"),
+                Button(f"Maybe later ({discord_prompt.WAIT_SECONDS})", id="discord-later", classes="primary", disabled=True),
+                classes="screen-inner"
+            )
+        )
+        yield Footer()
+
+    def on_mount(self) -> None:
+        import discord_prompt
+        self._remaining = discord_prompt.WAIT_SECONDS
+        self._timer = self.set_interval(1, self._tick)
+
+    def _tick(self) -> None:
+        self._remaining -= 1
+        btn = self.query_one("#discord-later", Button)
+        if self._remaining <= 0:
+            btn.disabled = False
+            btn.label = "Maybe later"
+            self._timer.stop()
+        else:
+            btn.label = f"Maybe later ({self._remaining})"
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        import discord_prompt
+        if event.button.id == "discord-join":
+            import webbrowser
+            webbrowser.open(discord_prompt.INVITE_URL)
+            discord_prompt.mark_shown()
+            self.app.pop_screen()
+            self.app.push_screen(WelcomeScreen())
+        elif event.button.id == "discord-later" and not event.button.disabled:
+            discord_prompt.mark_shown()
+            self.app.pop_screen()
+            self.app.push_screen(WelcomeScreen())
 
 
 class WelcomeScreen(Screen):
@@ -3233,10 +3286,17 @@ class HackMate(App):
         else:
             import hwdb_submit
             if hwdb_submit.consent_already_asked():
-                self.push_screen(WelcomeScreen())
+                self.push_next_after_consent()
             else:
                 self.push_screen(HwdbConsentScreen())
         self.set_interval(3600, self._check_for_update)
+
+    def push_next_after_consent(self) -> None:
+        import discord_prompt
+        if discord_prompt.already_shown():
+            self.push_screen(WelcomeScreen())
+        else:
+            self.push_screen(DiscordScreen())
 
     @work(thread=True)
     def _check_for_update(self) -> None:
