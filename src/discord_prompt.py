@@ -9,7 +9,7 @@ otherwise point at /root instead of the actual user).
 import json
 from pathlib import Path
 
-INVITE_URL = "https://discord.gg/hTHgHDVS9x"
+INVITE_URL = "https://discord.gg/cmGqYFheMk"
 WAIT_SECONDS = 3
 
 
