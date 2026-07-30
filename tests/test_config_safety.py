@@ -11,6 +11,7 @@ import config_editor
 import kexts
 import log_checker
 from hardware import HardwareProfile
+from smbios import SMBIOSData
 
 
 class InstallerAudioSafetyTests(unittest.TestCase):
@@ -137,6 +138,71 @@ class BooterQuirkSafetyTests(unittest.TestCase):
         quirks = self._quirks(profile, board="MAG B550 TOMAHAWK")
 
         self.assertFalse(quirks["SetupVirtualMap"])
+
+
+class OpenCoreSchemaSafetyTests(unittest.TestCase):
+    def test_generated_config_contains_opencore_107_required_fields(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=8,
+            cpu_codename="Coffee Lake",
+            oc_platform="Coffee Lake",
+            gpu_vendor="intel",
+            gpu_name="Intel UHD Graphics 630",
+            platform="desktop",
+            smbios_model="iMac19,1",
+        )
+        smbios = SMBIOSData(
+            model="iMac19,1",
+            serial="C02TEST00001",
+            board_serial="C02TESTMLB000001",
+            system_uuid="00000000-0000-4000-8000-000000000001",
+            rom="001122334455",
+        )
+
+        with (
+            patch.object(config_gen, "select_kexts", return_value=[]),
+            patch.object(config_gen, "dmi_field", return_value=""),
+            patch.object(config_gen, "dmi_vendor", return_value=""),
+        ):
+            config = config_gen.generate(profile, smbios)
+
+        kernel_quirks = config["Kernel"]["Quirks"]
+        self.assertTrue({
+            "AppleXcpmExtraMsrs",
+            "AppleXcpmForceBoost",
+            "CustomPciSerialDevice",
+            "DisableIoMapperMapping",
+            "ExternalDiskIcons",
+            "ForceAquantiaEthernet",
+            "ForceSecureBootScheme",
+            "ThirdPartyDrives",
+        }.issubset(kernel_quirks))
+        self.assertIn("ClearTaskSwitchBit", config["Booter"]["Quirks"])
+        self.assertTrue({
+            "HibernateSkipsPicker",
+            "InstanceIdentifier",
+        }.issubset(config["Misc"]["Boot"]))
+        self.assertTrue({
+            "LegacyOverwrite",
+            "LegacySchema",
+        }.issubset(config["NVRAM"]))
+
+        uefi = config["UEFI"]
+        self.assertIn("AppleInput", uefi)
+        self.assertIn("Unload", uefi)
+        self.assertTrue({
+            "DisconnectHda",
+            "MaximumGain",
+            "MinimumAssistGain",
+            "MinimumAudibleGain",
+            "ResetTrafficClass",
+        }.issubset(uefi["Audio"]))
+        self.assertTrue({"ConsoleFont", "GopBurstMode"}.issubset(uefi["Output"]))
+        self.assertTrue({
+            "ResizeUsePciRbIo",
+            "ShimRetainProtocol",
+        }.issubset(uefi["Quirks"]))
 
 
 class IntelGraphicsSafetyTests(unittest.TestCase):

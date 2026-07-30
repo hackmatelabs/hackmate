@@ -385,11 +385,18 @@ def _kernel_section(profile: HardwareProfile, kexts: list[KextEntry]) -> dict:
     quirks = {
         "AppleCpuPmCfgLock":          True,   # assume CFG Lock can't be disabled
         "AppleXcpmCfgLock":           True,
+        "AppleXcpmExtraMsrs":         False,
+        "AppleXcpmForceBoost":        False,
+        "CustomPciSerialDevice":      False,
         "CustomSMBIOSGuid":           False,
         "DisableIoMapper":            True,    # disable VT-d (enable in BIOS after install)
+        "DisableIoMapperMapping":     False,
         "DisableLinkeditJettison":    True,
         "DisableRtcChecksum":         False,
         "ExtendBTFeatureFlags":       True,    # for BT fixes
+        "ExternalDiskIcons":          False,
+        "ForceAquantiaEthernet":      False,
+        "ForceSecureBootScheme":      False,
         "IncreasePciBarSize":         False,
         "LapicKernelPanic":           False,   # HP laptops need True
         "LegacyCommpage":             False,
@@ -397,6 +404,7 @@ def _kernel_section(profile: HardwareProfile, kexts: list[KextEntry]) -> dict:
         "PowerTimeoutKernelPanic":    True,
         "ProvideCurrentCpuInfo":      True,
         "SetApfsTrimTimeout":         -1,
+        "ThirdPartyDrives":           False,
         "XhciPortLimit":              False,
     }
 
@@ -550,6 +558,8 @@ def _nvram_section(
             "4D1EDE05-38C7-4A6A-9CC6-4BCCA8B38C14": [],
             "7C436110-AB2A-4BBB-A880-FE41995C9F82": ["boot-args"],
         },
+        "LegacyOverwrite": False,
+        "LegacySchema":    {},
         "WriteFlash":       True,
     }
 
@@ -595,12 +605,32 @@ def _uefi_section(profile: HardwareProfile, dual_boot: str = "") -> dict:
             "MinVersion":        0,
         },
         "Audio": {
-            "AudioCodec":    0,
-            "AudioDevice":   "",
-            "AudioOutMask":  -1,
-            "AudioSupport":  False,
-            "PlayChime":     "Disabled",
-            "SetupDelay":    0,
+            "AudioCodec":         0,
+            "AudioDevice":        "",
+            "AudioOutMask":       -1,
+            "AudioSupport":       False,
+            "DisconnectHda":      False,
+            "MaximumGain":        -15,
+            "MinimumAssistGain":  -30,
+            "MinimumAudibleGain": -55,
+            "PlayChime":          "Disabled",
+            "ResetTrafficClass":  False,
+            "SetupDelay":         0,
+        },
+        "AppleInput": {
+            "AppleEvent":                    "Builtin",
+            "CustomDelays":                  False,
+            "GraphicsInputMirroring":        True,
+            "KeyInitialDelay":               50,
+            "KeySubsequentDelay":            5,
+            "PointerDwellClickTimeout":       0,
+            "PointerDwellDoubleClickTimeout": 0,
+            "PointerDwellRadius":             0,
+            "PointerPollMask":               -1,
+            "PointerPollMax":                80,
+            "PointerPollMin":                10,
+            "PointerSpeedDiv":               1,
+            "PointerSpeedMul":               1,
         },
         "ConnectDrivers": True,
         "Drivers":        drivers,
@@ -616,9 +646,11 @@ def _uefi_section(profile: HardwareProfile, dual_boot: str = "") -> dict:
         },
         "Output": {
             "ClearScreenOnModeSwitch": False,
+            "ConsoleFont":   "",
             "ConsoleMode":   "",
             "DirectGopRendering": False,
             "ForceResolution": False,
+            "GopBurstMode":  False,
             "GopPassThrough": "Disabled",
             "IgnoreTextInGraphics": False,
             "InitialMode":   "Text",
@@ -666,10 +698,13 @@ def _uefi_section(profile: HardwareProfile, dual_boot: str = "") -> dict:
             "ReloadOptionRoms":             False,
             "RequestBootVarRouting":        True,
             "ResizeGpuBars":                -1,
+            "ResizeUsePciRbIo":             False,
+            "ShimRetainProtocol":           False,
             "TscSyncTimeout":               0,
             "UnblockFsConnect":             any(v in dmi_vendor() for v in ("lenovo", "dell", "hp")),
         },
         "ReservedMemory": [],
+        "Unload":         [],
     }
 
 def _booter_section(profile: HardwareProfile, resizable_bar: bool = False) -> dict:
@@ -704,6 +739,7 @@ def _booter_section(profile: HardwareProfile, resizable_bar: bool = False) -> di
         "Quirks": {
             "AllowRelocationBlock":     False,
             "AvoidRuntimeDefrag":       True,
+            "ClearTaskSwitchBit":       False,
             "DevirtualiseMmio":         devirtualise_mmio,
             "DisableSingleUser":        False,
             "DisableVariableWrite":     False,
@@ -754,7 +790,9 @@ def generate(profile: HardwareProfile, smbios: SMBIOSData, macos_major: int = 0,
             "Boot": {
                 "ConsoleAttributes":  0,
                 "HibernateMode":      "None",
+                "HibernateSkipsPicker": False,
                 "HideAuxiliary":      False,
+                "InstanceIdentifier": "",
                 "LauncherOption":     "Full" if dual_boot else "Disabled",
                 "LauncherPath":       "Default",
                 "PickerAttributes":   1,
