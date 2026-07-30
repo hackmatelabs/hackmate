@@ -1345,6 +1345,10 @@ class ScanScreen(Screen):
             f"  Codename  {profile.cpu_codename}{gen_suffix}",
             f"  Platform  {profile.platform}  —  {profile.oc_platform}",
             f"  GPU       {profile.gpu_name} [{profile.gpu_vendor}]",
+        ]
+        if profile.dgpu_name:
+            lines.append(f"  dGPU      {profile.dgpu_name} [{profile.dgpu_vendor}]")
+        lines += [
             f"  Audio     {profile.audio_name}  /  codec: {profile.audio_codec}  →  layout-id {layout}",
             f"  Ethernet  {profile.ethernet_name or 'None'}",
             f"  WiFi      {profile.wifi_name or 'None'}",
