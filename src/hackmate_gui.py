@@ -2275,7 +2275,46 @@ class ConfigEditorScreen(Screen):
             self.in_fb = Entry(r, value=cur_fb, placeholder="e.g. 0000c087", width=12)
             self.in_fb.pack(side="left")
 
+        from config_editor import get_kext_entries, get_acpi_entries, get_serial_info
+
         ap = self.advanced_panel
+        self._kext_buttons: dict[str, tk.Widget] = {}
+        self._acpi_buttons: dict[str, tk.Widget] = {}
+
+        section(ap, "Kexts").pack(anchor="w", fill="x", pady=(4, 2))
+        for name, enabled in get_kext_entries(cfg):
+            r = row(ap); r.pack(anchor="w", fill="x")
+            info(r, f"  {name}").pack(side="left")
+            btn = button(r, "Enabled" if enabled else "Disabled",
+                         lambda n=name: self._toggle_kext(n), "advanced")
+            btn.pack(side="left", padx=(6, 0))
+            self._kext_buttons[name] = btn
+
+        section(ap, "ACPI (SSDTs)").pack(anchor="w", fill="x", pady=(10, 2))
+        for name, enabled in get_acpi_entries(cfg):
+            r = row(ap); r.pack(anchor="w", fill="x")
+            info(r, f"  {name}").pack(side="left")
+            btn = button(r, "Enabled" if enabled else "Disabled",
+                         lambda n=name: self._toggle_acpi(n), "advanced")
+            btn.pack(side="left", padx=(6, 0))
+            self._acpi_buttons[name] = btn
+
+        serial_info = get_serial_info(cfg)
+        section(ap, "Serial / MLB / UUID").pack(anchor="w", fill="x", pady=(10, 2))
+        r = row(ap); r.pack(anchor="w", fill="x")
+        info(r, "  Serial:").pack(side="left")
+        self.in_serial = Entry(r, value=serial_info["serial"], width=20)
+        self.in_serial.pack(side="left")
+        r = row(ap); r.pack(anchor="w", fill="x")
+        info(r, "  MLB:").pack(side="left")
+        self.in_mlb = Entry(r, value=serial_info["mlb"], width=24)
+        self.in_mlb.pack(side="left")
+        r = row(ap); r.pack(anchor="w", fill="x")
+        info(r, "  System UUID:").pack(side="left")
+        self.in_uuid = Entry(r, value=serial_info["uuid"], width=40)
+        self.in_uuid.pack(side="left")
+        button(ap, "Apply Serial Info", self._apply_serial, "primary").pack(anchor="w", pady=(4, 10))
+
         section(ap, "Advanced: raw plist key editor").pack(anchor="w", fill="x", pady=(4, 2))
         info(ap, "  Key path (dot-separated):").pack(anchor="w")
         self.adv_key = Entry(ap, placeholder="e.g. Misc.Debug.Target", width=50)
@@ -2299,6 +2338,32 @@ class ConfigEditorScreen(Screen):
         button(btn_row, "← Back", self.app.pop_screen, "back").pack(side="left")
         self.save_status = info(wrap, "")
         self.save_status.pack(anchor="w", pady=(4, 0))
+
+    def _toggle_kext(self, name):
+        from config_editor import get_kext_entries, set_kext_enabled
+        entries = dict(get_kext_entries(self._cfg))
+        new_state = not entries.get(name, True)
+        set_kext_enabled(self._cfg, name, new_state)
+        self._kext_buttons[name].config(text="Enabled" if new_state else "Disabled")
+        self.save_status.config(text=f"  {name} {'enabled' if new_state else 'disabled'} — save to write.")
+
+    def _toggle_acpi(self, name):
+        from config_editor import get_acpi_entries, set_acpi_entry_enabled
+        entries = dict(get_acpi_entries(self._cfg))
+        new_state = not entries.get(name, True)
+        set_acpi_entry_enabled(self._cfg, name, new_state)
+        self._acpi_buttons[name].config(text="Enabled" if new_state else "Disabled")
+        self.save_status.config(text=f"  {name} {'enabled' if new_state else 'disabled'} — save to write.")
+
+    def _apply_serial(self):
+        from config_editor import set_serial_info
+        set_serial_info(
+            self._cfg,
+            serial=self.in_serial.value.strip(),
+            mlb=self.in_mlb.value.strip(),
+            uuid=self.in_uuid.value.strip(),
+        )
+        self.save_status.config(text="  Serial info updated — save to write.")
 
     def _toggle_mode(self):
         self._mode = "advanced" if self._mode == "simple" else "simple"

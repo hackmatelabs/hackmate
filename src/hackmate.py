@@ -2988,6 +2988,7 @@ class ConfigEditorScreen(Screen):
             get_timeout, get_oc_logging, get_secure_boot_model, get_smbios,
             get_igpu_platform_id, suggest_framebuffers, BOOT_ARG_PRESETS,
             suggest_audio_layouts, get_dgpu_disabled,
+            get_kext_entries, get_acpi_entries, get_serial_info,
         )
         cfg     = self._cfg
         args    = get_boot_args(cfg)
@@ -3011,6 +3012,10 @@ class ConfigEditorScreen(Screen):
         # dGPU
         dgpu_name   = getattr(profile, "dgpu_name",   "") if profile else ""
         offer_disable_dgpu = bool(profile and needs_dgpu_disable_prompt(profile))
+
+        kext_entries = get_kext_entries(cfg)
+        acpi_entries = get_acpi_entries(cfg)
+        serial_info  = get_serial_info(cfg)
 
         yield Header()
         yield Container(
@@ -3070,6 +3075,26 @@ class ConfigEditorScreen(Screen):
                         id="simple-panel"
                     ),
                     Vertical(
+                        Static("  ── Kexts ──────────────────────────────────────────────", classes="cfg-section"),
+                        *[Horizontal(
+                            Static(f"  {name}", classes="cfg-label"),
+                            Button("Enabled" if enabled else "Disabled", id=f"kext-{name}", classes="advanced-btn"),
+                            classes="cfg-row",
+                        ) for name, enabled in kext_entries],
+                        Static(""),
+                        Static("  ── ACPI (SSDTs) ───────────────────────────────────────", classes="cfg-section"),
+                        *[Horizontal(
+                            Static(f"  {name}", classes="cfg-label"),
+                            Button("Enabled" if enabled else "Disabled", id=f"acpi-{name}", classes="advanced-btn"),
+                            classes="cfg-row",
+                        ) for name, enabled in acpi_entries],
+                        Static(""),
+                        Static("  ── Serial / MLB / UUID ────────────────────────────────", classes="cfg-section"),
+                        Horizontal(Static("  Serial", classes="cfg-label"), Input(value=serial_info["serial"], id="in-serial"), classes="cfg-row"),
+                        Horizontal(Static("  MLB",    classes="cfg-label"), Input(value=serial_info["mlb"],    id="in-mlb"),    classes="cfg-row"),
+                        Horizontal(Static("  System UUID", classes="cfg-label"), Input(value=serial_info["uuid"], id="in-uuid"), classes="cfg-row"),
+                        Button("Apply Serial Info", id="save-serial", classes="primary"),
+                        Static(""),
                         Static("  ── Advanced: raw plist key editor ────────────────────", classes="cfg-section"),
                         Static(""),
                         Static("  Key path (dot-separated):", classes="info"),
@@ -3146,6 +3171,34 @@ class ConfigEditorScreen(Screen):
             except Exception:
                 pass
             self.query_one("#save-status", Static).update(f"  Framebuffer set to {hex_id} — save to write.")
+
+        elif bid.startswith("kext-"):
+            from config_editor import get_kext_entries, set_kext_enabled
+            name = bid[len("kext-"):]
+            entries = dict(get_kext_entries(self._cfg))
+            new_state = not entries.get(name, True)
+            set_kext_enabled(self._cfg, name, new_state)
+            event.button.label = "Enabled" if new_state else "Disabled"
+            self.query_one("#save-status", Static).update(f"  {name} {'enabled' if new_state else 'disabled'} — save to write.")
+
+        elif bid.startswith("acpi-"):
+            from config_editor import get_acpi_entries, set_acpi_entry_enabled
+            name = bid[len("acpi-"):]
+            entries = dict(get_acpi_entries(self._cfg))
+            new_state = not entries.get(name, True)
+            set_acpi_entry_enabled(self._cfg, name, new_state)
+            event.button.label = "Enabled" if new_state else "Disabled"
+            self.query_one("#save-status", Static).update(f"  {name} {'enabled' if new_state else 'disabled'} — save to write.")
+
+        elif bid == "save-serial":
+            from config_editor import set_serial_info
+            set_serial_info(
+                self._cfg,
+                serial=self.query_one("#in-serial", Input).value.strip(),
+                mlb=self.query_one("#in-mlb", Input).value.strip(),
+                uuid=self.query_one("#in-uuid", Input).value.strip(),
+            )
+            self.query_one("#save-status", Static).update("  Serial info updated — save to write.")
 
         elif bid == "adv-get":
             from config_editor import get_value

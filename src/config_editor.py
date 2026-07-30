@@ -249,6 +249,63 @@ def set_dgpu_disabled(cfg: dict, disabled: bool) -> None:
             if not dp[_DGPU_PATH]:
                 del dp[_DGPU_PATH]
 
+def get_kext_entries(cfg: dict) -> list[tuple[str, bool]]:
+    kexts = cfg.get("Kernel", {}).get("Add", [])
+    return [
+        (k.get("BundlePath", "").removesuffix(".kext"), bool(k.get("Enabled", True)))
+        for k in kexts
+    ]
+
+def set_kext_enabled(cfg: dict, name: str, enabled: bool) -> bool:
+    kexts = cfg.get("Kernel", {}).get("Add", [])
+    for k in kexts:
+        if k.get("BundlePath", "").removesuffix(".kext") == name:
+            k["Enabled"] = enabled
+            return True
+    return False
+
+def get_acpi_entries(cfg: dict) -> list[tuple[str, bool]]:
+    entries = cfg.get("ACPI", {}).get("Add", [])
+    return [
+        (e.get("Path", "").removesuffix(".aml"), bool(e.get("Enabled", True)))
+        for e in entries
+    ]
+
+def set_acpi_entry_enabled(cfg: dict, name: str, enabled: bool) -> bool:
+    entries = cfg.get("ACPI", {}).get("Add", [])
+    for e in entries:
+        if e.get("Path", "").removesuffix(".aml") == name:
+            e["Enabled"] = enabled
+            return True
+    return False
+
+def get_serial_info(cfg: dict) -> dict[str, str]:
+    generic = cfg.get("PlatformInfo", {}).get("Generic", {})
+    rom = generic.get("ROM", b"")
+    return {
+        "serial": generic.get("SystemSerialNumber", ""),
+        "mlb": generic.get("MLB", ""),
+        "uuid": generic.get("SystemUUID", ""),
+        "rom": rom.hex() if isinstance(rom, (bytes, bytearray)) else "",
+    }
+
+def set_serial_info(
+    cfg: dict,
+    serial: str | None = None,
+    mlb: str | None = None,
+    uuid: str | None = None,
+    rom: str | None = None,
+) -> None:
+    generic = cfg.setdefault("PlatformInfo", {}).setdefault("Generic", {})
+    if serial is not None:
+        generic["SystemSerialNumber"] = serial
+    if mlb is not None:
+        generic["MLB"] = mlb
+    if uuid is not None:
+        generic["SystemUUID"] = uuid
+    if rom is not None:
+        generic["ROM"] = bytes.fromhex(rom.replace(":", "").replace(" ", ""))
+
 BOOT_ARG_PRESETS: dict[str, dict[str, str | bool]] = {
     "Verbose":       {"-v": True, "keepsyms": "1", "debug": "0x100"},
     "Disable Nvidia":{"nv_disable": "1"},
