@@ -70,6 +70,37 @@ class InstallerAudioSafetyTests(unittest.TestCase):
         self.assertIn("VoodooHDA cannot be injected from this installer EFI", titles)
 
 
+class LegacyCpuPowerManagementSafetyTests(unittest.TestCase):
+    def _selected_names(self, cpu_generation: int) -> set[str]:
+        profile = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=cpu_generation,
+            platform="laptop",
+        )
+        with (
+            patch.object(kexts, "_dmi", return_value=""),
+            patch.object(kexts, "_has_card_reader", return_value=False),
+        ):
+            return {entry.name for entry in kexts.select_kexts(profile)}
+
+    def test_legacy_pre_sandy_bridge_gets_nullcpupowermanagement_not_cpufriend(self):
+        # Regression: CPUFriend patches AppleIntelCPUPowerManagement's
+        # frequency/voltage tables, but NullCPUPowerManagement exists
+        # specifically to keep that same native driver from loading at all
+        # on CPUs it panics on — shipping both is a documented conflict,
+        # not just redundant.
+        names = self._selected_names(1)
+
+        self.assertIn("NullCPUPowerManagement", names)
+        self.assertNotIn("CPUFriend", names)
+
+    def test_modern_cpu_gets_cpufriend_not_nullcpupowermanagement(self):
+        names = self._selected_names(8)
+
+        self.assertIn("CPUFriend", names)
+        self.assertNotIn("NullCPUPowerManagement", names)
+
+
 class BooterQuirkSafetyTests(unittest.TestCase):
     def _quirks(self, profile: HardwareProfile, board: str = "") -> dict:
         with patch.object(config_gen, "dmi_field", return_value=board):

@@ -438,11 +438,18 @@ def select_kexts(profile: HardwareProfile, wifi_kext_mode: str = "itlwm") -> lis
     if profile.gpu_vendor == "amd" and not _is_amd_apu(profile):
         add("RadeonSensor")
 
-    add("CPUFriend")
-    if profile.cpu_generation >= 12:
-        add("CpuTopologyRebuild")
     if legacy:
+        # NullCPUPowerManagement exists because AppleIntelCPUPowerManagement
+        # panics or spams debug output on pre-Sandy-Bridge CPUs — it
+        # replaces native power management outright. CPUFriend patches
+        # *that* native power management's frequency/voltage tables, so
+        # it has nothing to act on once NullCPUPowerManagement is in play;
+        # shipping both is a documented conflict, not just a wasted kext.
         add("NullCPUPowerManagement")
+    else:
+        add("CPUFriend")
+        if profile.cpu_generation >= 12:
+            add("CpuTopologyRebuild")
     if profile.cpu_vendor == "amd":
         add("AMDRyzenCPUPowerManagement", "AmdTSCSync", "CryptexFixup")
     if _is_hedt(profile):

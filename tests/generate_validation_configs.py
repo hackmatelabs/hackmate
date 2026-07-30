@@ -123,6 +123,29 @@ PROFILES = {
         platform="desktop",
         smbios_model="iMac13,2",
     ),
+    "nehalem-legacy-laptop": HardwareProfile(
+        cpu_vendor="intel",
+        cpu_generation=1,
+        cpu_codename="Nehalem/Westmere",
+        oc_platform="Nehalem/Westmere",
+        gpu_vendor="intel",
+        gpu_name="Intel HD Graphics",
+        platform="laptop",
+        audio_codec="ALC269",
+        ethernet_chipset="",
+        smbios_model="MacBookPro8,1",
+    ),
+    "nehalem-legacy-desktop": HardwareProfile(
+        cpu_vendor="intel",
+        cpu_generation=1,
+        cpu_codename="Nehalem/Westmere",
+        oc_platform="Nehalem/Westmere",
+        gpu_vendor="",
+        gpu_name="",
+        platform="desktop",
+        ethernet_chipset="",
+        smbios_model="MacPro5,1",
+    ),
 }
 
 

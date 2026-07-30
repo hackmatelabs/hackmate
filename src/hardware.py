@@ -85,7 +85,6 @@ def _lspci() -> list[str]:
     return out.splitlines()
 
 INTEL_GENERATIONS = {
-    "206a": (2, "Sandy Bridge", "Kaby Lake"),
     "0106": (2, "Sandy Bridge", "Sandy Bridge"),
     "0166": (3, "Ivy Bridge", "Ivy Bridge"),
     "0416": (4, "Haswell", "Haswell"),
