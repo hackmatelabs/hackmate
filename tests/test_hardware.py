@@ -161,11 +161,15 @@ class MacOSNetworkDetectionTests(unittest.TestCase):
 class MacOSAudioDetectionTests(unittest.TestCase):
     def test_virtual_blackhole_device_does_not_override_real_codec(self):
         sp = (
-            "Realtek ALC295:\n"
+            "Audio:\n"
             "\n"
-            "BlackHole 2ch:\n"
+            "    Devices:\n"
             "\n"
-            "Existential Audio Inc.:\n"
+            "        Realtek ALC295:\n"
+            "\n"
+            "        BlackHole 2ch:\n"
+            "\n"
+            "          Manufacturer: Existential Audio Inc.\n"
         )
         profile = hardware.HardwareProfile()
         with patch.object(hardware, "_sp", return_value=sp):
@@ -174,7 +178,30 @@ class MacOSAudioDetectionTests(unittest.TestCase):
         self.assertEqual(profile.audio_codec, "ALC295")
 
     def test_virtual_only_audio_falls_back_without_claiming_a_codec(self):
-        sp = "BlackHole 2ch:\n\nExistential Audio Inc.:\n"
+        # Regression: the real SPAudioDataType output wraps devices in
+        # "Audio:" / "Devices:" section headers that also end with ":" —
+        # "Audio:" itself used to get matched as a fallback device name
+        # before ever reaching the (correctly-filtered) BlackHole entries.
+        sp = (
+            "Audio:\n"
+            "\n"
+            "    Devices:\n"
+            "\n"
+            "        BlackHole 16ch:\n"
+            "\n"
+            "          Input Channels: 16\n"
+            "          Manufacturer: Existential Audio Inc.\n"
+            "          Output Channels: 16\n"
+            "          Transport: Virtual\n"
+            "\n"
+            "        BlackHole 2ch:\n"
+            "\n"
+            "          Default Output Device: Yes\n"
+            "          Input Channels: 2\n"
+            "          Manufacturer: Existential Audio Inc.\n"
+            "          Output Channels: 2\n"
+            "          Transport: Virtual\n"
+        )
         profile = hardware.HardwareProfile()
         with patch.object(hardware, "_sp", return_value=sp):
             hardware._detect_audio_macos(profile)

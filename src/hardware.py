@@ -944,6 +944,10 @@ _NOT_ONBOARD_AUDIO = (
     "blackhole", "existential audio", "soundflower", "loopback",
     "background music", "obs", "virtual", "steam", "displayport", "hdmi",
 )
+# SPAudioDataType wraps real devices in generic section headers ("Audio:",
+# "Devices:") that end with ":" just like a device name does — without this,
+# "Audio:" itself was matching as a fallback "device" ahead of anything real.
+_GENERIC_AUDIO_HEADERS = ("audio", "devices", "inputs", "outputs")
 
 def _detect_audio_macos(profile: HardwareProfile):
     sp = _sp("SPAudioDataType")
@@ -957,10 +961,14 @@ def _detect_audio_macos(profile: HardwareProfile):
                 profile.audio_codec = m.group(0).upper()
                 profile.audio_name = stripped
                 return
-        elif stripped.endswith(":") and any(k in lower for k in _NOT_ONBOARD_AUDIO):
-            continue
-        elif "audio" in lower and stripped.endswith(":") and not fallback:
-            fallback = stripped.rstrip(":")
+        elif stripped.endswith(":"):
+            name_lower = stripped[:-1].strip().lower()
+            if name_lower in _GENERIC_AUDIO_HEADERS:
+                continue
+            if any(k in name_lower for k in _NOT_ONBOARD_AUDIO):
+                continue
+            if "audio" in name_lower and not fallback:
+                fallback = stripped.rstrip(":")
     if fallback:
         profile.audio_name = fallback
 
