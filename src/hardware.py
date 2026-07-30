@@ -1022,6 +1022,17 @@ def _detect_network_macos(profile: HardwareProfile):
             if profile.wifi_chipset:
                 break
 
+# Alpine Ridge / Titan Ridge Thunderbolt 3 controller PCI IDs (Intel vendor
+# 0x8086). Text-matching for "thunderbolt" in SPPCIDataType doesn't work —
+# without a loaded driver, macOS has no friendly name for these and falls
+# back to a generic "ExpressCard" placeholder, so detection has to go by ID.
+_THUNDERBOLT_DEVICE_IDS = {
+    "0x15b8", "0x15b9", "0x15ba", "0x15bb", "0x15bc", "0x15bd", "0x15be", "0x15bf",
+    "0x15c0", "0x15c1",
+    "0x15d2", "0x15d3", "0x15d9", "0x15da", "0x15db", "0x15dc", "0x15dd", "0x15de", "0x15df",
+    "0x15e7", "0x15e8", "0x15e9", "0x15ea", "0x15eb", "0x15ec",
+}
+
 def _detect_platform_macos(profile: HardwareProfile):
     model = _run(["sysctl", "-n", "hw.model"]).lower()
     profile.platform = "laptop" if "macbook" in model else "desktop"
@@ -1030,6 +1041,17 @@ def _detect_platform_macos(profile: HardwareProfile):
         profile.touchpad_type = "i2c"
     sp = _sp("SPStorageDataType").lower()
     profile.nvme_present = "nvme" in sp or "apple ssd" in sp
+
+    pci = _sp("SPPCIDataType")
+    vendor = ""
+    for line in pci.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("Vendor ID:"):
+            vendor = stripped.split(":", 1)[1].strip().lower()
+        elif stripped.startswith("Device ID:"):
+            device = stripped.split(":", 1)[1].strip().lower()
+            if vendor == "0x8086" and device in _THUNDERBOLT_DEVICE_IDS:
+                profile.has_thunderbolt = True
 
 def scan() -> HardwareProfile:
     profile = HardwareProfile()

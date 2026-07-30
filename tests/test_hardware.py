@@ -210,6 +210,105 @@ class MacOSAudioDetectionTests(unittest.TestCase):
         self.assertEqual(profile.audio_name, "")
 
 
+_REAL_SP_PCI_T480S = """PCI:
+
+    Intel UHD Graphics 620:
+
+      Name: display
+      Type: VGA compatible controller
+      Driver Installed: Yes
+      MSI: Yes
+      Bus: PCI
+      Slot: Internal@0,2,0
+      Vendor ID: 0x8086
+      Device ID: 0x5916
+      Subsystem Vendor ID: 0x17aa
+      Subsystem ID: 0x2258
+      Revision ID: 0x0007
+      Link Width: x0
+      Link Status: Link up
+
+    Sunrise Point-LP HD Audio:
+
+      Name: pci8086,9d71
+      Type: Audio device
+      Driver Installed: No
+      MSI: No
+      Bus: PCI
+      Slot: Internal@0,31,3
+      Vendor ID: 0x8086
+      Device ID: 0x9d71
+      Subsystem Vendor ID: 0x17aa
+      Subsystem ID: 0x2258
+      Revision ID: 0x0021
+
+    ExpressCard:
+
+      Name: pci8086,15bf
+      Type: System peripheral
+      Driver Installed: Yes
+      MSI: Yes
+      Bus: PCI
+      Slot: Internal@0,28,4/0,0/0,0/0,0
+      Vendor ID: 0x8086
+      Device ID: 0x15bf
+      Subsystem Vendor ID: 0x2222
+      Subsystem ID: 0x1111
+      Revision ID: 0x0001
+      Link Width: x4
+      Link Speed: 2.5 GT/s
+      Link Status: Link up
+
+    ExpressCard:
+
+      Name: pci8086,15c1
+      Type: USB controller
+      Driver Installed: Yes
+      MSI: Yes
+      Bus: PCI
+      Slot: Internal@0,28,4/0,0/2,0/0,0
+      Vendor ID: 0x8086
+      Device ID: 0x15c1
+      Subsystem Vendor ID: 0x2222
+      Subsystem ID: 0x1111
+      Revision ID: 0x0001
+      Link Width: x4
+      Link Speed: 2.5 GT/s
+      Link Status: Link up
+"""
+
+
+class MacOSThunderboltDetectionTests(unittest.TestCase):
+    def test_alpine_ridge_controller_detected_from_pci_ids_not_name(self):
+        # Regression: this real ThinkPad T480s PCI dump labels the Alpine
+        # Ridge Thunderbolt 3 controller "ExpressCard" (no friendly name
+        # without a loaded driver) — text-matching "thunderbolt" against it
+        # finds nothing, so detection has to go by Intel's known device IDs
+        # (0x15bf / 0x15c1 here) instead.
+        profile = hardware.HardwareProfile()
+        with (
+            patch.object(hardware, "_sp", side_effect=lambda dt: (
+                _REAL_SP_PCI_T480S if dt == "SPPCIDataType" else ""
+            )),
+            patch.object(hardware, "_run", return_value=""),
+        ):
+            hardware._detect_platform_macos(profile)
+
+        self.assertTrue(profile.has_thunderbolt)
+
+    def test_machine_without_a_thunderbolt_controller_is_not_a_false_positive(self):
+        profile = hardware.HardwareProfile()
+        with (
+            patch.object(hardware, "_sp", side_effect=lambda dt: (
+                _REAL_SP_ETHERNET_I219 if dt == "SPPCIDataType" else ""
+            )),
+            patch.object(hardware, "_run", return_value=""),
+        ):
+            hardware._detect_platform_macos(profile)
+
+        self.assertFalse(profile.has_thunderbolt)
+
+
 class MacOSPCIDetectionTests(unittest.TestCase):
     def test_uses_system_profiler_instead_of_lspci(self):
         output = "Intel UHD Graphics 630:\n    Vendor ID: 0x8086"
