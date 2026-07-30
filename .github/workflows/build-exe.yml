@@ -65,6 +65,7 @@ jobs:
             --add-data "src\.release_tag;." `
             --add-data "src\macrecovery.py;." `
             --add-data "src\amd_patches.plist;." `
+            --add-data "src\assets\acpi;assets\acpi" `
             src/hackmate.py
 
       - name: Upload EXE to release

@@ -23,11 +23,27 @@ import urllib.request
 import zipfile
 from pathlib import Path
 from typing import Optional
-from compat import IS_WINDOWS, get_dsdt, find_iasl, chmod_iasl
+from compat import IS_WINDOWS, get_dsdt, find_iasl, chmod_iasl, real_home
 
 SSDTTIME_ZIP_URL = "https://github.com/corpnewt/SSDTTime/archive/refs/heads/master.zip"
-SSDTTIME_DIR = Path(__file__).parent / "_ssdttime"
-_ASSETS = Path(__file__).parent / "assets" / "acpi"
+# Not Path(__file__).parent — in a frozen PyInstaller EXE that's inside the
+# _MEIPASS bootloader extraction, which is wiped after every run. SSDTTime
+# (several MB, plus iasl) would silently re-download on every single launch
+# from the compiled build instead of being cached like everything else.
+SSDTTIME_DIR = real_home() / ".hackmate" / "cache" / "ssdttime"
+
+def _assets_dir() -> Path:
+    """Path to the bundled Tier-3 .aml fallbacks. In a frozen PyInstaller
+    EXE, Path(__file__).parent resolves inside the bootloader, not the
+    extracted bundle — every bundled SSDT silently "not found" from a
+    compiled build regardless of what's actually on disk in the repo,
+    with no error, just a generic SKIP. Same pattern as
+    recovery.py's _macrecovery_path()."""
+    if getattr(sys, "frozen", False):
+        return Path(sys._MEIPASS) / "assets" / "acpi"
+    return Path(__file__).parent / "assets" / "acpi"
+
+_ASSETS = _assets_dir()
 
 # Map our SSDT names → keywords to search for in SSDTTime's menu output
 SSDT_MENU_KEYWORDS: dict[str, list[str]] = {

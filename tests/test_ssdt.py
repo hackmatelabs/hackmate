@@ -70,5 +70,29 @@ class Acpi0007PlugFallbackTests(unittest.TestCase):
         self.assertFalse(results["SSDT-PLUG"].startswith("ERROR"))
 
 
+class FrozenAssetsPathTests(unittest.TestCase):
+    # Regression, reported live: every bundled Tier-3 SSDT (SSDT-PLUG,
+    # SSDT-GPRW, SSDT-EC, SSDT-USBX, SSDT-PMC) "not found" from the
+    # compiled .exe even though those exact files exist in src/assets/acpi
+    # in the repo — Path(__file__).parent resolves inside PyInstaller's
+    # _MEIPASS bootloader in a frozen build, not the extracted bundle,
+    # so _ASSETS pointed at a directory that was never checked at all.
+    def test_source_checkout_uses_the_real_assets_directory(self):
+        with patch.object(sys, "frozen", False, create=True):
+            path = ssdt._assets_dir()
+
+        self.assertEqual(path, Path(ssdt.__file__).parent / "assets" / "acpi")
+        self.assertTrue(path.exists(), "src/assets/acpi should exist in the repo")
+
+    def test_frozen_exe_uses_meipass_not_file_parent(self):
+        with (
+            patch.object(sys, "frozen", True, create=True),
+            patch.object(sys, "_MEIPASS", "/fake/meipass/dir", create=True),
+        ):
+            path = ssdt._assets_dir()
+
+        self.assertEqual(path, Path("/fake/meipass/dir") / "assets" / "acpi")
+
+
 if __name__ == "__main__":
     unittest.main()
