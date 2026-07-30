@@ -70,6 +70,35 @@ class Acpi0007PlugFallbackTests(unittest.TestCase):
         self.assertFalse(results["SSDT-PLUG"].startswith("ERROR"))
 
 
+class UnknownDsdtPlugSafetyTests(unittest.TestCase):
+    # Regression, reported live: a board with no readable DSDT got the
+    # bundled/template SSDT-PLUG injected blind (hardcoded \_SB.PR00,
+    # legacy Processor-style External), and boot hung before the picker —
+    # this system's real CPU object path/style was never actually known.
+    def setUp(self):
+        self.acpi_dir = Path(tempfile.mkdtemp(prefix="hackmate-test-acpi-"))
+        self.tmp_dir = Path(tempfile.mkdtemp(prefix="hackmate-test-tmp-"))
+
+    def tearDown(self):
+        shutil.rmtree(self.acpi_dir, ignore_errors=True)
+        shutil.rmtree(self.tmp_dir, ignore_errors=True)
+
+    def test_no_dsdt_at_all_reports_error_instead_of_guessing_ssdt_plug(self):
+        with (
+            patch.object(ssdt, "_ensure_ssdttime", side_effect=Exception("SSDTTime unavailable")),
+            patch.object(ssdt, "get_dsdt", return_value=None),
+        ):
+            results = ssdt.generate(
+                needed=["SSDT-PLUG"],
+                acpi_dir=self.acpi_dir,
+                tmp=self.tmp_dir,
+                cpu_generation=8,
+            )
+
+        self.assertTrue(results["SSDT-PLUG"].startswith("ERROR"))
+        self.assertFalse((self.acpi_dir / "SSDT-PLUG.aml").exists())
+
+
 class FrozenAssetsPathTests(unittest.TestCase):
     # Regression, reported live: every bundled Tier-3 SSDT (SSDT-PLUG,
     # SSDT-GPRW, SSDT-EC, SSDT-USBX, SSDT-PMC) "not found" from the

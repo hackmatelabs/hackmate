@@ -291,7 +291,7 @@ def _inspect_dsdt(dsdt_path: Path) -> dict:
     except Exception:
         return {"has_awac": False, "ec_name": "EC0", "igpu_name": "GFX0",
                 "cpu_path": r"\_SB.PR00", "has_gpi0": False, "has_gprw": False,
-                "has_acpi0007": False}
+                "has_acpi0007": None}
 
     has_awac = b"ACPI000E" in data
     has_gprw = b"GPRW" in data
@@ -538,9 +538,16 @@ def generate(
         dsdt_info = _inspect_dsdt(dsdt)
     else:
         cb("  DSDT not found — using generic templates")
+        # has_acpi0007 is deliberately None here, not False — "not found" and
+        # "confirmed legacy Processor()" are different states, and only the
+        # ACPI0007 check below treats them differently. Field-confirmed: a
+        # machine with no readable DSDT got the bundled SSDT-PLUG (hardcoded
+        # \_SB.PR00, Processor-style) injected blind, and the boot hung
+        # before the picker ever appeared — almost certainly this SSDT's
+        # External() target not matching this board's real CPU object.
         dsdt_info = {"has_awac": False, "ec_name": "EC0", "igpu_name": "GFX0",
                      "cpu_path": r"\_SB.PR00", "has_gpi0": False, "has_gprw": False,
-                     "has_acpi0007": False}
+                     "has_acpi0007": None}
 
     ssdttime_dir = script.parent if script else SSDTTIME_DIR
 
@@ -651,6 +658,27 @@ def generate(
                 "SSDTTime yourself (https://github.com/corpnewt/SSDTTime) "
                 "against this machine's DSDT and add the SSDT-PLUG-ALT.aml "
                 "it produces to EFI/OC/ACPI manually."
+            )
+            continue
+
+        if ssdt == "SSDT-PLUG" and dsdt_info.get("has_acpi0007") is None:
+            # No DSDT could be extracted at all, so whether this board uses
+            # legacy Processor() objects or ACPI0007 Devices is unknown. The
+            # bundled/template SSDT-PLUG hardcodes an External declaration
+            # against a guessed CPU path (\_SB.PR00) — if that path doesn't
+            # match reality, OpenCore can hang loading ACPI tables, before
+            # the picker ever appears. Confirmed in the field on a board
+            # with no readable DSDT. Guessing wrong here is worse than
+            # skipping, so this has to be reported instead of injected blind.
+            results[ssdt] = (
+                "ERROR: could not read this system's DSDT, so whether it "
+                "needs SSDT-PLUG or SSDT-PLUG-ALT can't be determined — "
+                "injecting the wrong one can hang the boot before the "
+                "picker appears. Retry the build (SSDTTime may reach the "
+                "real DSDT next time), or run SSDTTime yourself "
+                "(https://github.com/corpnewt/SSDTTime) against this "
+                "machine's DSDT and add whichever SSDT-PLUG variant it "
+                "produces to EFI/OC/ACPI manually."
             )
             continue
 
