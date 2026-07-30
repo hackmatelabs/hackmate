@@ -1,0 +1,60 @@
+name: Discord Repository Updates
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    steps:
+      - name: Post new commits to Discord
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          python3 - <<'EOF'
+          import json, os, urllib.request
+
+          with open(os.environ["GITHUB_EVENT_PATH"]) as f:
+              event = json.load(f)
+
+          SKIPPED_MESSAGES = {"chore: update download stats"}
+
+          commits = [
+              c for c in event.get("commits", [])
+              if c.get("message", "").splitlines()[0].strip() not in SKIPPED_MESSAGES
+          ]
+          if not commits:
+              print("No non-chore commits in this push, skipping Discord notification.")
+              raise SystemExit(0)
+
+          repo = event["repository"]["full_name"]
+          branch = event["ref"].rsplit("/", 1)[-1]
+          compare_url = event.get("compare", "")
+
+          lines = [f"**{len(commits)} new commit{'s' if len(commits) != 1 else ''} pushed to `{repo}` ({branch})**"]
+          for c in commits:
+              sha = c["id"][:7]
+              summary = c["message"].splitlines()[0]
+              author = c.get("author", {}).get("name", "unknown")
+              url = c["url"]
+              lines.append(f"[`{sha}`]({url}) {summary} — {author}")
+          if compare_url:
+              lines.append(f"\n[View full diff]({compare_url})")
+
+          content = "\n".join(lines)
+          # Discord message content is capped at 2000 chars.
+          if len(content) > 1990:
+              content = content[:1990] + "\n… (truncated)"
+
+          body = json.dumps({"content": content}).encode()
+          req = urllib.request.Request(
+              os.environ["DISCORD_WEBHOOK_URL"],
+              data=body,
+              headers={"Content-Type": "application/json"},
+              method="POST",
+          )
+          with urllib.request.urlopen(req, timeout=10) as r:
+              print("Discord responded:", r.status)
+          EOF
