@@ -32,14 +32,14 @@ IG_PLATFORM_IDS: dict[str, bytes] = {
     "hd630_mb":  bytes([0x00, 0x00, 0x1B, 0x59]),
     "hd630_headless": bytes([0x03, 0x00, 0x12, 0x59]),
     "iris640":   bytes([0x00, 0x00, 0x26, 0x59]),
-    # Kaby Lake-R / Coffee Lake laptop (Dortania recommended: 0x3EA50004)
-    "uhd620":    bytes([0x04, 0x00, 0xA5, 0x3E]),
+    # Kaby Lake-R laptop
+    "uhd620_kblr": bytes([0x00, 0x00, 0xC0, 0x87]),
+    # Coffee/Whiskey/Comet Lake laptop
+    "uhd620_mb": bytes([0x00, 0x00, 0x9B, 0x3E]),
     # Coffee Lake desktop
     "uhd630_dt": bytes([0x07, 0x00, 0x9B, 0x3E]),
     # Coffee Lake laptop
-    "uhd630_mb": bytes([0x06, 0x00, 0x9B, 0x3E]),
-    # Comet Lake laptop
-    "uhd620_cml":bytes([0x00, 0x00, 0x3E, 0x9B]),
+    "uhd630_mb": bytes([0x09, 0x00, 0xA5, 0x3E]),
     # Comet Lake desktop
     "uhd630_cml":bytes([0x03, 0x00, 0x92, 0x3E]),
     # Ice Lake
@@ -57,7 +57,7 @@ IG_PLATFORM_IDS: dict[str, bytes] = {
 
 DEVICE_IDS: dict[str, bytes] = {
     # Fake device-id to match known-good framebuffers
-    "kbl_r":     bytes([0xA0, 0x3E, 0x00, 0x00]),   # spoof UHD 620 as 3EA0
+    "kbl_r":     bytes([0x16, 0x59, 0x00, 0x00]),   # spoof UHD 620 as 5916
     "cfl_h":     bytes([0x9B, 0x3E, 0x00, 0x00]),   # spoof as 3E9B
 }
 
@@ -65,7 +65,7 @@ def _igpu_config(profile: HardwareProfile, headless: bool = False) -> tuple[byte
     """Returns (ig-platform-id, device-id or None)"""
     gen = profile.cpu_generation
     name = profile.gpu_name.lower()
-    platform = profile.oc_platform.lower()
+    platform = f"{profile.cpu_codename} {profile.oc_platform}".lower()
 
     if gen == 2:
         return IG_PLATFORM_IDS["hd3000"], None
@@ -103,18 +103,19 @@ def _igpu_config(profile: HardwareProfile, headless: bool = False) -> tuple[byte
             return IG_PLATFORM_IDS["uhd620_headless"], None
         if profile.platform == "desktop":
             return IG_PLATFORM_IDS["uhd630_dt"], None
-        # Kaby Lake-R / Whiskey Lake / Coffee Lake laptop - UHD 620
-        if "uhd 620" in name or "kaby lake-r" in platform or "whiskey" in platform:
-            return IG_PLATFORM_IDS["uhd620"], DEVICE_IDS["kbl_r"]
-        if "uhd 630" in name:
+        if "kaby lake-r" in platform:
+            return IG_PLATFORM_IDS["uhd620_kblr"], DEVICE_IDS["kbl_r"]
+        if "630" in name:
             return IG_PLATFORM_IDS["uhd630_mb"], DEVICE_IDS["cfl_h"]
-        return IG_PLATFORM_IDS["uhd620"], DEVICE_IDS["kbl_r"]
+        return IG_PLATFORM_IDS["uhd620_mb"], DEVICE_IDS["cfl_h"]
     elif gen == 10:
         if "ice lake" in platform:
             return IG_PLATFORM_IDS["iris_ice"], None
         if profile.platform == "desktop":
             return IG_PLATFORM_IDS["uhd630_cml"], None
-        return IG_PLATFORM_IDS["uhd620_cml"], None
+        if "630" in name:
+            return IG_PLATFORM_IDS["uhd630_mb"], DEVICE_IDS["cfl_h"]
+        return IG_PLATFORM_IDS["uhd620_mb"], DEVICE_IDS["cfl_h"]
     elif gen == 11:
         if headless:
             return IG_PLATFORM_IDS["iris_tgl_headless"], None
@@ -122,7 +123,7 @@ def _igpu_config(profile: HardwareProfile, headless: bool = False) -> tuple[byte
     elif gen >= 12:
         return IG_PLATFORM_IDS["uhd770"], None
 
-    return IG_PLATFORM_IDS["uhd620"], None
+    return IG_PLATFORM_IDS["uhd620_mb"], None
 
 LOAD_ORDER = [
     "Lilu", "FakeSMC", "VirtualSMC",

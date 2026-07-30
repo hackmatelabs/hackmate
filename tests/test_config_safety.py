@@ -189,6 +189,70 @@ class IntelGraphicsSafetyTests(unittest.TestCase):
             (bytes.fromhex("03001259"), None),
         )
 
+    def test_kaby_lake_r_uhd620_uses_amber_lake_framebuffer_and_spoof(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=8,
+            cpu_codename="Kaby Lake-R",
+            oc_platform="Kaby Lake",
+            gpu_vendor="intel",
+            gpu_name="Intel UHD Graphics 620",
+            platform="laptop",
+        )
+
+        self.assertEqual(
+            config_gen._igpu_config(profile),
+            (bytes.fromhex("0000C087"), bytes.fromhex("16590000")),
+        )
+
+    def test_whiskey_lake_uhd620_uses_coffee_lake_mobile_values(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=8,
+            cpu_codename="Whiskey Lake",
+            oc_platform="Coffee Lake",
+            gpu_vendor="intel",
+            gpu_name="Intel UHD Graphics 620",
+            platform="laptop",
+        )
+
+        self.assertEqual(
+            config_gen._igpu_config(profile),
+            (bytes.fromhex("00009B3E"), bytes.fromhex("9B3E0000")),
+        )
+
+    def test_coffee_lake_uhd630_uses_mobile_framebuffer(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=8,
+            cpu_codename="Coffee Lake-H",
+            oc_platform="Coffee Lake",
+            gpu_vendor="intel",
+            gpu_name="Intel UHD Graphics 630",
+            platform="laptop",
+        )
+
+        self.assertEqual(
+            config_gen._igpu_config(profile),
+            (bytes.fromhex("0900A53E"), bytes.fromhex("9B3E0000")),
+        )
+
+    def test_comet_lake_uhd620_uses_supported_mobile_spoof(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=10,
+            cpu_codename="Comet Lake-H",
+            oc_platform="Comet Lake",
+            gpu_vendor="intel",
+            gpu_name="Intel UHD Graphics 620",
+            platform="laptop",
+        )
+
+        self.assertEqual(
+            config_gen._igpu_config(profile),
+            (bytes.fromhex("00009B3E"), bytes.fromhex("9B3E0000")),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
