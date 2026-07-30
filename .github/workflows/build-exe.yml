@@ -62,6 +62,7 @@ jobs:
             --hidden-import pci_ids `
             --hidden-import pci_disable `
             --hidden-import build_history `
+            --hidden-import i18n `
             --hidden-import auto_usb_map `
             --hidden-import discord_prompt `
             --hidden-import dualboot `

@@ -555,13 +555,36 @@ class DiscordScreen(Screen):
             self.app.after(1000, self._tick)
 
 
+class LanguageScreen(Screen):
+    def on_show(self):
+        from i18n import available_languages, get_language, set_language
+        current = get_language()
+        wrap = tk.Frame(self, bg=BG)
+        wrap.pack(fill="both", expand=True, padx=30, pady=20)
+        title(wrap, "── Language ───────────────────────────────────────────").pack(anchor="w")
+        info(wrap, "").pack(anchor="w")
+
+        def _pick(code):
+            set_language(code)
+            self.app.pop_screen()
+            self.app.push_screen(WelcomeScreen)
+
+        for code, name in available_languages():
+            label = ("▶ " if code == current else "  ") + name
+            button(wrap, label, lambda c=code: _pick(c), "advanced").pack(fill="x", pady=3, ipady=2)
+
+        info(wrap, "").pack(anchor="w")
+        button(wrap, "← Back", self.app.pop_screen, "back").pack(anchor="w")
+
+
 class WelcomeScreen(Screen):
     def on_show(self):
         import hwdb_submit
+        from i18n import t
         wrap = tk.Frame(self, bg=BG)
         wrap.place(relx=0.5, rely=0.5, anchor="center")
         draw_banner(wrap).pack(pady=(0, 6))
-        tk.Label(wrap, text="Automated OpenCore EFI builder — any hardware",
+        tk.Label(wrap, text=t("welcome.subtitle"),
                  bg=BG, fg=INFOC, font=FONT).pack(pady=(0, 18))
 
         def _toggle_hwdb():
@@ -569,18 +592,19 @@ class WelcomeScreen(Screen):
             self.app.pop_screen()
             self.app.push_screen(WelcomeScreen)
 
-        hwdb_label = "Sharing build logs: ON" if hwdb_submit.has_consented() else "Sharing build logs: OFF"
+        hwdb_label = t("welcome.sharing_on") if hwdb_submit.has_consented() else t("welcome.sharing_off")
         btns = [
-            ("Build EFI",             lambda: self.app.push_screen(ScanScreen), "primary"),
-            ("Build EFI (Manual)",    lambda: self.app.push_screen(ManualHardwareScreen), "primary"),
-            ("Restore EFI",           lambda: self.app.push_screen(RestoreScreen), "primary"),
-            ("Dual Boot / Disk Map",  lambda: self.app.push_screen(DiskMapScreen), "primary"),
-            ("USB Mapping",           lambda: self.app.push_screen(USBMappingScreen), "primary"),
-            ("Edit Config",           lambda: self.app.push_screen(ConfigEditorUSBScreen), "primary"),
-            ("Check Logs",            lambda: self.app.push_screen(LogCheckerScreen), "primary"),
-            ("Build History",         lambda: self.app.push_screen(HistoryScreen), "primary"),
-            (hwdb_label,              _toggle_hwdb, "primary"),
-            ("Quit",                  self.app.destroy, "danger"),
+            (t("welcome.build_efi"),        lambda: self.app.push_screen(ScanScreen), "primary"),
+            (t("welcome.build_efi_manual"), lambda: self.app.push_screen(ManualHardwareScreen), "primary"),
+            (t("welcome.restore_efi"),      lambda: self.app.push_screen(RestoreScreen), "primary"),
+            (t("welcome.dual_boot"),        lambda: self.app.push_screen(DiskMapScreen), "primary"),
+            (t("welcome.usb_mapping"),      lambda: self.app.push_screen(USBMappingScreen), "primary"),
+            (t("welcome.edit_config"),      lambda: self.app.push_screen(ConfigEditorUSBScreen), "primary"),
+            (t("welcome.check_logs"),       lambda: self.app.push_screen(LogCheckerScreen), "primary"),
+            (t("welcome.build_history"),    lambda: self.app.push_screen(HistoryScreen), "primary"),
+            (hwdb_label,                    _toggle_hwdb, "primary"),
+            (t("welcome.language"),         lambda: self.app.push_screen(LanguageScreen), "primary"),
+            (t("welcome.quit"),             self.app.destroy, "danger"),
         ]
         for label, cmd, kind in btns:
             button(wrap, label, cmd, kind).pack(fill="x", pady=3, ipady=2)

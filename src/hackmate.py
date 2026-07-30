@@ -675,30 +675,63 @@ class DiscordScreen(Screen):
             self.app.push_screen(WelcomeScreen())
 
 
+class LanguageScreen(Screen):
+    def compose(self) -> ComposeResult:
+        from i18n import available_languages, get_language
+        current = get_language()
+        yield Header()
+        yield Container(
+            Vertical(
+                Static("── Language ───────────────────────────────────────────", classes="title"),
+                Static(""),
+                *[
+                    Button(("▶ " if code == current else "  ") + name, id=f"lang-{code}", classes="advanced-btn")
+                    for code, name in available_languages()
+                ],
+                Static(""),
+                Button("← Back", id="back", classes="back"),
+                classes="screen-inner"
+            )
+        )
+        yield Footer()
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        from i18n import set_language
+        if event.button.id == "back":
+            self.app.pop_screen()
+            self.app.push_screen(WelcomeScreen())
+        elif event.button.id.startswith("lang-"):
+            set_language(event.button.id[len("lang-"):])
+            self.app.pop_screen()
+            self.app.push_screen(WelcomeScreen())
+
+
 class WelcomeScreen(Screen):
     def compose(self) -> ComposeResult:
         import hwdb_submit
+        from i18n import t
         yield Header()
         yield Container(
             Horizontal(
                 Vertical(
                     Static(BANNER,     classes="title",    id="banner"),
-                    Static("Automated OpenCore EFI builder — any hardware", classes="info", id="subtitle"),
+                    Static(t("welcome.subtitle"), classes="info", id="subtitle"),
                     Static(""),
-                    Button("Build EFI",              id="start",      classes="primary"),
-                    Button("Build EFI (Manual)",     id="manual",     classes="primary"),
-                    Button("EFI Health Check",       id="health",     classes="primary"),
-                    Button("Restore EFI",            id="restore",    classes="primary"),
-                    Button("Dual Boot / Disk Map",   id="diskmap",    classes="primary"),
-                    Button("USB Mapping",            id="usb_map",    classes="primary"),
-                    Button("Edit Config",            id="edit_cfg",   classes="primary"),
-                    Button("Check Logs",             id="check_logs", classes="primary"),
-                    Button("Build History",          id="history",    classes="primary"),
+                    Button(t("welcome.build_efi"),        id="start",      classes="primary"),
+                    Button(t("welcome.build_efi_manual"), id="manual",     classes="primary"),
+                    Button(t("welcome.health_check"),     id="health",     classes="primary"),
+                    Button(t("welcome.restore_efi"),      id="restore",    classes="primary"),
+                    Button(t("welcome.dual_boot"),        id="diskmap",    classes="primary"),
+                    Button(t("welcome.usb_mapping"),      id="usb_map",    classes="primary"),
+                    Button(t("welcome.edit_config"),      id="edit_cfg",   classes="primary"),
+                    Button(t("welcome.check_logs"),       id="check_logs", classes="primary"),
+                    Button(t("welcome.build_history"),    id="history",    classes="primary"),
                     Button(
-                        "Sharing build logs: ON" if hwdb_submit.has_consented() else "Sharing build logs: OFF",
+                        t("welcome.sharing_on") if hwdb_submit.has_consented() else t("welcome.sharing_off"),
                         id="hwdb_toggle", classes="primary"
                     ),
-                    Button("Quit",                   id="quit",       classes="danger"),
+                    Button(t("welcome.language"),         id="language",   classes="primary"),
+                    Button(t("welcome.quit"),              id="quit",       classes="danger"),
                     id="welcome-inner"
                 ),
                 Vertical(
@@ -744,6 +777,8 @@ class WelcomeScreen(Screen):
             hwdb_submit.set_consent(not hwdb_submit.has_consented())
             self.app.pop_screen()
             self.app.push_screen(WelcomeScreen())
+        elif event.button.id == "language":
+            self.app.push_screen(LanguageScreen())
         elif event.button.id == "quit":
             self.app.exit()
 
