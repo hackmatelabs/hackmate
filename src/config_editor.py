@@ -145,21 +145,21 @@ IGPU_FRAMEBUFFERS: dict[str, list[tuple[str, str]]] = {
     "191b": [("00001b19", "HD 530 — desktop")],
     "1926": [("00002619", "Iris 540/550 — laptop")],
     # Kaby Lake
-    "5916": [("00001659", "HD 620 — laptop (recommended)"), ("00001b59", "HD 620 — laptop alt")],
+    "5916": [("00001b59", "HD 620 — laptop (recommended)"), ("00001659", "HD 620 — laptop alt")],
     "591b": [("00001b59", "HD 630 — laptop (recommended)")],
     "5912": [("00001259", "HD 630 — desktop")],
     # Kaby Lake-R
-    "5917": [("00001659", "UHD 620 — laptop (recommended)")],
+    "5917": [("0000c087", "UHD 620 — laptop (recommended)")],
     # Whiskey Lake / Coffee Lake-R
-    "3ea0": [("0000c087", "UHD 620 — laptop (recommended)")],
-    "3ea9": [("0000c087", "UHD 620 — laptop")],
+    "3ea0": [("00009b3e", "UHD 620 — laptop (recommended)")],
+    "3ea9": [("00009b3e", "UHD 620 — laptop (recommended)")],
     # Coffee Lake
     "3e92": [("07009b3e", "UHD 630 — desktop (recommended)")],
     "3e91": [("07009b3e", "UHD 630 — desktop")],
     "3e98": [("07009b3e", "UHD 630 — desktop"), ("00009b3e", "UHD 630 — laptop")],
     # Comet Lake
-    "9bc4": [("0000c087", "UHD 630 — laptop (recommended)")],
-    "9bca": [("0000c087", "UHD 620 — laptop (recommended)")],
+    "9bc4": [("0900a53e", "UHD 630 — laptop (recommended)")],
+    "9bca": [("00009b3e", "UHD 620 — laptop (recommended)")],
     "9bc8": [("07009b3e", "UHD 630 — desktop")],
     # Ice Lake
     "8a52": [("0000528a", "Iris Plus — laptop (recommended)")],

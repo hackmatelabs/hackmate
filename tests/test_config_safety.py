@@ -338,6 +338,22 @@ class IntelGraphicsSafetyTests(unittest.TestCase):
             (bytes.fromhex("00009B3E"), bytes.fromhex("9B3E0000")),
         )
 
+    def test_config_editor_suggests_current_mobile_framebuffers(self):
+        expected = {
+            "5916": "00001b59",
+            "5917": "0000c087",
+            "3ea0": "00009b3e",
+            "3ea9": "00009b3e",
+            "9bc4": "0900a53e",
+            "9bca": "00009b3e",
+        }
+
+        for device_id, platform_id in expected.items():
+            with self.subTest(device_id=device_id):
+                suggestions = config_editor.suggest_framebuffers(device_id)
+                self.assertTrue(suggestions)
+                self.assertEqual(suggestions[0][0], platform_id)
+
 
 if __name__ == "__main__":
     unittest.main()
