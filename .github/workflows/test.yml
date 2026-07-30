@@ -1,0 +1,40 @@
+name: Test
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run unit tests
+        run: python3 -m unittest discover -s tests -v
+
+      - name: Generate representative configs
+        run: python3 tests/generate_validation_configs.py /tmp/hackmate-configs
+
+      - name: Download OpenCore 1.0.7 validator
+        run: |
+          curl -fL --retry 3 \
+            https://github.com/acidanthera/OpenCorePkg/releases/download/1.0.7/OpenCore-1.0.7-RELEASE.zip \
+            -o /tmp/OpenCore-1.0.7-RELEASE.zip
+          unzip -q /tmp/OpenCore-1.0.7-RELEASE.zip -d /tmp/OpenCore-1.0.7
+
+      - name: Validate generated configs
+        run: |
+          for config in /tmp/hackmate-configs/*.plist; do
+            /tmp/OpenCore-1.0.7/Utilities/ocvalidate/ocvalidate.linux "$config"
+          done

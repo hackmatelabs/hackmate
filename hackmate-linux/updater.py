@@ -12,7 +12,7 @@ BRANCH  = "main"
 API_URL = f"https://api.github.com/repos/{REPO}/commits/{BRANCH}"
 
 FILES = [
-    "hackmate.py", "hardware.py", "kexts.py", "config_gen.py",
+    "hackmate.py", "hardware.py", "kexts.py", "config_gen.py", "amd_patches.plist",
     "smbios.py", "recovery.py", "ssdt.py", "updater.py",
     "efi_check.py", "compat.py",
 ]

@@ -7,9 +7,12 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import config_gen
+import config_editor
+import efi_check
 import kexts
 import log_checker
 from hardware import HardwareProfile
+from smbios import SMBIOSData
 
 
 class InstallerAudioSafetyTests(unittest.TestCase):
@@ -136,6 +139,715 @@ class BooterQuirkSafetyTests(unittest.TestCase):
         quirks = self._quirks(profile, board="MAG B550 TOMAHAWK")
 
         self.assertFalse(quirks["SetupVirtualMap"])
+
+
+class OpenCoreSchemaSafetyTests(unittest.TestCase):
+    def test_generated_config_contains_opencore_107_required_fields(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=8,
+            cpu_codename="Coffee Lake",
+            oc_platform="Coffee Lake",
+            gpu_vendor="intel",
+            gpu_name="Intel UHD Graphics 630",
+            platform="desktop",
+            smbios_model="iMac19,1",
+        )
+        smbios = SMBIOSData(
+            model="iMac19,1",
+            serial="C02TEST00001",
+            board_serial="C02TESTMLB000001",
+            system_uuid="00000000-0000-4000-8000-000000000001",
+            rom="001122334455",
+        )
+
+        with (
+            patch.object(config_gen, "select_kexts", return_value=[]),
+            patch.object(config_gen, "dmi_field", return_value=""),
+            patch.object(config_gen, "dmi_vendor", return_value=""),
+        ):
+            config = config_gen.generate(profile, smbios)
+
+        kernel_quirks = config["Kernel"]["Quirks"]
+        self.assertTrue({
+            "AppleXcpmExtraMsrs",
+            "AppleXcpmForceBoost",
+            "CustomPciSerialDevice",
+            "DisableIoMapperMapping",
+            "ExternalDiskIcons",
+            "ForceAquantiaEthernet",
+            "ForceSecureBootScheme",
+            "ThirdPartyDrives",
+        }.issubset(kernel_quirks))
+        self.assertIn("ClearTaskSwitchBit", config["Booter"]["Quirks"])
+        self.assertTrue({
+            "HibernateSkipsPicker",
+            "InstanceIdentifier",
+        }.issubset(config["Misc"]["Boot"]))
+        self.assertTrue({
+            "LegacyOverwrite",
+            "LegacySchema",
+        }.issubset(config["NVRAM"]))
+
+        uefi = config["UEFI"]
+        self.assertIn("AppleInput", uefi)
+        self.assertIn("Unload", uefi)
+        self.assertTrue({
+            "DisconnectHda",
+            "MaximumGain",
+            "MinimumAssistGain",
+            "MinimumAudibleGain",
+            "ResetTrafficClass",
+        }.issubset(uefi["Audio"]))
+        self.assertTrue({"ConsoleFont", "GopBurstMode"}.issubset(uefi["Output"]))
+        self.assertTrue({
+            "ResizeUsePciRbIo",
+            "ShimRetainProtocol",
+        }.issubset(uefi["Quirks"]))
+
+    def test_amd_uses_complete_vanilla_patch_set_with_physical_core_count(self):
+        profile = HardwareProfile(
+            cpu_vendor="amd",
+            cpu_generation=11,
+            cpu_codename="Zen 3",
+            oc_platform="Ryzen",
+            core_count=12,
+            gpu_vendor="amd",
+            gpu_name="AMD Radeon RX 6600",
+            platform="desktop",
+        )
+
+        with patch.object(config_gen, "dmi_vendor", return_value=""):
+            kernel = config_gen._kernel_section(profile, [])
+
+        patches = kernel["Patch"]
+        core_patches = [
+            entry for entry in patches
+            if "Force cpuid_cores_per_package" in entry["Comment"]
+        ]
+
+        self.assertTrue(kernel["Quirks"]["ProvideCurrentCpuInfo"])
+        self.assertEqual(len(patches), 25)
+        self.assertEqual(len(core_patches), 4)
+        self.assertTrue(all(entry["Replace"][1] == 12 for entry in core_patches))
+        for entry in patches:
+            with self.subTest(comment=entry["Comment"]):
+                self.assertEqual(len(entry["Find"]), len(entry["Replace"]))
+
+    def test_newer_intel_cpu_uses_documented_comet_lake_cpuid_spoof(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=12,
+            cpu_codename="Alder Lake",
+            oc_platform="Alder Lake",
+            gpu_vendor="intel",
+            gpu_name="Intel UHD Graphics 770",
+            dgpu_vendor="amd",
+            platform="desktop",
+        )
+
+        with patch.object(config_gen, "dmi_vendor", return_value=""):
+            kernel = config_gen._kernel_section(profile, [])
+
+        emulate = kernel["Emulate"]
+        self.assertEqual(
+            emulate["Cpuid1Data"],
+            bytes.fromhex("55060A00" + "00000000" * 3),
+        )
+        self.assertEqual(
+            emulate["Cpuid1Mask"],
+            bytes.fromhex("FFFFFFFF" + "00000000" * 3),
+        )
+        self.assertTrue(kernel["Quirks"]["ProvideCurrentCpuInfo"])
+
+
+class IntelGraphicsSafetyTests(unittest.TestCase):
+    def test_sandy_bridge_laptop_uses_snb_platform_id_without_dvmt_patch(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=2,
+            gpu_vendor="intel",
+            gpu_name="Intel HD Graphics 3000",
+            platform="laptop",
+        )
+
+        properties = config_gen._device_properties(profile, 1)
+        igpu = properties["Add"]["PciRoot(0x0)/Pci(0x2,0x0)"]
+
+        self.assertEqual(igpu["AAPL,snb-platform-id"], bytes.fromhex("00000100"))
+        self.assertNotIn("AAPL,ig-platform-id", igpu)
+        self.assertNotIn("framebuffer-patch-enable", igpu)
+
+    def test_ivy_bridge_laptop_does_not_get_newer_dvmt_patch(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=3,
+            gpu_vendor="intel",
+            gpu_name="Intel HD Graphics 4000",
+            platform="laptop",
+        )
+
+        properties = config_gen._device_properties(profile, 1)
+        igpu = properties["Add"]["PciRoot(0x0)/Pci(0x2,0x0)"]
+
+        self.assertEqual(igpu["AAPL,ig-platform-id"], bytes.fromhex("03006601"))
+        self.assertNotIn("framebuffer-patch-enable", igpu)
+
+    def test_sandy_bridge_desktop_uses_display_and_headless_values(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=2,
+            gpu_vendor="intel",
+            gpu_name="Intel HD Graphics 3000",
+            platform="desktop",
+        )
+
+        self.assertEqual(
+            config_gen._igpu_config(profile),
+            (bytes.fromhex("10000300"), bytes.fromhex("26010000")),
+        )
+        self.assertEqual(
+            config_gen._igpu_config(profile, headless=True),
+            (bytes.fromhex("00000500"), bytes.fromhex("02010000")),
+        )
+
+    def test_ivy_bridge_desktop_uses_display_and_headless_values(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=3,
+            gpu_vendor="intel",
+            gpu_name="Intel HD Graphics 4000",
+            platform="desktop",
+        )
+
+        self.assertEqual(
+            config_gen._igpu_config(profile),
+            (bytes.fromhex("0A006601"), None),
+        )
+        self.assertEqual(
+            config_gen._igpu_config(profile, headless=True),
+            (bytes.fromhex("07006201"), None),
+        )
+
+    def test_haswell_hd4600_laptop_uses_supported_spoof_and_cursor_patch(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=4,
+            gpu_vendor="intel",
+            gpu_name="Intel HD Graphics 4600",
+            platform="laptop",
+        )
+
+        properties = config_gen._device_properties(profile, 1)
+        igpu = properties["Add"]["PciRoot(0x0)/Pci(0x2,0x0)"]
+
+        self.assertEqual(igpu["AAPL,ig-platform-id"], bytes.fromhex("0600260A"))
+        self.assertEqual(igpu["device-id"], bytes.fromhex("12040000"))
+        self.assertEqual(igpu["framebuffer-patch-enable"], bytes.fromhex("01000000"))
+        self.assertEqual(igpu["framebuffer-cursormem"], bytes.fromhex("00009000"))
+        self.assertNotIn("framebuffer-stolenmem", igpu)
+
+    def test_haswell_iris_laptop_uses_mobile_iris_framebuffer_without_spoof(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=4,
+            gpu_vendor="intel",
+            gpu_name="Intel Iris Pro Graphics 5200",
+            platform="laptop",
+        )
+
+        self.assertEqual(
+            config_gen._igpu_config(profile),
+            (bytes.fromhex("0500260A"), None),
+        )
+
+    def test_haswell_hd5000_laptop_uses_mobile_iris_framebuffer_without_spoof(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=4,
+            gpu_vendor="intel",
+            gpu_name="Intel HD Graphics 5000",
+            platform="laptop",
+        )
+
+        self.assertEqual(
+            config_gen._igpu_config(profile),
+            (bytes.fromhex("0500260A"), None),
+        )
+
+    def test_haswell_desktop_uses_display_and_headless_framebuffers(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=4,
+            gpu_vendor="intel",
+            gpu_name="Intel HD Graphics 4600",
+            platform="desktop",
+        )
+
+        self.assertEqual(
+            config_gen._igpu_config(profile),
+            (bytes.fromhex("0300220D"), None),
+        )
+        self.assertEqual(
+            config_gen._igpu_config(profile, headless=True),
+            (bytes.fromhex("04001204"), None),
+        )
+
+    def test_haswell_hd4400_desktop_uses_supported_device_spoof(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=4,
+            gpu_vendor="intel",
+            gpu_name="Intel HD Graphics 4400",
+            platform="desktop",
+        )
+
+        self.assertEqual(
+            config_gen._igpu_config(profile),
+            (bytes.fromhex("0300220D"), bytes.fromhex("12040000")),
+        )
+
+    def test_broadwell_uses_documented_mobile_and_desktop_framebuffers(self):
+        laptop = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=5,
+            gpu_vendor="intel",
+            gpu_name="Intel HD Graphics 5500",
+            platform="laptop",
+        )
+        desktop = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=5,
+            gpu_vendor="intel",
+            gpu_name="Intel Iris Pro Graphics 6200",
+            platform="desktop",
+        )
+
+        self.assertEqual(
+            config_gen._igpu_config(laptop),
+            (bytes.fromhex("06002616"), None),
+        )
+        self.assertEqual(
+            config_gen._igpu_config(desktop),
+            (bytes.fromhex("07002216"), None),
+        )
+        self.assertEqual(
+            config_gen._igpu_config(desktop, headless=True),
+            (bytes.fromhex("07002216"), None),
+        )
+
+    def test_skylake_hd530_laptop_uses_mobile_framebuffer(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=6,
+            gpu_vendor="intel",
+            gpu_name="Intel HD Graphics 530",
+            platform="laptop",
+        )
+
+        self.assertEqual(
+            config_gen._igpu_config(profile),
+            (bytes.fromhex("00001619"), None),
+        )
+
+    def test_skylake_desktop_uses_display_and_headless_framebuffers(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=6,
+            gpu_vendor="intel",
+            gpu_name="Intel HD Graphics 530",
+            platform="desktop",
+        )
+
+        self.assertEqual(
+            config_gen._igpu_config(profile),
+            (bytes.fromhex("00001219"), None),
+        )
+        self.assertEqual(
+            config_gen._igpu_config(profile, headless=True),
+            (bytes.fromhex("01001219"), None),
+        )
+
+    def test_skylake_is_spoofed_as_matching_kaby_lake_gpu_on_ventura(self):
+        hd520 = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=6,
+            gpu_vendor="intel",
+            gpu_name="Intel HD Graphics 520",
+            platform="laptop",
+        )
+        hd530 = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=6,
+            gpu_vendor="intel",
+            gpu_name="Intel HD Graphics 530",
+            platform="laptop",
+        )
+        desktop = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=6,
+            gpu_vendor="intel",
+            gpu_name="Intel HD Graphics 530",
+            platform="desktop",
+        )
+
+        self.assertEqual(
+            config_gen._igpu_config(hd520, macos_major=13),
+            (bytes.fromhex("00001659"), bytes.fromhex("16590000")),
+        )
+        self.assertEqual(
+            config_gen._igpu_config(hd530, macos_major=13),
+            (bytes.fromhex("00001B59"), bytes.fromhex("1B590000")),
+        )
+        self.assertEqual(
+            config_gen._igpu_config(desktop, macos_major=13),
+            (bytes.fromhex("00001259"), bytes.fromhex("12590000")),
+        )
+        self.assertEqual(
+            config_gen._igpu_config(desktop, headless=True, macos_major=13),
+            (bytes.fromhex("03001259"), bytes.fromhex("12590000")),
+        )
+
+    def test_skylake_ventura_properties_include_graphics_tile_fix(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=6,
+            gpu_vendor="intel",
+            gpu_name="Intel HD Graphics 530",
+            platform="laptop",
+        )
+
+        properties = config_gen._device_properties(
+            profile,
+            1,
+            macos_major=13,
+        )
+        igpu = properties["Add"]["PciRoot(0x0)/Pci(0x2,0x0)"]
+
+        self.assertEqual(igpu["AAPL,ig-platform-id"], bytes.fromhex("00001B59"))
+        self.assertEqual(igpu["device-id"], bytes.fromhex("1B590000"))
+        self.assertEqual(igpu["AAPL,GfxYTile"], bytes.fromhex("01000000"))
+
+    def test_efi_checker_accepts_native_and_ventura_skylake_framebuffers(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=6,
+            gpu_vendor="intel",
+            gpu_name="Intel HD Graphics 530",
+            platform="laptop",
+        )
+
+        for platform_id in ("00001619", "00001B59"):
+            with self.subTest(platform_id=platform_id):
+                config = {
+                    "DeviceProperties": {
+                        "Add": {
+                            "PciRoot(0x0)/Pci(0x2,0x0)": {
+                                "AAPL,ig-platform-id": bytes.fromhex(platform_id),
+                            },
+                        },
+                    },
+                    "Kernel": {"Add": []},
+                    "PlatformInfo": {"Generic": {}},
+                }
+                results = []
+
+                efi_check._check_hardware_mismatch(config, profile, results)
+
+                self.assertFalse(any(
+                    level == "warn" and "ig-platform-id" in message
+                    for level, message in results
+                ))
+
+    def test_skylake_unsupported_variants_use_documented_device_spoofs(self):
+        hd510 = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=6,
+            gpu_vendor="intel",
+            gpu_name="Intel HD Graphics 510",
+            platform="laptop",
+        )
+        p530 = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=6,
+            gpu_vendor="intel",
+            gpu_name="Intel HD Graphics P530",
+            platform="desktop",
+        )
+
+        self.assertEqual(
+            config_gen._igpu_config(hd510),
+            (bytes.fromhex("00001B19"), bytes.fromhex("02190000")),
+        )
+        self.assertEqual(
+            config_gen._igpu_config(p530),
+            (bytes.fromhex("00001219"), bytes.fromhex("1B190000")),
+        )
+
+    def test_intel_xe_igpu_is_not_given_a_fake_framebuffer(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=12,
+            cpu_codename="Alder Lake",
+            oc_platform="Alder Lake",
+            gpu_vendor="intel",
+            gpu_name="Intel UHD Graphics 770",
+            dgpu_vendor="amd",
+            platform="desktop",
+        )
+
+        self.assertEqual(config_gen._igpu_config(profile), (b"", None))
+
+        properties = config_gen._device_properties(profile, 1)
+
+        self.assertNotIn(
+            "PciRoot(0x0)/Pci(0x2,0x0)",
+            properties["Add"],
+        )
+
+    def test_kaby_lake_hd630_laptop_uses_mobile_framebuffer(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=7,
+            gpu_vendor="intel",
+            gpu_name="Intel HD Graphics 630",
+            platform="laptop",
+        )
+
+        properties = config_gen._device_properties(profile, 1)
+        igpu = properties["Add"]["PciRoot(0x0)/Pci(0x2,0x0)"]
+
+        self.assertEqual(igpu["AAPL,ig-platform-id"], bytes.fromhex("00001B59"))
+        self.assertEqual(igpu["framebuffer-stolenmem"], bytes.fromhex("00003001"))
+        self.assertEqual(igpu["framebuffer-fbmem"], bytes.fromhex("00009000"))
+
+    def test_laptop_dgpu_does_not_force_headless_or_disable_before_user_choice(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=7,
+            gpu_vendor="intel",
+            gpu_name="Intel HD Graphics 630",
+            dgpu_vendor="nvidia",
+            platform="laptop",
+        )
+
+        properties = config_gen._device_properties(profile, 1)
+        igpu = properties["Add"]["PciRoot(0x0)/Pci(0x2,0x0)"]
+
+        self.assertEqual(igpu["AAPL,ig-platform-id"], bytes.fromhex("00001B59"))
+        self.assertNotIn("disable-external-gpu", igpu)
+
+    def test_dgpu_choice_uses_stable_igpu_property_and_can_be_reversed(self):
+        config = {
+            "DeviceProperties": {
+                "Add": {
+                    "PciRoot(0x0)/Pci(0x2,0x0)": {
+                        "AAPL,ig-platform-id": bytes.fromhex("00001B59"),
+                    },
+                },
+            },
+        }
+
+        config_editor.set_dgpu_disabled(config, True)
+
+        igpu = config["DeviceProperties"]["Add"]["PciRoot(0x0)/Pci(0x2,0x0)"]
+        self.assertEqual(igpu["disable-external-gpu"], bytes.fromhex("01000000"))
+        self.assertTrue(config_editor.get_dgpu_disabled(config))
+
+        config_editor.set_dgpu_disabled(config, False)
+
+        self.assertNotIn("disable-external-gpu", igpu)
+        self.assertFalse(config_editor.get_dgpu_disabled(config))
+
+    def test_amd_desktop_dgpu_keeps_acceleration_and_uses_headless_igpu(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=8,
+            cpu_codename="Coffee Lake",
+            oc_platform="Coffee Lake",
+            gpu_vendor="intel",
+            gpu_name="Intel UHD Graphics 630",
+            dgpu_vendor="amd",
+            dgpu_name="AMD Radeon RX 580",
+            platform="desktop",
+        )
+
+        properties = config_gen._device_properties(profile, 1)
+        nvram = config_gen._nvram_section(profile, 1)
+        igpu = properties["Add"]["PciRoot(0x0)/Pci(0x2,0x0)"]
+        boot_args = nvram["Add"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"]["boot-args"]
+
+        self.assertEqual(igpu["AAPL,ig-platform-id"], bytes.fromhex("0300913E"))
+        self.assertNotIn("disable-external-gpu", igpu)
+        self.assertNotIn("-radvesa", boot_args)
+
+    def test_kaby_lake_hd630_desktop_keeps_display_and_headless_variants(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=7,
+            gpu_vendor="intel",
+            gpu_name="Intel HD Graphics 630",
+            platform="desktop",
+        )
+
+        self.assertEqual(
+            config_gen._igpu_config(profile),
+            (bytes.fromhex("00001259"), None),
+        )
+        self.assertEqual(
+            config_gen._igpu_config(profile, headless=True),
+            (bytes.fromhex("03001259"), None),
+        )
+
+    def test_kaby_lake_r_uhd620_uses_amber_lake_framebuffer_and_spoof(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=8,
+            cpu_codename="Kaby Lake-R",
+            oc_platform="Kaby Lake",
+            gpu_vendor="intel",
+            gpu_name="Intel UHD Graphics 620",
+            platform="laptop",
+        )
+
+        self.assertEqual(
+            config_gen._igpu_config(profile),
+            (bytes.fromhex("0000C087"), bytes.fromhex("16590000")),
+        )
+
+    def test_whiskey_lake_uhd620_uses_coffee_lake_mobile_values(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=8,
+            cpu_codename="Whiskey Lake",
+            oc_platform="Coffee Lake",
+            gpu_vendor="intel",
+            gpu_name="Intel UHD Graphics 620",
+            platform="laptop",
+        )
+
+        self.assertEqual(
+            config_gen._igpu_config(profile),
+            (bytes.fromhex("00009B3E"), bytes.fromhex("9B3E0000")),
+        )
+
+    def test_coffee_lake_uhd630_uses_mobile_framebuffer(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=8,
+            cpu_codename="Coffee Lake-H",
+            oc_platform="Coffee Lake",
+            gpu_vendor="intel",
+            gpu_name="Intel UHD Graphics 630",
+            platform="laptop",
+        )
+
+        self.assertEqual(
+            config_gen._igpu_config(profile),
+            (bytes.fromhex("0900A53E"), bytes.fromhex("9B3E0000")),
+        )
+
+    def test_coffee_lake_desktop_uses_documented_display_and_headless_ids(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=8,
+            cpu_codename="Coffee Lake",
+            oc_platform="Coffee Lake",
+            gpu_vendor="intel",
+            gpu_name="Intel UHD Graphics 630",
+            platform="desktop",
+        )
+
+        self.assertEqual(
+            config_gen._igpu_config(profile),
+            (bytes.fromhex("07009B3E"), None),
+        )
+        self.assertEqual(
+            config_gen._igpu_config(profile, headless=True),
+            (bytes.fromhex("0300913E"), None),
+        )
+
+    def test_comet_lake_desktop_uses_documented_display_and_headless_ids(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=10,
+            cpu_codename="Comet Lake",
+            oc_platform="Comet Lake",
+            gpu_vendor="intel",
+            gpu_name="Intel UHD Graphics 630",
+            platform="desktop",
+        )
+
+        self.assertEqual(
+            config_gen._igpu_config(profile),
+            (bytes.fromhex("07009B3E"), None),
+        )
+        self.assertEqual(
+            config_gen._igpu_config(profile, headless=True),
+            (bytes.fromhex("0300C89B"), None),
+        )
+
+    def test_comet_lake_uhd620_uses_supported_mobile_spoof(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=10,
+            cpu_codename="Comet Lake-H",
+            oc_platform="Comet Lake",
+            gpu_vendor="intel",
+            gpu_name="Intel UHD Graphics 620",
+            platform="laptop",
+        )
+
+        self.assertEqual(
+            config_gen._igpu_config(profile),
+            (bytes.fromhex("00009B3E"), bytes.fromhex("9B3E0000")),
+        )
+
+    def test_config_editor_suggests_current_mobile_framebuffers(self):
+        expected = {
+            "0116": "00000100",
+            "0126": "00000100",
+            "0162": "0a006601",
+            "0416": "0600260a",
+            "0412": "0300220d",
+            "0d26": "0500260a",
+            "1616": "06002616",
+            "1626": "06002616",
+            "191b": "00001619",
+            "1912": "00001219",
+            "1926": "00001619",
+            "5916": "00001b59",
+            "5917": "0000c087",
+            "3ea0": "00009b3e",
+            "3ea9": "00009b3e",
+            "9bc4": "0900a53e",
+            "9bca": "00009b3e",
+        }
+
+        for device_id, platform_id in expected.items():
+            with self.subTest(device_id=device_id):
+                suggestions = config_editor.suggest_framebuffers(device_id)
+                self.assertTrue(suggestions)
+                self.assertEqual(suggestions[0][0], platform_id)
+
+    def test_config_editor_reads_and_updates_sandy_bridge_platform_key(self):
+        config = {
+            "DeviceProperties": {
+                "Add": {
+                    "PciRoot(0x0)/Pci(0x2,0x0)": {
+                        "AAPL,snb-platform-id": bytes.fromhex("00000100"),
+                    },
+                },
+            },
+        }
+
+        self.assertEqual(config_editor.get_igpu_platform_id(config), "00000100")
+
+        config_editor.set_igpu_platform_id(config, "10000300")
+
+        igpu = config["DeviceProperties"]["Add"]["PciRoot(0x0)/Pci(0x2,0x0)"]
+        self.assertEqual(igpu["AAPL,snb-platform-id"], bytes.fromhex("10000300"))
+        self.assertNotIn("AAPL,ig-platform-id", igpu)
 
 
 if __name__ == "__main__":

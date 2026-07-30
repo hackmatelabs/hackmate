@@ -128,38 +128,39 @@ _IGPU_PATH = "PciRoot(0x0)/Pci(0x2,0x0)"
 # device_id (lowercase) → [(platform_id_hex, label), ...]
 IGPU_FRAMEBUFFERS: dict[str, list[tuple[str, str]]] = {
     # Sandy Bridge
-    "0116": [("00003001", "HD 3000 — laptop")],
-    "0126": [("00003001", "HD 3000 — laptop")],
+    "0116": [("00000100", "HD 3000 — laptop")],
+    "0126": [("00000100", "HD 3000 — laptop")],
     # Ivy Bridge
     "0166": [("03006601", "HD 4000 — laptop (recommended)"), ("04006601", "HD 4000 — laptop 13\"")],
-    "0162": [("0b006601", "HD 4000 — desktop")],
+    "0162": [("0a006601", "HD 4000 — desktop"), ("07006201", "HD 4000 — headless")],
     # Haswell
-    "0416": [("0a002604", "HD 4600 — laptop (recommended)"), ("07002604", "HD 4600 — laptop alt")],
-    "0412": [("07002604", "HD 4600 — desktop")],
-    "0d26": [("0b002604", "Iris Pro 5200 — laptop")],
+    "0416": [("0600260a", "HD 4600 — laptop (recommended)")],
+    "0412": [("0300220d", "HD 4600 — desktop")],
+    "0d26": [("0500260a", "Iris Pro 5200 — laptop")],
     # Broadwell
-    "1616": [("16000000", "HD 5500 — laptop")],
-    "1626": [("16000000", "HD 6000 — laptop")],
+    "1616": [("06002616", "HD 5500 — laptop (recommended)")],
+    "1626": [("06002616", "HD 6000 — laptop (recommended)")],
     # Skylake
     "1916": [("00001619", "HD 520 — laptop (recommended)")],
-    "191b": [("00001b19", "HD 530 — desktop")],
-    "1926": [("00002619", "Iris 540/550 — laptop")],
+    "191b": [("00001619", "HD 530 — laptop (recommended)")],
+    "1912": [("00001219", "HD 530 — desktop"), ("01001219", "HD 530 — headless")],
+    "1926": [("00001619", "Iris 540/550 — laptop (recommended)")],
     # Kaby Lake
-    "5916": [("00001659", "HD 620 — laptop (recommended)"), ("00001b59", "HD 620 — laptop alt")],
+    "5916": [("00001b59", "HD 620 — laptop (recommended)"), ("00001659", "HD 620 — laptop alt")],
     "591b": [("00001b59", "HD 630 — laptop (recommended)")],
     "5912": [("00001259", "HD 630 — desktop")],
     # Kaby Lake-R
-    "5917": [("00001659", "UHD 620 — laptop (recommended)")],
+    "5917": [("0000c087", "UHD 620 — laptop (recommended)")],
     # Whiskey Lake / Coffee Lake-R
-    "3ea0": [("0000c087", "UHD 620 — laptop (recommended)")],
-    "3ea9": [("0000c087", "UHD 620 — laptop")],
+    "3ea0": [("00009b3e", "UHD 620 — laptop (recommended)")],
+    "3ea9": [("00009b3e", "UHD 620 — laptop (recommended)")],
     # Coffee Lake
     "3e92": [("07009b3e", "UHD 630 — desktop (recommended)")],
     "3e91": [("07009b3e", "UHD 630 — desktop")],
     "3e98": [("07009b3e", "UHD 630 — desktop"), ("00009b3e", "UHD 630 — laptop")],
     # Comet Lake
-    "9bc4": [("0000c087", "UHD 630 — laptop (recommended)")],
-    "9bca": [("0000c087", "UHD 620 — laptop (recommended)")],
+    "9bc4": [("0900a53e", "UHD 630 — laptop (recommended)")],
+    "9bca": [("00009b3e", "UHD 620 — laptop (recommended)")],
     "9bc8": [("07009b3e", "UHD 630 — desktop")],
     # Ice Lake
     "8a52": [("0000528a", "Iris Plus — laptop (recommended)")],
@@ -172,7 +173,8 @@ def suggest_framebuffers(gpu_device_id: str) -> list[tuple[str, str]]:
 
 def get_igpu_platform_id(cfg: dict) -> str:
     try:
-        val = cfg["DeviceProperties"]["Add"][_IGPU_PATH]["AAPL,ig-platform-id"]
+        props = cfg["DeviceProperties"]["Add"][_IGPU_PATH]
+        val = props.get("AAPL,ig-platform-id", props.get("AAPL,snb-platform-id"))
         return val.hex()
     except (KeyError, TypeError, AttributeError):
         return ""
@@ -181,7 +183,13 @@ def set_igpu_platform_id(cfg: dict, hex_str: str) -> None:
     if not hex_str:
         return
     cfg.setdefault("DeviceProperties", {}).setdefault("Add", {}).setdefault(_IGPU_PATH, {})
-    cfg["DeviceProperties"]["Add"][_IGPU_PATH]["AAPL,ig-platform-id"] = bytes.fromhex(hex_str)
+    props = cfg["DeviceProperties"]["Add"][_IGPU_PATH]
+    key = (
+        "AAPL,snb-platform-id"
+        if "AAPL,snb-platform-id" in props and "AAPL,ig-platform-id" not in props
+        else "AAPL,ig-platform-id"
+    )
+    props[key] = bytes.fromhex(hex_str)
 
 # AppleALC supported layouts per codec — most common/reliable ones only
 AUDIO_LAYOUTS: dict[str, list[tuple[int, str]]] = {
@@ -215,16 +223,26 @@ _DGPU_PATH = "PciRoot(0x0)/Pci(0x1,0x0)/Pci(0x0,0x0)"
 
 def get_dgpu_disabled(cfg: dict) -> bool:
     try:
-        return cfg["DeviceProperties"]["Add"][_DGPU_PATH].get("disable-gpu") == bytes([1, 0, 0, 0])
+        dp = cfg["DeviceProperties"]["Add"]
+        if dp.get(_IGPU_PATH, {}).get("disable-external-gpu") == bytes([1, 0, 0, 0]):
+            return True
+        return dp.get(_DGPU_PATH, {}).get("disable-gpu") == bytes([1, 0, 0, 0])
     except (KeyError, TypeError):
         return False
 
 def set_dgpu_disabled(cfg: dict, disabled: bool) -> None:
     dp = cfg.setdefault("DeviceProperties", {}).setdefault("Add", {})
     if disabled:
-        dp.setdefault(_DGPU_PATH, {})["disable-gpu"] = bytes([1, 0, 0, 0])
-        dp[_DGPU_PATH]["name"] = "Disabled"
+        # WhateverGreen can disable every external GPU from the stable IGPU
+        # path. This avoids guessing a PEG/dGPU PCI path that varies by board.
+        dp.setdefault(_IGPU_PATH, {})["disable-external-gpu"] = bytes([1, 0, 0, 0])
     else:
+        if _IGPU_PATH in dp:
+            dp[_IGPU_PATH].pop("disable-external-gpu", None)
+            if not dp[_IGPU_PATH]:
+                del dp[_IGPU_PATH]
+        # Clean up configs created by older HackMate versions, which guessed a
+        # fixed dGPU path and wrote disable-gpu there.
         if _DGPU_PATH in dp:
             dp[_DGPU_PATH].pop("disable-gpu", None)
             dp[_DGPU_PATH].pop("name", None)

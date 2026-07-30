@@ -7,115 +7,165 @@ from compat import IS_WINDOWS, dmi_field, dmi_vendor, cpu_core_count
 
 IG_PLATFORM_IDS: dict[str, bytes] = {
     # Sandy Bridge
-    "hd3000":    bytes([0x00, 0x00, 0x01, 0x00]),   # AAPL,snb-platform-id
+    "snb_mobile": bytes([0x00, 0x00, 0x01, 0x00]),
+    "snb_desktop": bytes([0x10, 0x00, 0x03, 0x00]),
+    "snb_headless": bytes([0x00, 0x00, 0x05, 0x00]),
     # Ivy Bridge
-    "hd4000":    bytes([0x04, 0x00, 0x66, 0x01]),
-    "hd2500":    bytes([0x03, 0x00, 0x66, 0x01]),
+    "ivb_mobile": bytes([0x03, 0x00, 0x66, 0x01]),
+    "ivb_desktop": bytes([0x0A, 0x00, 0x66, 0x01]),
+    "ivb_headless": bytes([0x07, 0x00, 0x62, 0x01]),
     # Haswell
-    "hd4400":    bytes([0x00, 0x00, 0x16, 0x0A]),
-    "hd4600":    bytes([0x04, 0x00, 0x12, 0x04]),
-    "hd5000":    bytes([0x05, 0x00, 0x26, 0x0A]),
-    "iris5100":  bytes([0x05, 0x00, 0x26, 0x0A]),
+    "hsw_mobile_iris": bytes([0x05, 0x00, 0x26, 0x0A]),
+    "hsw_mobile": bytes([0x06, 0x00, 0x26, 0x0A]),
+    "hsw_desktop": bytes([0x03, 0x00, 0x22, 0x0D]),
+    "hsw_headless": bytes([0x04, 0x00, 0x12, 0x04]),
     # Broadwell
-    "hd5500":    bytes([0x00, 0x00, 0x16, 0x16]),
-    "hd6000":    bytes([0x00, 0x00, 0x26, 0x16]),
-    "iris6100":  bytes([0x00, 0x00, 0x26, 0x16]),
+    "bdw_mobile": bytes([0x06, 0x00, 0x26, 0x16]),
+    "bdw_desktop": bytes([0x07, 0x00, 0x22, 0x16]),
     # Skylake
-    "hd515":     bytes([0x00, 0x00, 0x1E, 0x19]),
-    "hd520":     bytes([0x00, 0x00, 0x16, 0x19]),
-    "hd530":     bytes([0x00, 0x00, 0x12, 0x19]),
-    "iris540":   bytes([0x00, 0x00, 0x26, 0x19]),
+    "skl_mobile": bytes([0x00, 0x00, 0x16, 0x19]),
+    "skl_mobile_hd510": bytes([0x00, 0x00, 0x1B, 0x19]),
+    "skl_desktop": bytes([0x00, 0x00, 0x12, 0x19]),
+    "skl_headless": bytes([0x01, 0x00, 0x12, 0x19]),
     # Kaby Lake
     "hd615":     bytes([0x00, 0x00, 0x1B, 0x59]),
     "hd620":     bytes([0x00, 0x00, 0x16, 0x59]),
-    "hd630":     bytes([0x03, 0x00, 0x12, 0x59]),
+    "hd630_dt":  bytes([0x00, 0x00, 0x12, 0x59]),
+    "hd630_mb":  bytes([0x00, 0x00, 0x1B, 0x59]),
+    "hd630_headless": bytes([0x03, 0x00, 0x12, 0x59]),
     "iris640":   bytes([0x00, 0x00, 0x26, 0x59]),
-    # Kaby Lake-R / Coffee Lake laptop (Dortania recommended: 0x3EA50004)
-    "uhd620":    bytes([0x04, 0x00, 0xA5, 0x3E]),
+    # Kaby Lake-R laptop
+    "uhd620_kblr": bytes([0x00, 0x00, 0xC0, 0x87]),
+    # Coffee/Whiskey/Comet Lake laptop
+    "uhd620_mb": bytes([0x00, 0x00, 0x9B, 0x3E]),
     # Coffee Lake desktop
     "uhd630_dt": bytes([0x07, 0x00, 0x9B, 0x3E]),
     # Coffee Lake laptop
-    "uhd630_mb": bytes([0x06, 0x00, 0x9B, 0x3E]),
-    # Comet Lake laptop
-    "uhd620_cml":bytes([0x00, 0x00, 0x3E, 0x9B]),
-    # Comet Lake desktop
-    "uhd630_cml":bytes([0x03, 0x00, 0x92, 0x3E]),
+    "uhd630_mb": bytes([0x09, 0x00, 0xA5, 0x3E]),
+    # Connectorless desktop framebuffers (dGPU drives the display)
+    "uhd630_cfl_headless": bytes([0x03, 0x00, 0x91, 0x3E]),
+    "uhd630_cml_headless": bytes([0x03, 0x00, 0xC8, 0x9B]),
     # Ice Lake
     "iris_ice":  bytes([0x00, 0x00, 0x52, 0x8A]),
-    # Tiger Lake
-    "iris_tgl":  bytes([0x00, 0x00, 0x49, 0x9A]),
-    # Alder Lake (no iGPU support in macOS natively, needs NootedBlue or patch)
-    "uhd770":    bytes([0x00, 0x00, 0xA6, 0x46]),
-    # Headless variants (when dGPU drives display)
-    "uhd620_headless":    bytes([0x03, 0x00, 0x9B, 0x3E]),
-    "uhd630_headless":    bytes([0x00, 0x00, 0x9B, 0x3E]),
-    "uhd630_dt_headless": bytes([0x02, 0x00, 0x9B, 0x3E]),
-    "iris_tgl_headless":  bytes([0x02, 0x00, 0x49, 0x9A]),
 }
 
 DEVICE_IDS: dict[str, bytes] = {
     # Fake device-id to match known-good framebuffers
-    "kbl_r":     bytes([0xA0, 0x3E, 0x00, 0x00]),   # spoof UHD 620 as 3EA0
+    "snb_display": bytes([0x26, 0x01, 0x00, 0x00]),
+    "snb_headless": bytes([0x02, 0x01, 0x00, 0x00]),
+    "hsw":       bytes([0x12, 0x04, 0x00, 0x00]),   # spoof HD 42xx/44xx as HD 4600
+    "skl_hd510": bytes([0x02, 0x19, 0x00, 0x00]),   # enable unsupported mobile HD 510
+    "skl_p530_mobile": bytes([0x16, 0x19, 0x00, 0x00]),
+    "skl_p530_desktop": bytes([0x1B, 0x19, 0x00, 0x00]),
+    "kbl_hd620": bytes([0x16, 0x59, 0x00, 0x00]),
+    "kbl_hd630_mobile": bytes([0x1B, 0x59, 0x00, 0x00]),
+    "kbl_hd630_desktop": bytes([0x12, 0x59, 0x00, 0x00]),
+    "kbl_r":     bytes([0x16, 0x59, 0x00, 0x00]),   # spoof UHD 620 as 5916
     "cfl_h":     bytes([0x9B, 0x3E, 0x00, 0x00]),   # spoof as 3E9B
 }
 
-def _igpu_config(profile: HardwareProfile, headless: bool = False) -> tuple[bytes, bytes | None]:
+def _igpu_config(
+    profile: HardwareProfile,
+    headless: bool = False,
+    macos_major: int = 0,
+) -> tuple[bytes, bytes | None]:
     """Returns (ig-platform-id, device-id or None)"""
     gen = profile.cpu_generation
     name = profile.gpu_name.lower()
-    platform = profile.oc_platform.lower()
+    platform = f"{profile.cpu_codename} {profile.oc_platform}".lower()
 
     if gen == 2:
-        return IG_PLATFORM_IDS["hd3000"], None
+        if profile.platform == "laptop":
+            return IG_PLATFORM_IDS["snb_mobile"], None
+        if headless:
+            return IG_PLATFORM_IDS["snb_headless"], DEVICE_IDS["snb_headless"]
+        return IG_PLATFORM_IDS["snb_desktop"], DEVICE_IDS["snb_display"]
     elif gen == 3:
-        return IG_PLATFORM_IDS["hd4000"], None
+        if profile.platform == "laptop":
+            return IG_PLATFORM_IDS["ivb_mobile"], None
+        if headless:
+            return IG_PLATFORM_IDS["ivb_headless"], None
+        return IG_PLATFORM_IDS["ivb_desktop"], None
     elif gen == 4:
-        if "iris" in name:     return IG_PLATFORM_IDS["iris5100"], None
-        if "hd 5000" in name:  return IG_PLATFORM_IDS["hd5000"], None
-        if "hd 4600" in name:  return IG_PLATFORM_IDS["hd4600"], None
-        return IG_PLATFORM_IDS["hd4400"], None
+        if profile.platform == "laptop":
+            if "iris" in name or "5000" in name:
+                return IG_PLATFORM_IDS["hsw_mobile_iris"], None
+            return IG_PLATFORM_IDS["hsw_mobile"], DEVICE_IDS["hsw"]
+        platform_id = (
+            IG_PLATFORM_IDS["hsw_headless"]
+            if headless else
+            IG_PLATFORM_IDS["hsw_desktop"]
+        )
+        if "4200" in name or "4400" in name:
+            return platform_id, DEVICE_IDS["hsw"]
+        return platform_id, None
     elif gen == 5:
-        if "iris" in name:     return IG_PLATFORM_IDS["iris6100"], None
-        return IG_PLATFORM_IDS["hd5500"], None
+        if profile.platform == "laptop":
+            return IG_PLATFORM_IDS["bdw_mobile"], None
+        # Broadwell has no documented connectorless framebuffer.
+        return IG_PLATFORM_IDS["bdw_desktop"], None
     elif gen == 6:
-        if "iris" in name:     return IG_PLATFORM_IDS["iris540"], None
-        if "530" in name:      return IG_PLATFORM_IDS["hd530"], None
-        if "515" in name:      return IG_PLATFORM_IDS["hd515"], None
-        return IG_PLATFORM_IDS["hd520"], None
+        if macos_major >= 13:
+            if profile.platform == "laptop":
+                if "530" in name:
+                    return IG_PLATFORM_IDS["hd630_mb"], DEVICE_IDS["kbl_hd630_mobile"]
+                return IG_PLATFORM_IDS["hd620"], DEVICE_IDS["kbl_hd620"]
+            platform_id = (
+                IG_PLATFORM_IDS["hd630_headless"]
+                if headless else
+                IG_PLATFORM_IDS["hd630_dt"]
+            )
+            return platform_id, DEVICE_IDS["kbl_hd630_desktop"]
+        if profile.platform == "laptop":
+            if "p530" in name or "550" in name:
+                return IG_PLATFORM_IDS["skl_mobile"], DEVICE_IDS["skl_p530_mobile"]
+            if "510" in name:
+                return IG_PLATFORM_IDS["skl_mobile_hd510"], DEVICE_IDS["skl_hd510"]
+            return IG_PLATFORM_IDS["skl_mobile"], None
+        platform_id = (
+            IG_PLATFORM_IDS["skl_headless"]
+            if headless else
+            IG_PLATFORM_IDS["skl_desktop"]
+        )
+        if "p530" in name:
+            return platform_id, DEVICE_IDS["skl_p530_desktop"]
+        return platform_id, None
     elif gen == 7:
         if "iris" in name:     return IG_PLATFORM_IDS["iris640"], None
-        if "630" in name:      return IG_PLATFORM_IDS["hd630"], None
+        if "630" in name:
+            if headless:
+                return IG_PLATFORM_IDS["hd630_headless"], None
+            if profile.platform == "laptop":
+                return IG_PLATFORM_IDS["hd630_mb"], None
+            return IG_PLATFORM_IDS["hd630_dt"], None
         if "615" in name:      return IG_PLATFORM_IDS["hd615"], None
         return IG_PLATFORM_IDS["hd620"], None
     elif gen in (8, 9):
         if headless:
-            if profile.platform == "desktop":
-                return IG_PLATFORM_IDS["uhd630_dt_headless"], None
-            if "uhd 630" in name:
-                return IG_PLATFORM_IDS["uhd630_headless"], None
-            return IG_PLATFORM_IDS["uhd620_headless"], None
+            return IG_PLATFORM_IDS["uhd630_cfl_headless"], None
         if profile.platform == "desktop":
             return IG_PLATFORM_IDS["uhd630_dt"], None
-        # Kaby Lake-R / Whiskey Lake / Coffee Lake laptop - UHD 620
-        if "uhd 620" in name or "kaby lake-r" in platform or "whiskey" in platform:
-            return IG_PLATFORM_IDS["uhd620"], DEVICE_IDS["kbl_r"]
-        if "uhd 630" in name:
+        if "kaby lake-r" in platform:
+            return IG_PLATFORM_IDS["uhd620_kblr"], DEVICE_IDS["kbl_r"]
+        if "630" in name:
             return IG_PLATFORM_IDS["uhd630_mb"], DEVICE_IDS["cfl_h"]
-        return IG_PLATFORM_IDS["uhd620"], DEVICE_IDS["kbl_r"]
+        return IG_PLATFORM_IDS["uhd620_mb"], DEVICE_IDS["cfl_h"]
     elif gen == 10:
         if "ice lake" in platform:
             return IG_PLATFORM_IDS["iris_ice"], None
         if profile.platform == "desktop":
-            return IG_PLATFORM_IDS["uhd630_cml"], None
-        return IG_PLATFORM_IDS["uhd620_cml"], None
-    elif gen == 11:
-        if headless:
-            return IG_PLATFORM_IDS["iris_tgl_headless"], None
-        return IG_PLATFORM_IDS["iris_tgl"], None
-    elif gen >= 12:
-        return IG_PLATFORM_IDS["uhd770"], None
+            if headless:
+                return IG_PLATFORM_IDS["uhd630_cml_headless"], None
+            return IG_PLATFORM_IDS["uhd630_dt"], None
+        if "630" in name:
+            return IG_PLATFORM_IDS["uhd630_mb"], DEVICE_IDS["cfl_h"]
+        return IG_PLATFORM_IDS["uhd620_mb"], DEVICE_IDS["cfl_h"]
+    elif gen >= 11:
+        # Apple never shipped a driver for Intel Xe graphics. There is no
+        # valid Tiger/Alder/Raptor/Arrow Lake framebuffer to inject.
+        return b"", None
 
-    return IG_PLATFORM_IDS["uhd620"], None
+    return IG_PLATFORM_IDS["uhd620_mb"], None
 
 LOAD_ORDER = [
     "Lilu", "FakeSMC", "VirtualSMC",
@@ -297,13 +347,30 @@ def _acpi_patches(profile: HardwareProfile, ssdts: list[str]) -> list[dict]:
 
     return patches
 
-def _device_properties(profile: HardwareProfile, layout_id: int, audio_enabled: bool = True) -> dict:
+def _device_properties(
+    profile: HardwareProfile,
+    layout_id: int,
+    audio_enabled: bool = True,
+    macos_major: int = 0,
+) -> dict:
     props: dict[str, dict] = {}
 
     # Intel iGPU
-    if profile.gpu_vendor == "intel" and "arc" not in profile.gpu_name.lower():
-        headless = bool(profile.dgpu_vendor)
-        platform_id, device_id = _igpu_config(profile, headless=headless)
+    if (
+        profile.gpu_vendor == "intel"
+        and profile.cpu_generation <= 10
+        and "arc" not in profile.gpu_name.lower()
+    ):
+        # Laptop internal panels are wired to the iGPU even when a discrete GPU
+        # is present. Use a connectorless framebuffer only when a supported AMD
+        # desktop dGPU is expected to drive the display. Unsupported dGPUs are
+        # disabled later only when the user explicitly chooses that option.
+        headless = profile.platform == "desktop" and profile.dgpu_vendor == "amd"
+        platform_id, device_id = _igpu_config(
+            profile,
+            headless=headless,
+            macos_major=macos_major,
+        )
         igpu_props: dict = {
             "AAPL,ig-platform-id": platform_id,
         }
@@ -314,14 +381,20 @@ def _device_properties(profile: HardwareProfile, layout_id: int, audio_enabled: 
         if device_id:
             igpu_props["device-id"] = device_id
 
-        if headless:
-            igpu_props["disable-external-gpu"] = bytes([0x01, 0x00, 0x00, 0x00])
+        if profile.cpu_generation == 6 and macos_major >= 13:
+            # WhateverGreen recommends this alongside the Kaby Lake spoof to
+            # avoid Skylake display corruption on Ventura and newer.
+            igpu_props["AAPL,GfxYTile"] = bytes([0x01, 0x00, 0x00, 0x00])
 
-        if profile.platform == "laptop":
-            # Framebuffer patch for laptop: set stolenmem + cursormem
+        if profile.platform == "laptop" and profile.cpu_generation == 4:
+            # Haswell laptop framebuffers need the documented 9 MB cursor patch.
             igpu_props["framebuffer-patch-enable"] = bytes([0x01, 0x00, 0x00, 0x00])
-            igpu_props["framebuffer-stolenmem"]    = bytes([0x00, 0x00, 0x00, 0x04])  # 64MB
-            igpu_props["framebuffer-fbmem"]        = bytes([0x00, 0x00, 0x00, 0x00])
+            igpu_props["framebuffer-cursormem"] = bytes([0x00, 0x00, 0x90, 0x00])
+        elif profile.platform == "laptop" and profile.cpu_generation >= 5:
+            # Safe fallback for firmware locked to 32 MB DVMT pre-allocation.
+            igpu_props["framebuffer-patch-enable"] = bytes([0x01, 0x00, 0x00, 0x00])
+            igpu_props["framebuffer-stolenmem"]    = bytes([0x00, 0x00, 0x30, 0x01])
+            igpu_props["framebuffer-fbmem"]        = bytes([0x00, 0x00, 0x90, 0x00])
 
         props["PciRoot(0x0)/Pci(0x2,0x0)"] = igpu_props
 
@@ -361,6 +434,13 @@ def _device_properties(profile: HardwareProfile, layout_id: int, audio_enabled: 
 
 def _cpu_needs_spoof(profile: HardwareProfile) -> tuple[bytes, bytes] | None:
     name = profile.cpu_name.lower()
+    if profile.cpu_vendor == "intel" and profile.cpu_generation >= 11:
+        # OpenCore's documented Rocket Lake and newer recommendation: expose
+        # the Comet Lake 0x0A0655 CPUID so XCPM can initialize.
+        return (
+            bytes.fromhex("55060A00" + "00000000" * 3),
+            bytes.fromhex("FFFFFFFF" + "00000000" * 3),
+        )
     if "pentium" in name or "celeron" in name:
         return (
             bytes.fromhex("EA060900" + "00000000" * 3),
@@ -380,11 +460,18 @@ def _kernel_section(profile: HardwareProfile, kexts: list[KextEntry]) -> dict:
     quirks = {
         "AppleCpuPmCfgLock":          True,   # assume CFG Lock can't be disabled
         "AppleXcpmCfgLock":           True,
+        "AppleXcpmExtraMsrs":         False,
+        "AppleXcpmForceBoost":        False,
+        "CustomPciSerialDevice":      False,
         "CustomSMBIOSGuid":           False,
         "DisableIoMapper":            True,    # disable VT-d (enable in BIOS after install)
+        "DisableIoMapperMapping":     False,
         "DisableLinkeditJettison":    True,
         "DisableRtcChecksum":         False,
         "ExtendBTFeatureFlags":       True,    # for BT fixes
+        "ExternalDiskIcons":          False,
+        "ForceAquantiaEthernet":      False,
+        "ForceSecureBootScheme":      False,
         "IncreasePciBarSize":         False,
         "LapicKernelPanic":           False,   # HP laptops need True
         "LegacyCommpage":             False,
@@ -392,6 +479,7 @@ def _kernel_section(profile: HardwareProfile, kexts: list[KextEntry]) -> dict:
         "PowerTimeoutKernelPanic":    True,
         "ProvideCurrentCpuInfo":      True,
         "SetApfsTrimTimeout":         -1,
+        "ThirdPartyDrives":           False,
         "XhciPortLimit":              False,
     }
 
@@ -402,7 +490,8 @@ def _kernel_section(profile: HardwareProfile, kexts: list[KextEntry]) -> dict:
     if profile.cpu_vendor == "amd":
         quirks["AppleCpuPmCfgLock"]  = False
         quirks["AppleXcpmCfgLock"]   = False
-        quirks["ProvideCurrentCpuInfo"] = False
+        # Required by the universal AMD Vanilla patch set.
+        quirks["ProvideCurrentCpuInfo"] = True
 
     # AMD needs extra kernel patches
     patches = []
@@ -439,64 +528,24 @@ def _kernel_section(profile: HardwareProfile, kexts: list[KextEntry]) -> dict:
     }
 
 def _amd_kernel_patches(profile: HardwareProfile) -> list[dict]:
-    cores = cpu_core_count()
-    core_hex = format(cores, "02x")
+    patch_path = Path(__file__).with_name("amd_patches.plist")
+    with patch_path.open("rb") as patch_file:
+        patches = plistlib.load(patch_file)["Kernel"]["Patch"]
 
-    def p(comment, base, find, replace, count=1, min_k="", max_k="", identifier="kernel"):
-        return {
-            "Arch":         "x86_64",
-            "Base":         base,
-            "Comment":      f"AMD - {comment}",
-            "Count":        count,
-            "Enabled":      True,
-            "Find":         bytes.fromhex(find.replace(" ", "")) if find else b"",
-            "Identifier":   identifier,
-            "Limit":        0,
-            "Mask":         b"",
-            "MaxKernel":    max_k,
-            "MinKernel":    min_k,
-            "Replace":      bytes.fromhex(replace.replace(" ", "")),
-            "ReplaceMask":  b"",
-            "Skip":         0,
-        }
+    cores = profile.core_count or cpu_core_count()
+    if not 1 <= cores <= 255:
+        raise ValueError(f"Invalid AMD physical core count: {cores}")
 
-    return [
-        # cpuid_set_cpufamily — make macOS treat AMD as supported Intel family
-        p("cpuid_set_cpufamily",
-          "_cpuid_set_cpufamily",
-          "B9 78000000 31C0 39D9 75 13",
-          "B8 A1000000 31C0 31C0 31C0 EB 02",
-          min_k="20.0.0"),
+    # AMD Vanilla ships four version-specific core-count patches. Byte 1 of
+    # each Replace value is the user-supplied physical core count.
+    for patch in patches:
+        if "Force cpuid_cores_per_package" not in patch.get("Comment", ""):
+            continue
+        replacement = bytearray(patch["Replace"])
+        replacement[1] = cores
+        patch["Replace"] = bytes(replacement)
 
-        # cpuid_set_info_rdmsr — prevent RDMSR crash on AMD
-        p("cpuid_set_info_rdmsr",
-          "_cpuid_set_info_rdmsr",
-          "B9 000000C0 0F32",
-          "B9 000000C0 31C0",
-          count=4, min_k="20.0.0"),
-
-        # commpage_populate — disable commpage CPU features AMD doesn't have
-        p("commpage_populate",
-          "_commpage_populate",
-          "EB 4E",
-          "EB 00",
-          min_k="20.0.0"),
-
-        # mp_cpus_callin — patch CPU count with actual core count
-        p("mp_cpus_callin",
-          "_mp_cpus_callin",
-          "B8 01000000",
-          f"B8 {core_hex}000000",
-          min_k="20.0.0"),
-
-        # cpuid_vmm_present — prevent VMM detection hang
-        p("cpuid_vmm_present",
-          "_cpuid_vmm_present",
-          "B8 01000000 C3",
-          "B8 00000000 C3",
-          min_k="20.0.0"),
-
-    ]
+    return patches
 
 def _nvram_section(
     profile: HardwareProfile,
@@ -524,9 +573,6 @@ def _nvram_section(
     if profile.gpu_vendor == "nvidia":
         boot_args.append("nv_disable=1")  # disable NVIDIA (unsupported on modern macOS)
 
-    if profile.dgpu_vendor == "amd":
-        boot_args.append("-radvesa")
-
     if profile.platform == "laptop" and profile.gpu_vendor == "intel":
         boot_args.append("agdpmod=vit9696")  # iGPU display patch (WhateverGreen)
         boot_args.append("darkwake=0")        # prevent random sleep wakes
@@ -548,6 +594,8 @@ def _nvram_section(
             "4D1EDE05-38C7-4A6A-9CC6-4BCCA8B38C14": [],
             "7C436110-AB2A-4BBB-A880-FE41995C9F82": ["boot-args"],
         },
+        "LegacyOverwrite": False,
+        "LegacySchema":    {},
         "WriteFlash":       True,
     }
 
@@ -593,12 +641,32 @@ def _uefi_section(profile: HardwareProfile, dual_boot: str = "") -> dict:
             "MinVersion":        0,
         },
         "Audio": {
-            "AudioCodec":    0,
-            "AudioDevice":   "",
-            "AudioOutMask":  -1,
-            "AudioSupport":  False,
-            "PlayChime":     "Disabled",
-            "SetupDelay":    0,
+            "AudioCodec":         0,
+            "AudioDevice":        "",
+            "AudioOutMask":       -1,
+            "AudioSupport":       False,
+            "DisconnectHda":      False,
+            "MaximumGain":        -15,
+            "MinimumAssistGain":  -30,
+            "MinimumAudibleGain": -55,
+            "PlayChime":          "Disabled",
+            "ResetTrafficClass":  False,
+            "SetupDelay":         0,
+        },
+        "AppleInput": {
+            "AppleEvent":                    "Builtin",
+            "CustomDelays":                  False,
+            "GraphicsInputMirroring":        True,
+            "KeyInitialDelay":               50,
+            "KeySubsequentDelay":            5,
+            "PointerDwellClickTimeout":       0,
+            "PointerDwellDoubleClickTimeout": 0,
+            "PointerDwellRadius":             0,
+            "PointerPollMask":               -1,
+            "PointerPollMax":                80,
+            "PointerPollMin":                10,
+            "PointerSpeedDiv":               1,
+            "PointerSpeedMul":               1,
         },
         "ConnectDrivers": True,
         "Drivers":        drivers,
@@ -614,9 +682,11 @@ def _uefi_section(profile: HardwareProfile, dual_boot: str = "") -> dict:
         },
         "Output": {
             "ClearScreenOnModeSwitch": False,
+            "ConsoleFont":   "",
             "ConsoleMode":   "",
             "DirectGopRendering": False,
             "ForceResolution": False,
+            "GopBurstMode":  False,
             "GopPassThrough": "Disabled",
             "IgnoreTextInGraphics": False,
             "InitialMode":   "Text",
@@ -664,10 +734,13 @@ def _uefi_section(profile: HardwareProfile, dual_boot: str = "") -> dict:
             "ReloadOptionRoms":             False,
             "RequestBootVarRouting":        True,
             "ResizeGpuBars":                -1,
+            "ResizeUsePciRbIo":             False,
+            "ShimRetainProtocol":           False,
             "TscSyncTimeout":               0,
             "UnblockFsConnect":             any(v in dmi_vendor() for v in ("lenovo", "dell", "hp")),
         },
         "ReservedMemory": [],
+        "Unload":         [],
     }
 
 def _booter_section(profile: HardwareProfile, resizable_bar: bool = False) -> dict:
@@ -702,6 +775,7 @@ def _booter_section(profile: HardwareProfile, resizable_bar: bool = False) -> di
         "Quirks": {
             "AllowRelocationBlock":     False,
             "AvoidRuntimeDefrag":       True,
+            "ClearTaskSwitchBit":       False,
             "DevirtualiseMmio":         devirtualise_mmio,
             "DisableSingleUser":        False,
             "DisableVariableWrite":     False,
@@ -745,14 +819,21 @@ def generate(profile: HardwareProfile, smbios: SMBIOSData, macos_major: int = 0,
             },
         },
         "Booter":           _booter_section(profile, resizable_bar=profile.resizable_bar),
-        "DeviceProperties": _device_properties(profile, layout_id, audio_enabled),
+        "DeviceProperties": _device_properties(
+            profile,
+            layout_id,
+            audio_enabled,
+            macos_major,
+        ),
         "Kernel":           _kernel_section(profile, kexts),
         "Misc": {
             "BlessOverride": [],
             "Boot": {
                 "ConsoleAttributes":  0,
                 "HibernateMode":      "None",
+                "HibernateSkipsPicker": False,
                 "HideAuxiliary":      False,
+                "InstanceIdentifier": "",
                 "LauncherOption":     "Full" if dual_boot else "Disabled",
                 "LauncherPath":       "Default",
                 "PickerAttributes":   1,
