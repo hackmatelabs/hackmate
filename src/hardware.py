@@ -3,6 +3,7 @@ import re
 import json
 from dataclasses import dataclass, field
 from compat import IS_WINDOWS, IS_LINUX, IS_MACOS
+import pci_ids
 
 @dataclass
 class HardwareProfile:
@@ -567,6 +568,22 @@ def _extract_device_name(line: str) -> str:
         return parts[1].split("[")[0].strip()
     return line.split(":")[-1].strip()
 
+_UNHELPFUL_NAME_RE = re.compile(
+    r"^(unknown device|device( \S+)?|vga compatible controller|3d controller|display controller)$",
+    re.IGNORECASE,
+)
+
+
+def _is_unhelpful_device_name(name: str) -> bool:
+    """True when a name extracted from lspci/WMI is a generic placeholder
+    rather than an actual product name — happens when the host's own local
+    pci.ids copy is missing or stale (common on minimal/live Linux USB
+    environments), or a driver hasn't enumerated the device's friendly name
+    yet on Windows. In that case the bundled pci.ids (kept current, unlike
+    whatever's on the host) is worth falling back to."""
+    return not name or bool(_UNHELPFUL_NAME_RE.match(name.strip()))
+
+
 def _detect_gpu_linux(profile: HardwareProfile):
     names = []
     ids_by_name = {}
@@ -576,6 +593,10 @@ def _detect_gpu_linux(profile: HardwareProfile):
             m = re.search(r'\[([0-9a-f]{4}:[0-9a-f]{4})\]', line)
             ids = m.group(1).lower() if m else ""
             name = _extract_device_name(line)
+            if _is_unhelpful_device_name(name) and ids:
+                fallback = pci_ids.pci_device_name(ids[:4], ids[5:])
+                if fallback:
+                    name = fallback
             if "8086" in ids and "intel" not in lower:
                 name = f"Intel {name}"
             elif "10de" in ids and "nvidia" not in lower:
@@ -663,6 +684,22 @@ def _detect_gpu_windows(profile: HardwareProfile):
             controllers = []
     except (TypeError, ValueError):
         controllers = []
+
+    # A driverless/newly-detected GPU can report an empty WMI Name even
+    # though its PNPDeviceID (and therefore VEN_/DEV_) is always present —
+    # resolve those through the bundled pci.ids instead of dropping them.
+    for item in controllers:
+        if not isinstance(item, dict):
+            continue
+        if str(item.get("Name", "")).strip():
+            continue
+        pnp = str(item.get("PNPDeviceID", ""))
+        ven = re.search(r"VEN_([0-9A-Fa-f]{4})", pnp)
+        dev = re.search(r"DEV_([0-9A-Fa-f]{4})", pnp)
+        if ven and dev:
+            fallback = pci_ids.pci_device_name(ven.group(1), dev.group(1))
+            if fallback:
+                item["Name"] = fallback
 
     gpus = [
         str(item.get("Name", "")).strip()

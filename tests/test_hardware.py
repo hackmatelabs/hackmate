@@ -447,6 +447,41 @@ class WindowsGpuDetectionTests(unittest.TestCase):
         self.assertEqual(profile.dgpu_name, "NVIDIA GeForce RTX 4070")
         self.assertEqual(profile.dgpu_vendor, "nvidia")
 
+    def test_driverless_gpu_with_blank_wmi_name_is_resolved_via_pci_ids(self):
+        # A newly-detected/driverless GPU can report an empty WMI Name
+        # while its PNPDeviceID (and therefore VEN_/DEV_) is always
+        # present — this used to just vanish from the profile entirely.
+        controllers = [
+            {
+                "Name": "",
+                "PNPDeviceID": r"PCI\VEN_8086&DEV_591B&SUBSYS_00000000",
+            },
+        ]
+        profile = hardware.HardwareProfile()
+
+        with patch.object(hardware, "_ps", return_value=json.dumps(controllers)):
+            hardware._detect_gpu_windows(profile)
+
+        self.assertIn("HD Graphics 630", profile.gpu_name)
+        self.assertEqual(profile.gpu_vendor, "intel")
+
+
+class LinuxGpuFallbackNameTests(unittest.TestCase):
+    def test_generic_lspci_name_is_resolved_via_bundled_pci_ids(self):
+        # A live/minimal Linux USB environment can have a missing or stale
+        # local pci.ids copy, so lspci falls back to a generic placeholder
+        # name instead of the real product name even though the raw
+        # vendor:device hex pair is always present.
+        profile = hardware.HardwareProfile()
+        profile.raw_pci = [
+            "00:02.0 VGA compatible controller [0300]: Device [8086:591b]",
+        ]
+
+        hardware._detect_gpu_linux(profile)
+
+        self.assertIn("HD Graphics 630", profile.gpu_name)
+        self.assertEqual(profile.gpu_vendor, "intel")
+
 
 class SmbiosGenerationMatchTests(unittest.TestCase):
     def test_kaby_lake_laptop_gets_a_genuine_kaby_lake_smbios(self):

@@ -59,6 +59,15 @@ jobs:
             --hidden-import certifi `
             --hidden-import hwdb_submit `
             --hidden-import config_editor `
+            --hidden-import pci_ids `
+            --hidden-import auto_usb_map `
+            --hidden-import discord_prompt `
+            --hidden-import dualboot `
+            --hidden-import efi_doctor `
+            --hidden-import efi_health `
+            --hidden-import log_checker `
+            --hidden-import partutil `
+            --hidden-import project_stats `
             --hidden-import tkinter `
             --hidden-import tkinter.filedialog `
             --add-data "src\.version;." `
@@ -66,6 +75,7 @@ jobs:
             --add-data "src\macrecovery.py;." `
             --add-data "src\amd_patches.plist;." `
             --add-data "src\assets\acpi;assets\acpi" `
+            --add-data "src\assets\data;assets\data" `
             src/hackmate.py
 
       - name: Upload EXE to release
