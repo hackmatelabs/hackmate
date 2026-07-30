@@ -578,6 +578,7 @@ class WelcomeScreen(Screen):
             ("USB Mapping",           lambda: self.app.push_screen(USBMappingScreen), "primary"),
             ("Edit Config",           lambda: self.app.push_screen(ConfigEditorUSBScreen), "primary"),
             ("Check Logs",            lambda: self.app.push_screen(LogCheckerScreen), "primary"),
+            ("Build History",         lambda: self.app.push_screen(HistoryScreen), "primary"),
             (hwdb_label,              _toggle_hwdb, "primary"),
             ("Quit",                  self.app.destroy, "danger"),
         ]
@@ -1890,6 +1891,18 @@ class InstallScreen(Screen):
             except Exception:
                 pass
 
+            try:
+                import build_history
+                build_history.save_build(
+                    profile=profile,
+                    macos_version=version.name if version else "unknown",
+                    config_path=config_path,
+                    wifi_kext_mode=self.app.wifi_kext_mode,
+                    dual_boot=dual_boot,
+                )
+            except Exception:
+                pass
+
         except Exception as e:
             ui(0, f"Error: {e}")
             log(f"FATAL: {e}", "error")
@@ -1920,6 +1933,62 @@ class InstallScreen(Screen):
                 hwdb_submit.submit_log(profile, feature, log_text, dual_boot=locals().get("dual_boot", ""))
             except Exception:
                 pass
+
+
+class HistoryScreen(Screen):
+    """Browse past builds and reopen a config.plist that's still on disk."""
+
+    def on_show(self):
+        import build_history, time
+        self._builds = build_history.list_builds()
+
+        def _row(b: dict) -> str:
+            ts = time.strftime("%Y-%m-%d %H:%M", time.localtime(b.get("timestamp", 0)))
+            cpu = b.get("hardware", {}).get("cpu_name") or "unknown CPU"
+            macos = b.get("macos_version") or "unknown macOS"
+            return f"  {ts}   {macos}   {cpu}"
+
+        wrap = tk.Frame(self, bg=BG)
+        wrap.pack(fill="both", expand=True, padx=30, pady=20)
+        title(wrap, "── Build History ─────────────────────────────────────────").pack(anchor="w")
+        info(wrap, "").pack(anchor="w")
+
+        items = [_row(b) for b in self._builds] or ["  No past builds recorded yet"]
+        self.listbox = ListBox(wrap, items=items, height=12)
+        self.listbox.pack(fill="x", pady=(2, 8))
+        if self._builds:
+            self.listbox.selection_set(0)
+
+        btn_row = tk.Frame(wrap, bg=BG)
+        btn_row.pack(fill="x", pady=(8, 0))
+        button(btn_row, "Open Config",  self._open,   "primary").pack(side="left", padx=(0, 8))
+        button(btn_row, "Delete Entry", self._delete, "danger").pack(side="left", padx=(0, 8))
+        button(btn_row, "← Back",       self.app.pop_screen, "back").pack(side="left")
+
+    def _selected(self):
+        if not self._builds:
+            return None
+        idx = self.listbox.index or 0
+        return self._builds[idx]
+
+    def _open(self):
+        entry = self._selected()
+        if not entry:
+            return
+        cfg = entry.get("config_path") or ""
+        if cfg and Path(cfg).exists():
+            self.app.push_screen(ConfigEditorScreen, Path(cfg))
+        else:
+            self.app.notify("That build's config.plist is no longer on disk (USB may have been reformatted).", severity="warning")
+
+    def _delete(self):
+        import build_history
+        entry = self._selected()
+        if not entry:
+            return
+        build_history.delete_build(entry["id"])
+        self.app.pop_screen()
+        self.app.push_screen(HistoryScreen)
 
 
 class RestoreScreen(Screen):

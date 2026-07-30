@@ -693,6 +693,7 @@ class WelcomeScreen(Screen):
                     Button("USB Mapping",            id="usb_map",    classes="primary"),
                     Button("Edit Config",            id="edit_cfg",   classes="primary"),
                     Button("Check Logs",             id="check_logs", classes="primary"),
+                    Button("Build History",          id="history",    classes="primary"),
                     Button(
                         "Sharing build logs: ON" if hwdb_submit.has_consented() else "Sharing build logs: OFF",
                         id="hwdb_toggle", classes="primary"
@@ -736,6 +737,8 @@ class WelcomeScreen(Screen):
             self.app.push_screen(DiskMapScreen())
         elif event.button.id == "check_logs":
             self.app.push_screen(LogCheckerScreen())
+        elif event.button.id == "history":
+            self.app.push_screen(HistoryScreen())
         elif event.button.id == "hwdb_toggle":
             import hwdb_submit
             hwdb_submit.set_consent(not hwdb_submit.has_consented())
@@ -887,6 +890,61 @@ class HealthCheckScreen(Screen):
                     unmount_usb(get_mount_path(usb, skip_format=True))
                 except Exception:
                     pass
+
+
+class HistoryScreen(Screen):
+    """Browse past builds and reopen a config.plist that's still on disk."""
+
+    def compose(self) -> ComposeResult:
+        import build_history
+        self._builds = build_history.list_builds()
+
+        def _row(b: dict) -> str:
+            import time
+            ts = time.strftime("%Y-%m-%d %H:%M", time.localtime(b.get("timestamp", 0)))
+            cpu = b.get("hardware", {}).get("cpu_name") or "unknown CPU"
+            macos = b.get("macos_version") or "unknown macOS"
+            return f"  {ts}   {macos}   {cpu}"
+
+        items = [ListItem(Label(_row(b))) for b in self._builds] or [
+            ListItem(Label("  No past builds recorded yet"))
+        ]
+
+        yield Header()
+        yield Container(
+            Vertical(
+                Static("── Build History ─────────────────────────────────────────", classes="title"),
+                Static(""),
+                ListView(*items, id="history-list"),
+                Static(""),
+                Button("Open Config",   id="open",   classes="primary"),
+                Button("Delete Entry",  id="delete", classes="danger"),
+                Button("← Back",        id="back",   classes="back"),
+                classes="screen-inner"
+            )
+        )
+        yield Footer()
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        import build_history
+        if event.button.id == "back":
+            self.app.pop_screen()
+            return
+        if not self._builds:
+            return
+        idx = self.query_one("#history-list", ListView).index or 0
+        entry = self._builds[idx]
+
+        if event.button.id == "open":
+            cfg = entry.get("config_path") or ""
+            if cfg and Path(cfg).exists():
+                self.app.push_screen(ConfigEditorScreen(Path(cfg)))
+            else:
+                self.app.notify("That build's config.plist is no longer on disk (USB may have been reformatted).")
+        elif event.button.id == "delete":
+            build_history.delete_build(entry["id"])
+            self.app.pop_screen()
+            self.app.push_screen(HistoryScreen())
 
 
 class RestoreScreen(Screen):
@@ -2811,6 +2869,18 @@ class InstallScreen(Screen):
                     wifi_kext_mode=self.app.wifi_kext_mode, full_log="\n".join(log_lines),
                 )
                 hwdb_submit.submit_log(profile, feature, log_text, dual_boot=dual_boot)
+            except Exception:
+                pass
+
+            try:
+                import build_history
+                build_history.save_build(
+                    profile=profile,
+                    macos_version=version.name if version else "unknown",
+                    config_path=config_path,
+                    wifi_kext_mode=self.app.wifi_kext_mode,
+                    dual_boot=dual_boot,
+                )
             except Exception:
                 pass
 
