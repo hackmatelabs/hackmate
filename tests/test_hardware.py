@@ -38,6 +38,49 @@ class DiscreteGpuPromptTests(unittest.TestCase):
 
         self.assertFalse(hardware.needs_dgpu_disable_prompt(profile))
 
+class HardwareWarningTests(unittest.TestCase):
+    def test_tiger_lake_laptop_warns_that_internal_graphics_are_unusable(self):
+        profile = hardware.HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=11,
+            gpu_vendor="intel",
+            gpu_name="Intel Iris Xe Graphics",
+            platform="laptop",
+        )
+
+        warnings = hardware.hardware_warnings(profile)
+
+        self.assertTrue(any("no macOS driver" in warning for warning in warnings))
+        self.assertTrue(any("laptop internal displays" in warning for warning in warnings))
+
+    def test_alder_lake_desktop_requires_supported_amd_graphics(self):
+        profile = hardware.HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=12,
+            gpu_vendor="intel",
+            gpu_name="Intel UHD Graphics 770",
+            platform="desktop",
+        )
+
+        warnings = hardware.hardware_warnings(profile)
+
+        self.assertTrue(any("supported AMD discrete GPU is required" in warning for warning in warnings))
+
+    def test_newer_intel_desktop_with_amd_dgpu_gets_disable_igpu_guidance(self):
+        profile = hardware.HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=13,
+            gpu_vendor="intel",
+            gpu_name="Intel UHD Graphics 770",
+            dgpu_vendor="amd",
+            dgpu_name="AMD Radeon RX 6600",
+            platform="desktop",
+        )
+
+        warnings = hardware.hardware_warnings(profile)
+
+        self.assertTrue(any("disable it in BIOS" in warning for warning in warnings))
+
 
 class WindowsNetworkDetectionTests(unittest.TestCase):
     def test_ethernet_query_selects_physical_adapter_without_name_blacklist(self):

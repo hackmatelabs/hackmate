@@ -233,6 +233,32 @@ class OpenCoreSchemaSafetyTests(unittest.TestCase):
             with self.subTest(comment=entry["Comment"]):
                 self.assertEqual(len(entry["Find"]), len(entry["Replace"]))
 
+    def test_newer_intel_cpu_uses_documented_comet_lake_cpuid_spoof(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=12,
+            cpu_codename="Alder Lake",
+            oc_platform="Alder Lake",
+            gpu_vendor="intel",
+            gpu_name="Intel UHD Graphics 770",
+            dgpu_vendor="amd",
+            platform="desktop",
+        )
+
+        with patch.object(config_gen, "dmi_vendor", return_value=""):
+            kernel = config_gen._kernel_section(profile, [])
+
+        emulate = kernel["Emulate"]
+        self.assertEqual(
+            emulate["Cpuid1Data"],
+            bytes.fromhex("55060A00" + "00000000" * 3),
+        )
+        self.assertEqual(
+            emulate["Cpuid1Mask"],
+            bytes.fromhex("FFFFFFFF" + "00000000" * 3),
+        )
+        self.assertTrue(kernel["Quirks"]["ProvideCurrentCpuInfo"])
+
 
 class IntelGraphicsSafetyTests(unittest.TestCase):
     def test_sandy_bridge_laptop_uses_snb_platform_id_without_dvmt_patch(self):
@@ -428,6 +454,27 @@ class IntelGraphicsSafetyTests(unittest.TestCase):
         self.assertEqual(
             config_gen._igpu_config(p530),
             (bytes.fromhex("00001219"), bytes.fromhex("1B190000")),
+        )
+
+    def test_intel_xe_igpu_is_not_given_a_fake_framebuffer(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=12,
+            cpu_codename="Alder Lake",
+            oc_platform="Alder Lake",
+            gpu_vendor="intel",
+            gpu_name="Intel UHD Graphics 770",
+            dgpu_vendor="amd",
+            platform="desktop",
+        )
+
+        self.assertEqual(config_gen._igpu_config(profile), (b"", None))
+
+        properties = config_gen._device_properties(profile, 1)
+
+        self.assertNotIn(
+            "PciRoot(0x0)/Pci(0x2,0x0)",
+            properties["Add"],
         )
 
     def test_kaby_lake_hd630_laptop_uses_mobile_framebuffer(self):

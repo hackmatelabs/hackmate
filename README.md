@@ -129,7 +129,7 @@ sudo .venv/bin/python3 src/hackmate_gui.py      # linux / macos
 
 ## supported hardware
 
-**cpu generations:** sandy bridge · ivy bridge · haswell · broadwell · skylake · kaby lake · coffee lake · comet lake · rocket lake · alder lake · raptor lake · amd ryzen / threadripper
+**cpu generations:** sandy bridge · ivy bridge · haswell · broadwell · skylake · kaby lake · coffee lake · comet lake / ice lake · rocket lake and newer desktops with a supported amd dgpu · amd ryzen / threadripper desktops
 
 **laptops tested:** thinkpad t480s, t480, t470, x1 carbon · dell xps 13/15 · hp elitebook · asus zenbook · acer aspire
 
@@ -147,7 +147,7 @@ sudo .venv/bin/python3 src/hackmate_gui.py      # linux / macos
 nah. hackmate runs on linux, windows, and macos. u can make the usb from any computer u have lying around.
 
 **will this work on my laptop/desktop?**
-if ur cpu is intel 2nd–13th gen or amd ryzen, very likely yeah. run hackmate and it'll tell u exactly which macos versions work w/ ur hardware.
+intel 2nd–10th gen is the normal range. 11th gen and newer intel xe graphics have no macos driver, so those desktops need a supported amd dgpu and those laptops usually arent viable. amd ryzen desktops work w/ the amd vanilla patches. run hackmate and it'll flag dead ends before it builds.
 
 **is this the same as following the dortania opencore guide by hand?**
 hackmate uses the exact same tools (macrecovery, ssdttime, opencore) that dortania recommends, just automates every single step of it. the output efi is equivalent to what u'd build by hand — minus the hours of pain.

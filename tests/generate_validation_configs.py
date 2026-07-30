@@ -80,6 +80,18 @@ PROFILES = {
         platform="desktop",
         smbios_model="iMac20,1",
     ),
+    "alder-amd-dgpu": HardwareProfile(
+        cpu_vendor="intel",
+        cpu_generation=12,
+        cpu_codename="Alder Lake",
+        oc_platform="Alder Lake",
+        gpu_vendor="intel",
+        gpu_name="Intel UHD Graphics 770",
+        dgpu_vendor="amd",
+        dgpu_name="AMD Radeon RX 6600",
+        platform="desktop",
+        smbios_model="MacPro7,1",
+    ),
     "ryzen-desktop": HardwareProfile(
         cpu_vendor="amd",
         cpu_generation=11,

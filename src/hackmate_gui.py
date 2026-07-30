@@ -657,7 +657,7 @@ class ManualHardwareScreen(Screen):
         ("intel-9m",   "Intel Core i5/i7/i9-9xxx H  —  Coffee Lake Refresh (9th gen laptop)"),
         ("intel-10cm", "Intel Core i3/i5/i7-10xxx H  —  Comet Lake-H (10th gen laptop)"),
         ("intel-10il", "Intel Core i3/i5/i7-10xxx U/Y  —  Ice Lake (10th gen laptop, Iris Plus)"),
-        ("intel-11tl", "Intel Core i5/i7-11xxx  —  Tiger Lake (11th gen laptop, limited support)"),
+        ("intel-11tl", "Intel Core i5/i7-11xxx  —  Tiger Lake (11th gen laptop, iGPU unsupported)"),
         ("amd-zen1d",  "AMD Ryzen 3/5/7 1xxx  —  Zen (desktop)"),
         ("amd-zenpd",  "AMD Ryzen 3/5/7 2xxx  —  Zen+ (desktop)"),
         ("amd-zen2d",  "AMD Ryzen 5/7/9 3xxx  —  Zen 2 (desktop)"),

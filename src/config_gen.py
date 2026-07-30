@@ -44,12 +44,6 @@ IG_PLATFORM_IDS: dict[str, bytes] = {
     "uhd630_cml_headless": bytes([0x03, 0x00, 0xC8, 0x9B]),
     # Ice Lake
     "iris_ice":  bytes([0x00, 0x00, 0x52, 0x8A]),
-    # Tiger Lake
-    "iris_tgl":  bytes([0x00, 0x00, 0x49, 0x9A]),
-    # Alder Lake (no iGPU support in macOS natively, needs NootedBlue or patch)
-    "uhd770":    bytes([0x00, 0x00, 0xA6, 0x46]),
-    # Headless variant (when dGPU drives display)
-    "iris_tgl_headless":  bytes([0x02, 0x00, 0x49, 0x9A]),
 }
 
 DEVICE_IDS: dict[str, bytes] = {
@@ -135,12 +129,10 @@ def _igpu_config(profile: HardwareProfile, headless: bool = False) -> tuple[byte
         if "630" in name:
             return IG_PLATFORM_IDS["uhd630_mb"], DEVICE_IDS["cfl_h"]
         return IG_PLATFORM_IDS["uhd620_mb"], DEVICE_IDS["cfl_h"]
-    elif gen == 11:
-        if headless:
-            return IG_PLATFORM_IDS["iris_tgl_headless"], None
-        return IG_PLATFORM_IDS["iris_tgl"], None
-    elif gen >= 12:
-        return IG_PLATFORM_IDS["uhd770"], None
+    elif gen >= 11:
+        # Apple never shipped a driver for Intel Xe graphics. There is no
+        # valid Tiger/Alder/Raptor/Arrow Lake framebuffer to inject.
+        return b"", None
 
     return IG_PLATFORM_IDS["uhd620_mb"], None
 
@@ -328,7 +320,11 @@ def _device_properties(profile: HardwareProfile, layout_id: int, audio_enabled: 
     props: dict[str, dict] = {}
 
     # Intel iGPU
-    if profile.gpu_vendor == "intel" and "arc" not in profile.gpu_name.lower():
+    if (
+        profile.gpu_vendor == "intel"
+        and profile.cpu_generation <= 10
+        and "arc" not in profile.gpu_name.lower()
+    ):
         # Laptop internal panels are wired to the iGPU even when a discrete GPU
         # is present. Use a connectorless framebuffer only when a supported AMD
         # desktop dGPU is expected to drive the display. Unsupported dGPUs are
@@ -393,6 +389,13 @@ def _device_properties(profile: HardwareProfile, layout_id: int, audio_enabled: 
 
 def _cpu_needs_spoof(profile: HardwareProfile) -> tuple[bytes, bytes] | None:
     name = profile.cpu_name.lower()
+    if profile.cpu_vendor == "intel" and profile.cpu_generation >= 11:
+        # OpenCore's documented Rocket Lake and newer recommendation: expose
+        # the Comet Lake 0x0A0655 CPUID so XCPM can initialize.
+        return (
+            bytes.fromhex("55060A00" + "00000000" * 3),
+            bytes.fromhex("FFFFFFFF" + "00000000" * 3),
+        )
     if "pentium" in name or "celeron" in name:
         return (
             bytes.fromhex("EA060900" + "00000000" * 3),

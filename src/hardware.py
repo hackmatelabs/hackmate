@@ -818,12 +818,30 @@ def hardware_warnings(profile: HardwareProfile) -> list[str]:
             "this build will not boot."
         )
 
-    if profile.cpu_generation == 11 and profile.platform == "desktop" and not profile.dgpu_vendor:
-        warnings.append(
-            "Rocket Lake's integrated Xe graphics have no native macOS driver — "
-            "without a discrete GPU this machine will have no video output "
-            "after boot."
-        )
+    if (
+        profile.cpu_vendor == "intel"
+        and profile.cpu_generation >= 11
+        and profile.gpu_vendor == "intel"
+    ):
+        if profile.platform == "laptop":
+            warnings.append(
+                "Tiger Lake and newer Intel Xe integrated graphics have no "
+                "macOS driver — laptop internal displays normally depend on "
+                "that iGPU, so this machine will not have usable accelerated "
+                "graphics."
+            )
+        elif profile.dgpu_vendor != "amd":
+            warnings.append(
+                "Rocket Lake and newer Intel integrated graphics have no "
+                "macOS driver — a supported AMD discrete GPU is required for "
+                "usable video output."
+            )
+        else:
+            warnings.append(
+                "This Intel integrated GPU has no macOS driver and will be "
+                "left unconfigured — disable it in BIOS and use the supported "
+                "AMD discrete GPU for every display."
+            )
 
     if profile.wifi_chipset == "atheros":
         warnings.append(
