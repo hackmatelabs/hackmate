@@ -306,6 +306,23 @@ def _is_hedt(profile: HardwareProfile) -> bool:
     name = profile.cpu_name.lower()
     return any(x in name for x in ["threadripper", "xeon w-", "i9-79", "i9-78", "i7-79", "i7-78"])
 
+# Chipsets (not CPU generations) whose XHCI controller isn't on Apple's
+# native driver whitelist, per RehabMan/OS-X-USB-Inject-All's own compat
+# notes: mainstream H370/B360/H310 boards need it despite pairing with a
+# fully-supported 8th/9th gen CPU, and X79/X99 HEDT boards need it
+# regardless of which CPU generation _is_hedt() would otherwise catch by
+# name. cpu_generation <= 3 (Sandy/Ivy Bridge) already covers the general
+# pre-native-USB3 era separately from this chipset-specific list.
+_XHCI_UNSUPPORTED_CHIPSETS = ("h370", "b360", "h310", "x79", "x99")
+
+def _needs_xhci_unsupported(board_name: str) -> bool:
+    """Board-name substring match — works for DIY boards (ASUS/MSI/Gigabyte/
+    ASRock all put the chipset in the model string) but OEM desktops
+    (Dell/HP/Lenovo) often expose only an internal part number here, so this
+    can't catch those cases; cpu_generation <= 3 is the only signal for them."""
+    name = board_name.lower()
+    return any(chipset in name for chipset in _XHCI_UNSUPPORTED_CHIPSETS)
+
 def _has_card_reader() -> bool:
     import platform
     if IS_WINDOWS:
@@ -344,6 +361,7 @@ def select_kexts(profile: HardwareProfile, wifi_kext_mode: str = "itlwm") -> lis
                 selected.append(DB[name])
 
     vendor = _dmi("sys_vendor") or _dmi("board_vendor")
+    board_name = _dmi("board_name")
     tp = _detect_touchpad_type() if profile.platform == "laptop" else "none"
     legacy = _is_legacy(profile)
 
@@ -459,7 +477,9 @@ def select_kexts(profile: HardwareProfile, wifi_kext_mode: str = "itlwm") -> lis
         add("NVMeFix")
 
     add("USBToolBox", "UTBMap")
-    if profile.cpu_generation <= 3:
+    if profile.cpu_vendor == "intel" and (
+        profile.cpu_generation <= 3 or _needs_xhci_unsupported(board_name)
+    ):
         add("XHCI-unsupported")
 
     # IOElectrify/ThunderboltReset are unmaintained; modern OC handles TB natively

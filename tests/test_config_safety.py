@@ -96,6 +96,48 @@ class RequiredSsdtSafetyTests(unittest.TestCase):
         self.assertNotIn("SSDT-USBX", ssdts)
 
 
+class XhciUnsupportedChipsetTests(unittest.TestCase):
+    # Regression: XHCI-unsupported was gated purely on cpu_generation <= 3
+    # (Sandy/Ivy Bridge) — completely missing mainstream H370/B360/H310
+    # boards (8th/9th gen, otherwise fully supported) and X79/X99 HEDT
+    # boards, both flagged directly by a community member as needing this
+    # kext regardless of CPU generation.
+    def _selected_names(self, board_name: str, cpu_generation: int = 8) -> set[str]:
+        profile = HardwareProfile(
+            cpu_vendor="intel", cpu_generation=cpu_generation, platform="desktop",
+        )
+        with (
+            patch.object(kexts, "_dmi", side_effect=lambda field: board_name if field == "board_name" else ""),
+            patch.object(kexts, "_has_card_reader", return_value=False),
+        ):
+            return {entry.name for entry in kexts.select_kexts(profile)}
+
+    def test_h370_board_gets_xhci_unsupported_despite_modern_cpu(self):
+        names = self._selected_names("asus prime h370-a")
+        self.assertIn("XHCI-unsupported", names)
+
+    def test_b360_board_gets_xhci_unsupported(self):
+        names = self._selected_names("msi b360m pro-vdh")
+        self.assertIn("XHCI-unsupported", names)
+
+    def test_x99_hedt_board_gets_xhci_unsupported_regardless_of_cpu_name(self):
+        names = self._selected_names("asrock x99 taichi")
+        self.assertIn("XHCI-unsupported", names)
+
+    def test_ordinary_z370_board_does_not_get_it(self):
+        names = self._selected_names("asus rog strix z370-e gaming")
+        self.assertNotIn("XHCI-unsupported", names)
+
+    def test_amd_system_never_gets_it_even_on_a_matching_board_name(self):
+        profile = HardwareProfile(cpu_vendor="amd", cpu_generation=11, platform="desktop")
+        with (
+            patch.object(kexts, "_dmi", side_effect=lambda field: "b360" if field == "board_name" else ""),
+            patch.object(kexts, "_has_card_reader", return_value=False),
+        ):
+            names = {entry.name for entry in kexts.select_kexts(profile)}
+        self.assertNotIn("XHCI-unsupported", names)
+
+
 class LegacyCpuPowerManagementSafetyTests(unittest.TestCase):
     def _selected_names(self, cpu_generation: int) -> set[str]:
         profile = HardwareProfile(
