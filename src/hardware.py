@@ -45,6 +45,14 @@ class HardwareProfile:
 
     raw_pci: list = field(default_factory=list)
 
+def needs_dgpu_disable_prompt(profile: HardwareProfile) -> bool:
+    """Return whether the build flow should offer to disable an external GPU."""
+    return bool(
+        profile.gpu_vendor == "intel"
+        and profile.dgpu_vendor
+        and (profile.platform == "laptop" or profile.dgpu_vendor == "nvidia")
+    )
+
 def _run(cmd: list[str]) -> str:
     try:
         return subprocess.run(cmd, capture_output=True, text=True, timeout=10).stdout.strip()

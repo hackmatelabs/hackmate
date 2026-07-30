@@ -27,7 +27,7 @@ from updater import check_and_update
 if check_and_update():
     os.execv(sys.executable, [sys.executable] + sys.argv)
 
-from hardware import scan, HardwareProfile
+from hardware import scan, HardwareProfile, needs_dgpu_disable_prompt
 from kexts import select_kexts, get_alc_layout
 from smbios import generate as gen_smbios, SMBIOSData
 from config_gen import generate as gen_config, write_plist, _required_ssdts
@@ -1022,10 +1022,9 @@ class NoUSBPathScreen(Screen):
     def _next(self, path: str) -> None:
         self.app.efi_output_path = _expand_user_path(path)
         profile: HardwareProfile = self.app.profile
-        has_dgpu = getattr(profile, "dgpu_vendor", "") and getattr(profile, "gpu_vendor", "") == "intel"
         if getattr(profile, "wifi_chipset", ""):
             self.app.push_screen(WiFiKextScreen, "local", False, True)
-        elif has_dgpu:
+        elif needs_dgpu_disable_prompt(profile):
             self.app.push_screen(DGPUScreen, "local", False, True)
         else:
             self.app.push_screen(DualBootScreen, "local", False, True)
@@ -1092,7 +1091,7 @@ class WiFiKextScreen(Screen):
     def _choose(self, mode: str):
         self.app.wifi_kext_mode = mode
         profile: HardwareProfile = self.app.profile
-        if getattr(profile, "dgpu_vendor", "") and getattr(profile, "gpu_vendor", "") == "intel":
+        if needs_dgpu_disable_prompt(profile):
             self.app.push_screen(DGPUScreen, self.device, self.repair, self.skip_format)
         else:
             self.app.push_screen(DualBootScreen, self.device, self.repair, self.skip_format)
@@ -1125,10 +1124,9 @@ class BuildModeScreen(Screen):
 
     def _next(self, repair: bool, skip_format: bool):
         profile: HardwareProfile = self.app.profile
-        has_dgpu = getattr(profile, "dgpu_vendor", "") and getattr(profile, "gpu_vendor", "") == "intel"
         if getattr(profile, "wifi_chipset", ""):
             self.app.push_screen(WiFiKextScreen, self.device, repair, skip_format)
-        elif has_dgpu:
+        elif needs_dgpu_disable_prompt(profile):
             self.app.push_screen(DGPUScreen, self.device, repair, skip_format)
         else:
             self.app.push_screen(DualBootScreen, self.device, repair, skip_format)
@@ -1153,17 +1151,23 @@ class DGPUScreen(Screen):
         info(wrap, "").pack(anchor="w")
         info(wrap, f"  {dgpu}").pack(anchor="w")
         info(wrap, "").pack(anchor="w")
-        for line in [
-            "  macOS does not support Optimus (Intel + Nvidia/AMD switching).",
-            "  The discrete GPU must be disabled, otherwise you will get:",
-            "    • Black screen on boot",
-            "    • Reduced battery life",
-            "    • System instability",
-            "",
+        if profile.platform == "laptop":
+            details = [
+                "  macOS does not support Optimus-style GPU switching.",
+                "  Disabling the dGPU usually prevents black screens,",
+                "  excess battery drain, and instability.",
+                "",
+                "  You can also disable it in BIOS under Switchable Graphics.",
+            ]
+        else:
+            details = [
+                "  This external GPU is not supported by modern macOS.",
+                "  Disable it and connect the monitor to the motherboard",
+                "  video output so the Intel iGPU can drive the display.",
+            ]
+        for line in details + [
             "  Disable via DeviceProperties (recommended)?",
-            "  This adds 'disable-gpu' to your config.plist for the dGPU path.",
-            "",
-            "  Note: You can also disable it in BIOS under 'Switchable Graphics'.",
+            "  This uses WhateverGreen to disable external GPUs.",
         ]:
             info(wrap, line).pack(anchor="w")
         info(wrap, "").pack(anchor="w")
@@ -2010,8 +2014,7 @@ class ConfigEditorScreen(Screen):
         alc_opts = suggest_audio_layouts(codec)
 
         dgpu_name = getattr(profile, "dgpu_name", "") if profile else ""
-        dgpu_vendor = getattr(profile, "dgpu_vendor", "") if profile else ""
-        has_dgpu = bool(dgpu_vendor and getattr(profile, "gpu_vendor", "") == "intel")
+        offer_disable_dgpu = bool(profile and needs_dgpu_disable_prompt(profile))
 
         wrap = tk.Frame(self, bg=BG)
         wrap.pack(fill="both", expand=True, padx=24, pady=16)
@@ -2084,12 +2087,12 @@ class ConfigEditorScreen(Screen):
         self.in_smbios.pack(side="left")
 
         self.sw_dgpu = None
-        if has_dgpu:
+        if offer_disable_dgpu:
             section(sp, "Discrete GPU").pack(anchor="w", fill="x", pady=(10, 2))
             info(sp, f"  {dgpu_name}").pack(anchor="w")
             r = row(sp); r.pack(anchor="w", fill="x")
             self.sw_dgpu = Switch(r, value=get_dgpu_disabled(cfg))
-            self.sw_dgpu.pack(side="left"); info(r, "  Disable dGPU (Optimus fix)").pack(side="left")
+            self.sw_dgpu.pack(side="left"); info(r, "  Disable external GPU").pack(side="left")
 
         self.in_fb = None
         if fb_opts or gpu_id:

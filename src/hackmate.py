@@ -146,7 +146,7 @@ except ModuleNotFoundError:
     print(f"  {sys.executable} -m pip install textual\n")
     sys.exit(1)
 
-from hardware import scan, HardwareProfile
+from hardware import scan, HardwareProfile, needs_dgpu_disable_prompt
 from kexts import select_kexts, get_alc_layout
 from smbios import generate as gen_smbios
 from config_gen import generate as gen_config, write_plist, _required_ssdts
@@ -1492,10 +1492,9 @@ class NoUSBPathScreen(Screen):
     def _next(self, path: str) -> None:
         self.app.efi_output_path = _expand_user_path(path)
         profile: HardwareProfile = self.app.profile
-        has_dgpu = getattr(profile, "dgpu_vendor", "") and getattr(profile, "gpu_vendor", "") == "intel"
         if getattr(profile, "wifi_chipset", ""):
             self.app.push_screen(WiFiKextScreen("local", repair=False, skip_format=True))
-        elif has_dgpu:
+        elif needs_dgpu_disable_prompt(profile):
             self.app.push_screen(DGPUScreen("local", repair=False, skip_format=True))
         else:
             self.app.push_screen(DualBootScreen("local", repair=False, skip_format=True))
@@ -1577,7 +1576,7 @@ class WiFiKextScreen(Screen):
 
     def _next(self) -> None:
         profile: HardwareProfile = self.app.profile
-        if getattr(profile, "dgpu_vendor", "") and getattr(profile, "gpu_vendor", "") == "intel":
+        if needs_dgpu_disable_prompt(profile):
             self.app.push_screen(DGPUScreen(self.device, repair=self.repair, skip_format=self.skip_format))
         else:
             self.app.push_screen(DualBootScreen(self.device, repair=self.repair, skip_format=self.skip_format))
@@ -1625,10 +1624,9 @@ class BuildModeScreen(Screen):
 
     def _next_screen(self, repair: bool, skip_format: bool) -> None:
         profile: HardwareProfile = self.app.profile
-        has_dgpu = getattr(profile, "dgpu_vendor", "") and getattr(profile, "gpu_vendor", "") == "intel"
         if getattr(profile, "wifi_chipset", ""):
             self.app.push_screen(WiFiKextScreen(self.device, repair=repair, skip_format=skip_format))
-        elif has_dgpu:
+        elif needs_dgpu_disable_prompt(profile):
             self.app.push_screen(DGPUScreen(self.device, repair=repair, skip_format=skip_format))
         else:
             self.app.push_screen(DualBootScreen(self.device, repair=repair, skip_format=skip_format))
@@ -1654,7 +1652,20 @@ class DGPUScreen(Screen):
     def compose(self) -> ComposeResult:
         profile: HardwareProfile = self.app.profile
         dgpu   = getattr(profile, "dgpu_name",   "Discrete GPU")
-        vendor = getattr(profile, "dgpu_vendor",  "nvidia")
+        if profile.platform == "laptop":
+            explanation = [
+                Static("  macOS does not support Optimus-style GPU switching.", classes="info"),
+                Static("  Disabling the dGPU usually prevents black screens,", classes="info"),
+                Static("  excess battery drain, and instability.", classes="info"),
+                Static(""),
+                Static("  You can also disable it in BIOS under Switchable Graphics.", classes="info"),
+            ]
+        else:
+            explanation = [
+                Static("  This external GPU is not supported by modern macOS.", classes="info"),
+                Static("  Disable it and connect the monitor to the motherboard", classes="info"),
+                Static("  video output so the Intel iGPU can drive the display.", classes="info"),
+            ]
         yield Header()
         yield Container(
             Vertical(
@@ -1662,16 +1673,9 @@ class DGPUScreen(Screen):
                 Static(""),
                 Static(f"  {dgpu}", classes="info"),
                 Static(""),
-                Static("  macOS does not support Optimus (Intel + Nvidia/AMD switching).", classes="info"),
-                Static("  The discrete GPU must be disabled, otherwise you will get:", classes="info"),
-                Static("    • Black screen on boot", classes="info"),
-                Static("    • Reduced battery life", classes="info"),
-                Static("    • System instability", classes="info"),
-                Static(""),
+                *explanation,
                 Static("  Disable via DeviceProperties (recommended)?", classes="info"),
-                Static("  This adds 'disable-gpu' to your config.plist for the dGPU path.", classes="info"),
-                Static(""),
-                Static("  Note: You can also disable it in BIOS under 'Switchable Graphics'.", classes="info"),
+                Static("  This uses WhateverGreen to disable external GPUs.", classes="info"),
                 Static(""),
                 Button("Yes — disable in config.plist",  id="disable",  classes="primary"),
                 Button("No — I'll handle it myself",     id="skip",     classes="back"),
@@ -2836,8 +2840,7 @@ class ConfigEditorScreen(Screen):
 
         # dGPU
         dgpu_name   = getattr(profile, "dgpu_name",   "") if profile else ""
-        dgpu_vendor = getattr(profile, "dgpu_vendor",  "") if profile else ""
-        has_dgpu    = bool(dgpu_vendor and getattr(profile, "gpu_vendor", "") == "intel")
+        offer_disable_dgpu = bool(profile and needs_dgpu_disable_prompt(profile))
 
         yield Header()
         yield Container(
@@ -2877,8 +2880,8 @@ class ConfigEditorScreen(Screen):
                             [
                                 Static("  ── Discrete GPU ──────────────────────────", classes="cfg-section"),
                                 Static(f"  {dgpu_name}", classes="info"),
-                                Horizontal(Static("  Disable dGPU (Optimus fix)", classes="cfg-label"), Switch(value=get_dgpu_disabled(cfg), id="sw-dgpu"), classes="cfg-row"),
-                            ] if has_dgpu else []
+                                Horizontal(Static("  Disable external GPU", classes="cfg-label"), Switch(value=get_dgpu_disabled(cfg), id="sw-dgpu"), classes="cfg-row"),
+                            ] if offer_disable_dgpu else []
                         ),
                         *(
                             [

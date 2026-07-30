@@ -10,6 +10,35 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 import hardware
 
 
+class DiscreteGpuPromptTests(unittest.TestCase):
+    def test_optimus_laptop_gets_disable_choice(self):
+        profile = hardware.HardwareProfile(
+            gpu_vendor="intel",
+            dgpu_vendor="nvidia",
+            platform="laptop",
+        )
+
+        self.assertTrue(hardware.needs_dgpu_disable_prompt(profile))
+
+    def test_desktop_nvidia_gets_disable_choice(self):
+        profile = hardware.HardwareProfile(
+            gpu_vendor="intel",
+            dgpu_vendor="nvidia",
+            platform="desktop",
+        )
+
+        self.assertTrue(hardware.needs_dgpu_disable_prompt(profile))
+
+    def test_desktop_amd_stays_enabled_for_display_output(self):
+        profile = hardware.HardwareProfile(
+            gpu_vendor="intel",
+            dgpu_vendor="amd",
+            platform="desktop",
+        )
+
+        self.assertFalse(hardware.needs_dgpu_disable_prompt(profile))
+
+
 class WindowsNetworkDetectionTests(unittest.TestCase):
     def test_ethernet_query_selects_physical_adapter_without_name_blacklist(self):
         queries = []
