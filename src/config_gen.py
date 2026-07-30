@@ -466,7 +466,13 @@ def _kernel_section(profile: HardwareProfile, kexts: list[KextEntry]) -> dict:
     quirks = {
         "AppleCpuPmCfgLock":          True,   # assume CFG Lock can't be disabled
         "AppleXcpmCfgLock":           True,
-        "AppleXcpmExtraMsrs":         False,
+        # OpenCore's own docs: "meant for Pentiums, HEDT and other odd
+        # systems not natively supported in macOS" — the exact same CPUs
+        # _cpu_needs_spoof() already flags as needing a CPUID spoof to get
+        # XCPM to recognize them at all, since a CPU model XCPM doesn't
+        # recognize is also very likely to have an MSR layout it doesn't
+        # expect. Was hardcoded off for every build regardless.
+        "AppleXcpmExtraMsrs":         _cpu_needs_spoof(profile) is not None,
         "AppleXcpmForceBoost":        False,
         "CustomPciSerialDevice":      False,
         "CustomSMBIOSGuid":           False,

@@ -318,6 +318,37 @@ class OpenCoreSchemaSafetyTests(unittest.TestCase):
         self.assertTrue(kernel["Quirks"]["ProvideCurrentCpuInfo"])
 
 
+class XcpmExtraMsrsSafetyTests(unittest.TestCase):
+    # OpenCore's own docs: AppleXcpmExtraMsrs is "meant for Pentiums, HEDT
+    # and other odd systems not natively supported in macOS" — the same
+    # CPUs _cpu_needs_spoof() already flags for a CPUID spoof. Was
+    # hardcoded off for every build regardless of CPU.
+    def _quirk(self, profile: HardwareProfile) -> bool:
+        with patch.object(config_gen, "dmi_vendor", return_value=""):
+            return config_gen._kernel_section(profile, [])["Quirks"]["AppleXcpmExtraMsrs"]
+
+    def test_pentium_enables_the_quirk(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel", cpu_name="Intel(R) Pentium(R) CPU G4560",
+            cpu_generation=7, platform="desktop",
+        )
+        self.assertTrue(self._quirk(profile))
+
+    def test_xeon_enables_the_quirk(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel", cpu_name="Intel(R) Xeon(R) CPU E5-2680 v4",
+            cpu_generation=5, platform="desktop",
+        )
+        self.assertTrue(self._quirk(profile))
+
+    def test_ordinary_core_i_cpu_does_not_enable_the_quirk(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel", cpu_name="Intel(R) Core(TM) i7-8700K CPU",
+            cpu_generation=8, platform="desktop",
+        )
+        self.assertFalse(self._quirk(profile))
+
+
 class IntelGraphicsSafetyTests(unittest.TestCase):
     def test_sandy_bridge_laptop_uses_snb_platform_id_without_dvmt_patch(self):
         profile = HardwareProfile(
