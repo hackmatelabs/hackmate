@@ -75,10 +75,20 @@ def _check_hardware_mismatch(cfg: dict, profile, results):
             try:
                 from config_gen import _igpu_config
                 expected_id, _ = _igpu_config(profile)
-                if stored_hex and expected_id and stored_hex != expected_id.hex():
+                expected_ids = {expected_id.hex()} if expected_id else set()
+                if profile.cpu_generation == 6:
+                    # Ventura+ legitimately spoofs Skylake as its closest
+                    # Kaby Lake framebuffer.
+                    expected_ids.add(_igpu_config(profile, macos_major=13)[0].hex())
+                if stored_hex and stored_hex not in expected_ids:
+                    expected_label = (
+                        sorted(expected_ids)[0]
+                        if expected_ids else
+                        "no injected framebuffer"
+                    )
                     warn(
                         f"ig-platform-id in EFI ({stored_hex}) does not match what HackMate "
-                        f"would generate for your GPU ({expected_id.hex()}). "
+                        f"would generate for your GPU ({expected_label}). "
                         f"This EFI may have been made for different hardware."
                     )
                 else:

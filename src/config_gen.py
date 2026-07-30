@@ -57,11 +57,18 @@ DEVICE_IDS: dict[str, bytes] = {
     "skl_hd510": bytes([0x02, 0x19, 0x00, 0x00]),   # enable unsupported mobile HD 510
     "skl_p530_mobile": bytes([0x16, 0x19, 0x00, 0x00]),
     "skl_p530_desktop": bytes([0x1B, 0x19, 0x00, 0x00]),
+    "kbl_hd620": bytes([0x16, 0x59, 0x00, 0x00]),
+    "kbl_hd630_mobile": bytes([0x1B, 0x59, 0x00, 0x00]),
+    "kbl_hd630_desktop": bytes([0x12, 0x59, 0x00, 0x00]),
     "kbl_r":     bytes([0x16, 0x59, 0x00, 0x00]),   # spoof UHD 620 as 5916
     "cfl_h":     bytes([0x9B, 0x3E, 0x00, 0x00]),   # spoof as 3E9B
 }
 
-def _igpu_config(profile: HardwareProfile, headless: bool = False) -> tuple[bytes, bytes | None]:
+def _igpu_config(
+    profile: HardwareProfile,
+    headless: bool = False,
+    macos_major: int = 0,
+) -> tuple[bytes, bytes | None]:
     """Returns (ig-platform-id, device-id or None)"""
     gen = profile.cpu_generation
     name = profile.gpu_name.lower()
@@ -98,6 +105,17 @@ def _igpu_config(profile: HardwareProfile, headless: bool = False) -> tuple[byte
         # Broadwell has no documented connectorless framebuffer.
         return IG_PLATFORM_IDS["bdw_desktop"], None
     elif gen == 6:
+        if macos_major >= 13:
+            if profile.platform == "laptop":
+                if "530" in name:
+                    return IG_PLATFORM_IDS["hd630_mb"], DEVICE_IDS["kbl_hd630_mobile"]
+                return IG_PLATFORM_IDS["hd620"], DEVICE_IDS["kbl_hd620"]
+            platform_id = (
+                IG_PLATFORM_IDS["hd630_headless"]
+                if headless else
+                IG_PLATFORM_IDS["hd630_dt"]
+            )
+            return platform_id, DEVICE_IDS["kbl_hd630_desktop"]
         if profile.platform == "laptop":
             if "p530" in name or "550" in name:
                 return IG_PLATFORM_IDS["skl_mobile"], DEVICE_IDS["skl_p530_mobile"]
@@ -329,7 +347,12 @@ def _acpi_patches(profile: HardwareProfile, ssdts: list[str]) -> list[dict]:
 
     return patches
 
-def _device_properties(profile: HardwareProfile, layout_id: int, audio_enabled: bool = True) -> dict:
+def _device_properties(
+    profile: HardwareProfile,
+    layout_id: int,
+    audio_enabled: bool = True,
+    macos_major: int = 0,
+) -> dict:
     props: dict[str, dict] = {}
 
     # Intel iGPU
@@ -343,7 +366,11 @@ def _device_properties(profile: HardwareProfile, layout_id: int, audio_enabled: 
         # desktop dGPU is expected to drive the display. Unsupported dGPUs are
         # disabled later only when the user explicitly chooses that option.
         headless = profile.platform == "desktop" and profile.dgpu_vendor == "amd"
-        platform_id, device_id = _igpu_config(profile, headless=headless)
+        platform_id, device_id = _igpu_config(
+            profile,
+            headless=headless,
+            macos_major=macos_major,
+        )
         igpu_props: dict = {
             "AAPL,ig-platform-id": platform_id,
         }
@@ -353,6 +380,11 @@ def _device_properties(profile: HardwareProfile, layout_id: int, audio_enabled: 
 
         if device_id:
             igpu_props["device-id"] = device_id
+
+        if profile.cpu_generation == 6 and macos_major >= 13:
+            # WhateverGreen recommends this alongside the Kaby Lake spoof to
+            # avoid Skylake display corruption on Ventura and newer.
+            igpu_props["AAPL,GfxYTile"] = bytes([0x01, 0x00, 0x00, 0x00])
 
         if profile.platform == "laptop" and profile.cpu_generation == 4:
             # Haswell laptop framebuffers need the documented 9 MB cursor patch.
@@ -787,7 +819,12 @@ def generate(profile: HardwareProfile, smbios: SMBIOSData, macos_major: int = 0,
             },
         },
         "Booter":           _booter_section(profile, resizable_bar=profile.resizable_bar),
-        "DeviceProperties": _device_properties(profile, layout_id, audio_enabled),
+        "DeviceProperties": _device_properties(
+            profile,
+            layout_id,
+            audio_enabled,
+            macos_major,
+        ),
         "Kernel":           _kernel_section(profile, kexts),
         "Misc": {
             "BlessOverride": [],

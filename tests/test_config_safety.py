@@ -8,6 +8,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import config_gen
 import config_editor
+import efi_check
 import kexts
 import log_checker
 from hardware import HardwareProfile
@@ -466,6 +467,97 @@ class IntelGraphicsSafetyTests(unittest.TestCase):
             config_gen._igpu_config(profile, headless=True),
             (bytes.fromhex("01001219"), None),
         )
+
+    def test_skylake_is_spoofed_as_matching_kaby_lake_gpu_on_ventura(self):
+        hd520 = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=6,
+            gpu_vendor="intel",
+            gpu_name="Intel HD Graphics 520",
+            platform="laptop",
+        )
+        hd530 = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=6,
+            gpu_vendor="intel",
+            gpu_name="Intel HD Graphics 530",
+            platform="laptop",
+        )
+        desktop = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=6,
+            gpu_vendor="intel",
+            gpu_name="Intel HD Graphics 530",
+            platform="desktop",
+        )
+
+        self.assertEqual(
+            config_gen._igpu_config(hd520, macos_major=13),
+            (bytes.fromhex("00001659"), bytes.fromhex("16590000")),
+        )
+        self.assertEqual(
+            config_gen._igpu_config(hd530, macos_major=13),
+            (bytes.fromhex("00001B59"), bytes.fromhex("1B590000")),
+        )
+        self.assertEqual(
+            config_gen._igpu_config(desktop, macos_major=13),
+            (bytes.fromhex("00001259"), bytes.fromhex("12590000")),
+        )
+        self.assertEqual(
+            config_gen._igpu_config(desktop, headless=True, macos_major=13),
+            (bytes.fromhex("03001259"), bytes.fromhex("12590000")),
+        )
+
+    def test_skylake_ventura_properties_include_graphics_tile_fix(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=6,
+            gpu_vendor="intel",
+            gpu_name="Intel HD Graphics 530",
+            platform="laptop",
+        )
+
+        properties = config_gen._device_properties(
+            profile,
+            1,
+            macos_major=13,
+        )
+        igpu = properties["Add"]["PciRoot(0x0)/Pci(0x2,0x0)"]
+
+        self.assertEqual(igpu["AAPL,ig-platform-id"], bytes.fromhex("00001B59"))
+        self.assertEqual(igpu["device-id"], bytes.fromhex("1B590000"))
+        self.assertEqual(igpu["AAPL,GfxYTile"], bytes.fromhex("01000000"))
+
+    def test_efi_checker_accepts_native_and_ventura_skylake_framebuffers(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=6,
+            gpu_vendor="intel",
+            gpu_name="Intel HD Graphics 530",
+            platform="laptop",
+        )
+
+        for platform_id in ("00001619", "00001B59"):
+            with self.subTest(platform_id=platform_id):
+                config = {
+                    "DeviceProperties": {
+                        "Add": {
+                            "PciRoot(0x0)/Pci(0x2,0x0)": {
+                                "AAPL,ig-platform-id": bytes.fromhex(platform_id),
+                            },
+                        },
+                    },
+                    "Kernel": {"Add": []},
+                    "PlatformInfo": {"Generic": {}},
+                }
+                results = []
+
+                efi_check._check_hardware_mismatch(config, profile, results)
+
+                self.assertFalse(any(
+                    level == "warn" and "ig-platform-id" in message
+                    for level, message in results
+                ))
 
     def test_skylake_unsupported_variants_use_documented_device_spoofs(self):
         hd510 = HardwareProfile(
