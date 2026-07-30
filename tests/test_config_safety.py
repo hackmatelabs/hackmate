@@ -7,6 +7,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import config_gen
+import config_editor
 import kexts
 import log_checker
 from hardware import HardwareProfile
@@ -155,7 +156,7 @@ class IntelGraphicsSafetyTests(unittest.TestCase):
         self.assertEqual(igpu["framebuffer-stolenmem"], bytes.fromhex("00003001"))
         self.assertEqual(igpu["framebuffer-fbmem"], bytes.fromhex("00009000"))
 
-    def test_laptop_dgpu_does_not_force_a_headless_igpu_framebuffer(self):
+    def test_laptop_dgpu_does_not_force_headless_or_disable_before_user_choice(self):
         profile = HardwareProfile(
             cpu_vendor="intel",
             cpu_generation=7,
@@ -169,7 +170,51 @@ class IntelGraphicsSafetyTests(unittest.TestCase):
         igpu = properties["Add"]["PciRoot(0x0)/Pci(0x2,0x0)"]
 
         self.assertEqual(igpu["AAPL,ig-platform-id"], bytes.fromhex("00001B59"))
+        self.assertNotIn("disable-external-gpu", igpu)
+
+    def test_dgpu_choice_uses_stable_igpu_property_and_can_be_reversed(self):
+        config = {
+            "DeviceProperties": {
+                "Add": {
+                    "PciRoot(0x0)/Pci(0x2,0x0)": {
+                        "AAPL,ig-platform-id": bytes.fromhex("00001B59"),
+                    },
+                },
+            },
+        }
+
+        config_editor.set_dgpu_disabled(config, True)
+
+        igpu = config["DeviceProperties"]["Add"]["PciRoot(0x0)/Pci(0x2,0x0)"]
         self.assertEqual(igpu["disable-external-gpu"], bytes.fromhex("01000000"))
+        self.assertTrue(config_editor.get_dgpu_disabled(config))
+
+        config_editor.set_dgpu_disabled(config, False)
+
+        self.assertNotIn("disable-external-gpu", igpu)
+        self.assertFalse(config_editor.get_dgpu_disabled(config))
+
+    def test_amd_desktop_dgpu_keeps_acceleration_and_uses_headless_igpu(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=8,
+            cpu_codename="Coffee Lake",
+            oc_platform="Coffee Lake",
+            gpu_vendor="intel",
+            gpu_name="Intel UHD Graphics 630",
+            dgpu_vendor="amd",
+            dgpu_name="AMD Radeon RX 580",
+            platform="desktop",
+        )
+
+        properties = config_gen._device_properties(profile, 1)
+        nvram = config_gen._nvram_section(profile, 1)
+        igpu = properties["Add"]["PciRoot(0x0)/Pci(0x2,0x0)"]
+        boot_args = nvram["Add"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"]["boot-args"]
+
+        self.assertEqual(igpu["AAPL,ig-platform-id"], bytes.fromhex("0300913E"))
+        self.assertNotIn("disable-external-gpu", igpu)
+        self.assertNotIn("-radvesa", boot_args)
 
     def test_kaby_lake_hd630_desktop_keeps_display_and_headless_variants(self):
         profile = HardwareProfile(

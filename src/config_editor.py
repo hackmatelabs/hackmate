@@ -215,16 +215,26 @@ _DGPU_PATH = "PciRoot(0x0)/Pci(0x1,0x0)/Pci(0x0,0x0)"
 
 def get_dgpu_disabled(cfg: dict) -> bool:
     try:
-        return cfg["DeviceProperties"]["Add"][_DGPU_PATH].get("disable-gpu") == bytes([1, 0, 0, 0])
+        dp = cfg["DeviceProperties"]["Add"]
+        if dp.get(_IGPU_PATH, {}).get("disable-external-gpu") == bytes([1, 0, 0, 0]):
+            return True
+        return dp.get(_DGPU_PATH, {}).get("disable-gpu") == bytes([1, 0, 0, 0])
     except (KeyError, TypeError):
         return False
 
 def set_dgpu_disabled(cfg: dict, disabled: bool) -> None:
     dp = cfg.setdefault("DeviceProperties", {}).setdefault("Add", {})
     if disabled:
-        dp.setdefault(_DGPU_PATH, {})["disable-gpu"] = bytes([1, 0, 0, 0])
-        dp[_DGPU_PATH]["name"] = "Disabled"
+        # WhateverGreen can disable every external GPU from the stable IGPU
+        # path. This avoids guessing a PEG/dGPU PCI path that varies by board.
+        dp.setdefault(_IGPU_PATH, {})["disable-external-gpu"] = bytes([1, 0, 0, 0])
     else:
+        if _IGPU_PATH in dp:
+            dp[_IGPU_PATH].pop("disable-external-gpu", None)
+            if not dp[_IGPU_PATH]:
+                del dp[_IGPU_PATH]
+        # Clean up configs created by older HackMate versions, which guessed a
+        # fixed dGPU path and wrote disable-gpu there.
         if _DGPU_PATH in dp:
             dp[_DGPU_PATH].pop("disable-gpu", None)
             dp[_DGPU_PATH].pop("name", None)

@@ -306,11 +306,11 @@ def _device_properties(profile: HardwareProfile, layout_id: int, audio_enabled: 
 
     # Intel iGPU
     if profile.gpu_vendor == "intel" and "arc" not in profile.gpu_name.lower():
-        has_dgpu = bool(profile.dgpu_vendor)
         # Laptop internal panels are wired to the iGPU even when a discrete GPU
-        # is present. Connectorless framebuffers are only appropriate when a
-        # desktop dGPU is expected to drive the display.
-        headless = profile.platform == "desktop" and has_dgpu
+        # is present. Use a connectorless framebuffer only when a supported AMD
+        # desktop dGPU is expected to drive the display. Unsupported dGPUs are
+        # disabled later only when the user explicitly chooses that option.
+        headless = profile.platform == "desktop" and profile.dgpu_vendor == "amd"
         platform_id, device_id = _igpu_config(profile, headless=headless)
         igpu_props: dict = {
             "AAPL,ig-platform-id": platform_id,
@@ -321,9 +321,6 @@ def _device_properties(profile: HardwareProfile, layout_id: int, audio_enabled: 
 
         if device_id:
             igpu_props["device-id"] = device_id
-
-        if has_dgpu:
-            igpu_props["disable-external-gpu"] = bytes([0x01, 0x00, 0x00, 0x00])
 
         if profile.platform == "laptop":
             # Safe fallback for firmware locked to 32 MB DVMT pre-allocation.
@@ -531,9 +528,6 @@ def _nvram_section(
 
     if profile.gpu_vendor == "nvidia":
         boot_args.append("nv_disable=1")  # disable NVIDIA (unsupported on modern macOS)
-
-    if profile.dgpu_vendor == "amd":
-        boot_args.append("-radvesa")
 
     if profile.platform == "laptop" and profile.gpu_vendor == "intel":
         boot_args.append("agdpmod=vit9696")  # iGPU display patch (WhateverGreen)
