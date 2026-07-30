@@ -1,3 +1,4 @@
+import hashlib
 import os
 import re
 import urllib.request
@@ -33,6 +34,18 @@ class MacOSVersion:
         """Filesystem-safe unique id. Big Sur (11) and El Capitan (10.11) must
         not share a recovery cache directory."""
         return self.version.replace(".", "_")
+
+    @property
+    def cache_key(self) -> str:
+        """Invalidate cached images whenever their Apple query changes."""
+        query = "\0".join((
+            self.version,
+            self.board_id,
+            self.mlb,
+            self.os_flag or "default",
+        ))
+        digest = hashlib.sha256(query.encode()).hexdigest()[:12]
+        return f"{self.slug}-{digest}"
 
     @property
     def major(self) -> int:
@@ -207,7 +220,7 @@ _CACHE_DIR = _real_home() / ".hackmate" / "cache" / "recovery"
 
 def _cached_recovery_files(version: MacOSVersion) -> list[Path]:
     """Return cached recovery files for this version if they exist."""
-    cache = _CACHE_DIR / version.slug
+    cache = _CACHE_DIR / version.cache_key
     if not cache.exists():
         return []
     files = list(cache.glob("*.dmg")) + list(cache.glob("*.chunklist")) + list(cache.glob("com.apple.*"))
@@ -408,7 +421,7 @@ def _download_recovery_once(version: MacOSVersion, dest: Path, progress_cb=None)
 
     # Cache for future use
     try:
-        cache = _CACHE_DIR / version.slug
+        cache = _CACHE_DIR / version.cache_key
         cache.mkdir(parents=True, exist_ok=True)
         for f in files:
             shutil.copy2(f, cache / f.name)

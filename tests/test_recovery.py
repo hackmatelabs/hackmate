@@ -1,5 +1,6 @@
 import sys
 import unittest
+from dataclasses import replace
 from pathlib import Path
 
 
@@ -154,3 +155,10 @@ class RecoveryCommandTests(unittest.TestCase):
         }
 
         self.assertEqual(expected, actual)
+
+    def test_cache_key_changes_with_apple_query(self):
+        sequoia = self._version("15")
+        incorrect_query = replace(sequoia, os_flag="-os latest")
+
+        self.assertNotEqual(sequoia.cache_key, incorrect_query.cache_key)
+        self.assertTrue(sequoia.cache_key.startswith("15-"))
