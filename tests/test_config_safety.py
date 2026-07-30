@@ -70,6 +70,32 @@ class InstallerAudioSafetyTests(unittest.TestCase):
         self.assertIn("VoodooHDA cannot be injected from this installer EFI", titles)
 
 
+class RequiredSsdtSafetyTests(unittest.TestCase):
+    def test_skylake_plus_desktop_gets_standalone_usbx(self):
+        # Regression: Dortania's guide is explicit that SSDT-USBX is
+        # required on desktop systems too from Skylake (gen 6) onward, not
+        # just laptops — desktops only ever got bare SSDT-EC, so no build
+        # for any Skylake-or-newer desktop ever included USB power
+        # properties at all. Reported live: a Coffee Lake OptiPlex desktop
+        # stalling during XHCI port power-on, exactly what USBX covers.
+        profile = HardwareProfile(cpu_generation=8, platform="desktop")
+
+        self.assertIn("SSDT-USBX", config_gen._required_ssdts(profile, []))
+
+    def test_pre_skylake_desktop_does_not_need_usbx(self):
+        profile = HardwareProfile(cpu_generation=4, platform="desktop")
+
+        self.assertNotIn("SSDT-USBX", config_gen._required_ssdts(profile, []))
+
+    def test_laptop_gets_bundled_ec_usbx_not_a_duplicate_standalone_one(self):
+        profile = HardwareProfile(cpu_generation=8, platform="laptop")
+
+        ssdts = config_gen._required_ssdts(profile, [])
+
+        self.assertIn("SSDT-EC-USBX", ssdts)
+        self.assertNotIn("SSDT-USBX", ssdts)
+
+
 class LegacyCpuPowerManagementSafetyTests(unittest.TestCase):
     def _selected_names(self, cpu_generation: int) -> set[str]:
         profile = HardwareProfile(

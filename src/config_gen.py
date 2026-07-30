@@ -271,6 +271,12 @@ def _required_ssdts(profile: HardwareProfile, kexts: list[KextEntry]) -> list[st
         ssdts.append("SSDT-EC-USBX")
     else:
         ssdts.append("SSDT-EC")
+        # Dortania: "For Skylake and newer systems, SSDT-USBX is still
+        # required on desktop systems as well" — the EC-USBX bundle above
+        # only ever covers laptops, so desktops need it added separately
+        # or they never get USB power-property injection at all.
+        if gen >= 6:
+            ssdts.append("SSDT-USBX")
 
     # Backlight (laptop only)
     if profile.platform == "laptop":
