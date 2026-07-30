@@ -60,6 +60,7 @@ jobs:
             --hidden-import hwdb_submit `
             --hidden-import config_editor `
             --hidden-import pci_ids `
+            --hidden-import pci_disable `
             --hidden-import build_history `
             --hidden-import auto_usb_map `
             --hidden-import discord_prompt `

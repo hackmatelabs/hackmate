@@ -661,3 +661,30 @@ def generate(
             results[ssdt] = f"ERROR: all generation methods failed for {ssdt}"
 
     return results
+
+
+def generate_disable_ssdt(
+    acpi_dir: Path,
+    tmp: Path,
+    device: int,
+    function: int,
+    ssdt_name: str = "SSDT-DSBL",
+    table_id: str = "DSBL",
+) -> str:
+    import pci_disable
+
+    dsdt = get_dsdt(tmp)
+    if not dsdt:
+        return "SKIP: no DSDT available"
+
+    dsdt_data = dsdt.read_bytes()
+    device_path = pci_disable.find_device_path_by_pci_address(dsdt_data, device, function)
+    if not device_path:
+        return "SKIP: device not found (or ambiguous) in DSDT"
+
+    ssdttime_dir = SSDTTIME_DIR
+    iasl = find_iasl(ssdttime_dir)
+    dsl = pci_disable.build_disable_ssdt(device_path, table_id=table_id)
+    if _compile_dsl(dsl, ssdt_name, acpi_dir, iasl):
+        return f"OK: {device_path} disabled"
+    return "ERROR: could not compile disable SSDT"

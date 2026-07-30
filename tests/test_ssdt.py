@@ -91,6 +91,47 @@ class UnknownDsdtPlugSafetyTests(unittest.TestCase):
         self.assertFalse((self.acpi_dir / "SSDT-PLUG.aml").exists())
 
 
+def _aml_device(name: str, adr: int) -> bytes:
+    name_b = name.encode("ascii")
+    body = b"\x08_ADR" + b"\x0c" + adr.to_bytes(4, "little")
+    after_pkglen = name_b + body
+    pkg_len = 1 + len(after_pkglen)
+    return b"\x5b\x82" + bytes([pkg_len]) + after_pkglen
+
+
+class DisableSsdtGenerationTests(unittest.TestCase):
+    def setUp(self):
+        self.acpi_dir = Path(tempfile.mkdtemp(prefix="hackmate-test-acpi-"))
+        self.tmp_dir = Path(tempfile.mkdtemp(prefix="hackmate-test-tmp-"))
+
+    def tearDown(self):
+        shutil.rmtree(self.acpi_dir, ignore_errors=True)
+        shutil.rmtree(self.tmp_dir, ignore_errors=True)
+
+    def test_no_dsdt_skips(self):
+        with patch.object(ssdt, "get_dsdt", return_value=None):
+            result = ssdt.generate_disable_ssdt(self.acpi_dir, self.tmp_dir, 0x1C, 0)
+        self.assertTrue(result.startswith("SKIP"))
+
+    def test_device_not_in_dsdt_skips(self):
+        dsdt_file = self.tmp_dir / "DSDT.aml"
+        dsdt_file.write_bytes(_aml_device("WIFI", 0x001D0000))
+        with patch.object(ssdt, "get_dsdt", return_value=dsdt_file):
+            result = ssdt.generate_disable_ssdt(self.acpi_dir, self.tmp_dir, 0x1C, 0)
+        self.assertTrue(result.startswith("SKIP"))
+
+    def test_matching_device_but_no_iasl_errors_not_silently_skips(self):
+        dsdt_file = self.tmp_dir / "DSDT.aml"
+        dsdt_file.write_bytes(_aml_device("WIFI", 0x001C0000))
+        with (
+            patch.object(ssdt, "get_dsdt", return_value=dsdt_file),
+            patch.object(ssdt, "find_iasl", return_value=None),
+        ):
+            result = ssdt.generate_disable_ssdt(self.acpi_dir, self.tmp_dir, 0x1C, 0)
+        self.assertTrue(result.startswith("ERROR"))
+        self.assertFalse((self.acpi_dir / "SSDT-DSBL.aml").exists())
+
+
 class FrozenAssetsPathTests(unittest.TestCase):
     def test_source_checkout_uses_the_real_assets_directory(self):
         with patch.object(sys, "frozen", False, create=True):

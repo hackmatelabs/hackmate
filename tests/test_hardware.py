@@ -48,6 +48,13 @@ class DiscreteGpuPromptTests(unittest.TestCase):
         self.assertTrue(hardware.needs_dgpu_disable_prompt(profile))
 
 class HardwareWarningTests(unittest.TestCase):
+    def test_realtek_wifi_warns_no_macos_driver(self):
+        profile = hardware.HardwareProfile(wifi_chipset="realtek")
+
+        warnings = hardware.hardware_warnings(profile)
+
+        self.assertTrue(any("Realtek PCI WiFi" in w for w in warnings))
+
     def test_tiger_lake_laptop_warns_that_internal_graphics_are_unusable(self):
         profile = hardware.HardwareProfile(
             cpu_vendor="intel",

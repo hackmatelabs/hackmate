@@ -918,6 +918,13 @@ def hardware_warnings(profile: HardwareProfile) -> list[str]:
             "built-in AirPort driver handles it with no version-pinned kext."
         )
 
+    if profile.wifi_chipset == "realtek":
+        warnings.append(
+            "Realtek PCI WiFi cards have no macOS driver on any version — "
+            "swap in an Intel, Broadcom, or Atheros/Qualcomm card, or use a "
+            "USB WiFi adapter instead."
+        )
+
     return warnings
 
 

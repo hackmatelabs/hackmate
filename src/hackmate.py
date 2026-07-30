@@ -2767,6 +2767,26 @@ class InstallScreen(Screen):
                 if patches_gone:
                     log(f"  Removed {patches_gone} ACPI rename(s) left without their SSDT", "info")
 
+            if profile.wifi_chipset == "realtek" and profile.wifi_pci_device >= 0:
+                from ssdt import generate_disable_ssdt
+                disable_result = generate_disable_ssdt(
+                    acpi_dir, tmp,
+                    profile.wifi_pci_device, max(profile.wifi_pci_function, 0),
+                    ssdt_name="SSDT-DSBL-WIFI", table_id="WIFI",
+                )
+                log(f"  Realtek WiFi disable SSDT: {disable_result}", "info")
+                if disable_result.startswith("OK"):
+                    import plistlib
+                    with open(str(config_path), "rb") as f:
+                        cfg = plistlib.load(f)
+                    cfg.setdefault("ACPI", {}).setdefault("Add", []).append({
+                        "Comment": "SSDT-DSBL-WIFI",
+                        "Enabled": True,
+                        "Path": "SSDT-DSBL-WIFI.aml",
+                    })
+                    with open(str(config_path), "wb") as f:
+                        plistlib.dump(cfg, f)
+
             for n in ok_ssdts:
                 log(f"  {n}.aml", "ok")
             for n in skip_ssdts:
