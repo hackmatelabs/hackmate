@@ -28,7 +28,9 @@ IG_PLATFORM_IDS: dict[str, bytes] = {
     # Kaby Lake
     "hd615":     bytes([0x00, 0x00, 0x1B, 0x59]),
     "hd620":     bytes([0x00, 0x00, 0x16, 0x59]),
-    "hd630":     bytes([0x03, 0x00, 0x12, 0x59]),
+    "hd630_dt":  bytes([0x00, 0x00, 0x12, 0x59]),
+    "hd630_mb":  bytes([0x00, 0x00, 0x1B, 0x59]),
+    "hd630_headless": bytes([0x03, 0x00, 0x12, 0x59]),
     "iris640":   bytes([0x00, 0x00, 0x26, 0x59]),
     # Kaby Lake-R / Coffee Lake laptop (Dortania recommended: 0x3EA50004)
     "uhd620":    bytes([0x04, 0x00, 0xA5, 0x3E]),
@@ -84,7 +86,12 @@ def _igpu_config(profile: HardwareProfile, headless: bool = False) -> tuple[byte
         return IG_PLATFORM_IDS["hd520"], None
     elif gen == 7:
         if "iris" in name:     return IG_PLATFORM_IDS["iris640"], None
-        if "630" in name:      return IG_PLATFORM_IDS["hd630"], None
+        if "630" in name:
+            if headless:
+                return IG_PLATFORM_IDS["hd630_headless"], None
+            if profile.platform == "laptop":
+                return IG_PLATFORM_IDS["hd630_mb"], None
+            return IG_PLATFORM_IDS["hd630_dt"], None
         if "615" in name:      return IG_PLATFORM_IDS["hd615"], None
         return IG_PLATFORM_IDS["hd620"], None
     elif gen in (8, 9):
@@ -302,7 +309,11 @@ def _device_properties(profile: HardwareProfile, layout_id: int, audio_enabled: 
 
     # Intel iGPU
     if profile.gpu_vendor == "intel" and "arc" not in profile.gpu_name.lower():
-        headless = bool(profile.dgpu_vendor)
+        has_dgpu = bool(profile.dgpu_vendor)
+        # Laptop internal panels are wired to the iGPU even when a discrete GPU
+        # is present. Connectorless framebuffers are only appropriate when a
+        # desktop dGPU is expected to drive the display.
+        headless = profile.platform == "desktop" and has_dgpu
         platform_id, device_id = _igpu_config(profile, headless=headless)
         igpu_props: dict = {
             "AAPL,ig-platform-id": platform_id,
@@ -314,14 +325,14 @@ def _device_properties(profile: HardwareProfile, layout_id: int, audio_enabled: 
         if device_id:
             igpu_props["device-id"] = device_id
 
-        if headless:
+        if has_dgpu:
             igpu_props["disable-external-gpu"] = bytes([0x01, 0x00, 0x00, 0x00])
 
         if profile.platform == "laptop":
-            # Framebuffer patch for laptop: set stolenmem + cursormem
+            # Safe fallback for firmware locked to 32 MB DVMT pre-allocation.
             igpu_props["framebuffer-patch-enable"] = bytes([0x01, 0x00, 0x00, 0x00])
-            igpu_props["framebuffer-stolenmem"]    = bytes([0x00, 0x00, 0x00, 0x04])  # 64MB
-            igpu_props["framebuffer-fbmem"]        = bytes([0x00, 0x00, 0x00, 0x00])
+            igpu_props["framebuffer-stolenmem"]    = bytes([0x00, 0x00, 0x30, 0x01])
+            igpu_props["framebuffer-fbmem"]        = bytes([0x00, 0x00, 0x90, 0x00])
 
         props["PciRoot(0x0)/Pci(0x2,0x0)"] = igpu_props
 

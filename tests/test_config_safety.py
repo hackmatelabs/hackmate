@@ -138,5 +138,57 @@ class BooterQuirkSafetyTests(unittest.TestCase):
         self.assertFalse(quirks["SetupVirtualMap"])
 
 
+class IntelGraphicsSafetyTests(unittest.TestCase):
+    def test_kaby_lake_hd630_laptop_uses_mobile_framebuffer(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=7,
+            gpu_vendor="intel",
+            gpu_name="Intel HD Graphics 630",
+            platform="laptop",
+        )
+
+        properties = config_gen._device_properties(profile, 1)
+        igpu = properties["Add"]["PciRoot(0x0)/Pci(0x2,0x0)"]
+
+        self.assertEqual(igpu["AAPL,ig-platform-id"], bytes.fromhex("00001B59"))
+        self.assertEqual(igpu["framebuffer-stolenmem"], bytes.fromhex("00003001"))
+        self.assertEqual(igpu["framebuffer-fbmem"], bytes.fromhex("00009000"))
+
+    def test_laptop_dgpu_does_not_force_a_headless_igpu_framebuffer(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=7,
+            gpu_vendor="intel",
+            gpu_name="Intel HD Graphics 630",
+            dgpu_vendor="nvidia",
+            platform="laptop",
+        )
+
+        properties = config_gen._device_properties(profile, 1)
+        igpu = properties["Add"]["PciRoot(0x0)/Pci(0x2,0x0)"]
+
+        self.assertEqual(igpu["AAPL,ig-platform-id"], bytes.fromhex("00001B59"))
+        self.assertEqual(igpu["disable-external-gpu"], bytes.fromhex("01000000"))
+
+    def test_kaby_lake_hd630_desktop_keeps_display_and_headless_variants(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=7,
+            gpu_vendor="intel",
+            gpu_name="Intel HD Graphics 630",
+            platform="desktop",
+        )
+
+        self.assertEqual(
+            config_gen._igpu_config(profile),
+            (bytes.fromhex("00001259"), None),
+        )
+        self.assertEqual(
+            config_gen._igpu_config(profile, headless=True),
+            (bytes.fromhex("03001259"), None),
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
