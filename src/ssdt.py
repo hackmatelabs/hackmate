@@ -274,10 +274,19 @@ def _inspect_dsdt(dsdt_path: Path) -> dict:
         data = dsdt_path.read_bytes()
     except Exception:
         return {"has_awac": False, "ec_name": "EC0", "igpu_name": "GFX0",
-                "cpu_path": r"\_SB.PR00", "has_gpi0": False, "has_gprw": False}
+                "cpu_path": r"\_SB.PR00", "has_gpi0": False, "has_gprw": False,
+                "has_acpi0007": False}
 
     has_awac = b"ACPI000E" in data
     has_gprw = b"GPRW" in data
+    # Newer firmware (this shows up on several current Dell OptiPlex boards,
+    # among others) defines CPU cores as generic ACPI0007 Device objects
+    # instead of the legacy Processor() keyword. The bundled SSDT-PLUG
+    # template below declares `ProcessorObj` and does nothing useful against
+    # an ACPI0007 Device — SSDTTime (Tier 1) handles this correctly by
+    # generating SSDT-PLUG-ALT instead, but if Tier 1 doesn't run, there is
+    # no safe generic substitute for it.
+    has_acpi0007 = b"ACPI0007" in data
 
     ec_name = "EC0"
     for candidate in (b"EC0 ", b"H_EC", b"ECDV", b"EC0_"):
@@ -300,6 +309,7 @@ def _inspect_dsdt(dsdt_path: Path) -> dict:
         "cpu_path":  cpu_path,
         "has_gpi0":  has_gpi0,
         "has_gprw":  has_gprw,
+        "has_acpi0007": has_acpi0007,
     }
 
 def _compile_dsl(dsl: str, name: str, acpi_dir: Path, iasl) -> bool:
@@ -513,7 +523,8 @@ def generate(
     else:
         cb("  DSDT not found — using generic templates")
         dsdt_info = {"has_awac": False, "ec_name": "EC0", "igpu_name": "GFX0",
-                     "cpu_path": r"\_SB.PR00", "has_gpi0": False, "has_gprw": False}
+                     "cpu_path": r"\_SB.PR00", "has_gpi0": False, "has_gprw": False,
+                     "has_acpi0007": False}
 
     ssdttime_dir = script.parent if script else SSDTTIME_DIR
 
@@ -608,6 +619,23 @@ def generate(
 
         if tier1_ok:
             results[ssdt] = "OK"
+            continue
+
+        if ssdt == "SSDT-PLUG" and dsdt_info.get("has_acpi0007"):
+            # This firmware defines CPU cores as ACPI0007 Device objects.
+            # The generic template/bundled SSDT-PLUG both assume the legacy
+            # Processor() keyword and would compile "successfully" while
+            # doing nothing useful — that's a silent boot-time failure
+            # (macOS never gets working CPU power management), not a build
+            # failure, so it has to be reported instead of papered over.
+            results[ssdt] = (
+                "ERROR: this system defines CPUs as ACPI0007 devices — needs "
+                "SSDT-PLUG-ALT, which only SSDTTime can generate correctly "
+                "(it wasn't reachable this run). Retry the build, or run "
+                "SSDTTime yourself (https://github.com/corpnewt/SSDTTime) "
+                "against this machine's DSDT and add the SSDT-PLUG-ALT.aml "
+                "it produces to EFI/OC/ACPI manually."
+            )
             continue
 
         cb(f"Generating {ssdt} from template...")
