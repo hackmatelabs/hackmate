@@ -448,5 +448,28 @@ class WindowsGpuDetectionTests(unittest.TestCase):
         self.assertEqual(profile.dgpu_vendor, "nvidia")
 
 
+class SmbiosGenerationMatchTests(unittest.TestCase):
+    def test_kaby_lake_laptop_gets_a_genuine_kaby_lake_smbios(self):
+        # Regression: mapped to MacBookPro16,1, a 2019 Coffee Lake Refresh
+        # SMBIOS — two generations off a real 2017 Kaby Lake machine.
+        # Dortania's own guide picks MacBookPro14,1 specifically "for
+        # compatibility's sake"; the project's own OpenCore validation
+        # fixtures (tests/generate_validation_configs.py) already assumed
+        # MacBookPro14,1 was correct here, so the live scan path was out
+        # of sync with the project's own test data.
+        profile = hardware.HardwareProfile(cpu_generation=7, platform="laptop")
+
+        hardware.detect_smbios(profile)
+
+        self.assertEqual(profile.smbios_model, "MacBookPro14,1")
+
+    def test_coffee_lake_laptop_smbios_unaffected(self):
+        profile = hardware.HardwareProfile(cpu_generation=8, platform="laptop")
+
+        hardware.detect_smbios(profile)
+
+        self.assertEqual(profile.smbios_model, "MacBookPro15,2")
+
+
 if __name__ == "__main__":
     unittest.main()

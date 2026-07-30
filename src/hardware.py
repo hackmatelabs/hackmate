@@ -136,11 +136,20 @@ SMBIOS_MAP = {
     (4, "laptop"):  "MacBookPro11,1",
     (5, "laptop"):  "MacBookPro12,1",
     (6, "laptop"):  "MacBookPro13,1",
-    (7, "laptop"):  "MacBookPro16,1",
+    # Kaby Lake (7th gen) laptop — was MacBookPro16,1 (a 2019 Coffee Lake
+    # Refresh SMBIOS, two generations off). MacBookPro14,1 is the genuine
+    # 2017 Kaby Lake model; Dortania's own guide picks it specifically
+    # "for compatibility's sake" over 14,2/14,3.
+    (7, "laptop"):  "MacBookPro14,1",
     (8, "laptop"):  "MacBookPro15,2",
     (9, "laptop"):  "MacBookPro16,1",
     (9, "desktop"): "iMac19,1",
     (10, "laptop"): "MacBookPro16,2",
+    # 11th gen and newer laptops (Tiger Lake onward) have no genuine native
+    # SMBIOS at all — Apple never shipped an Intel MacBook Pro past the
+    # 2020 Ice Lake refresh (MacBookPro16,2/16,3) before moving to Apple
+    # Silicon. MacBookPro16,1 is the closest available, same as every
+    # community guide recommends for this gap; it isn't a detection bug.
     (11, "laptop"): "MacBookPro16,1",
     (12, "laptop"): "MacBookPro16,1",
     (13, "laptop"): "MacBookPro16,1",
@@ -151,6 +160,9 @@ SMBIOS_MAP = {
     (8, "desktop"):  "iMac19,1",
     (9, "desktop"):  "iMac19,1",
     (10, "desktop"): "iMac20,1",
+    # 11th gen and newer desktops (Rocket Lake onward) similarly have no
+    # native iMac SMBIOS — the 2020 iMac20,1 was Apple's last Intel iMac
+    # refresh. MacPro7,1 (2019) is the standard fallback for this gap.
     (11, "desktop"): "MacPro7,1",
     (12, "desktop"): "MacPro7,1",
     (13, "desktop"): "MacPro7,1",
