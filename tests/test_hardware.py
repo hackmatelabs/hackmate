@@ -98,6 +98,91 @@ class IntelWifiWarningTests(unittest.TestCase):
         self.assertFalse(any("BCM94360CD" in warning for warning in warnings))
 
 
+_REAL_SP_AIRPORT_NO_CARD = """Wi-Fi:
+
+      Software Versions:
+          CoreWLAN: 16.0 (1657)
+          CoreWLANKit: 16.0 (1657)
+          Menu Extra: 1.0 (19150.2)
+          System Information: 15.0 (1502)
+          IO80211 Family: 12.0 (1200.13.1)
+          Diagnostics: 11.0 (1163)
+          AirPort Utility: 6.3.9 (639.29)
+"""
+
+_REAL_SP_ETHERNET_I219 = """Ethernet:
+
+    Intel I219-V Ethernet Connection:
+
+      Bus: PCI
+      Vendor ID: 0x8086
+      Device ID: 0x15d7
+      Subsystem Vendor ID: 0x17aa
+      Subsystem ID: 0x2258
+      Revision ID: 0x0021
+      Driver: com.insanelymac.IntelMausiEthernet
+      BSD Device Name: en0
+      MAC Address: 98:fa:9b:23:b0:b6
+      AVB Support: No
+      Maximum Link Speed: 1 Gb/s
+"""
+
+
+class MacOSNetworkDetectionTests(unittest.TestCase):
+    def _sp_for(self, mapping: dict) -> callable:
+        return lambda data_type: mapping.get(data_type, "")
+
+    def test_working_i219_ethernet_is_identified_not_reported_as_none(self):
+        # Regression: SPNetworkDataType lists the *service* name ("Ethernet")
+        # not the chip, so this exact real-world output used to leave
+        # ethernet_chipset/name empty despite the NIC working and being
+        # fully identifiable from SPEthernetDataType.
+        profile = hardware.HardwareProfile()
+        with patch.object(hardware, "_sp", side_effect=self._sp_for({
+            "SPEthernetDataType": _REAL_SP_ETHERNET_I219,
+            "SPAirPortDataType": _REAL_SP_AIRPORT_NO_CARD,
+        })):
+            hardware._detect_network_macos(profile)
+
+        self.assertEqual(profile.ethernet_chipset, "i219")
+        self.assertIn("I219", profile.ethernet_name)
+
+    def test_no_wifi_card_present_correctly_reports_no_wifi(self):
+        profile = hardware.HardwareProfile()
+        with patch.object(hardware, "_sp", side_effect=self._sp_for({
+            "SPEthernetDataType": _REAL_SP_ETHERNET_I219,
+            "SPAirPortDataType": _REAL_SP_AIRPORT_NO_CARD,
+        })):
+            hardware._detect_network_macos(profile)
+
+        self.assertEqual(profile.wifi_chipset, "")
+
+
+class MacOSAudioDetectionTests(unittest.TestCase):
+    def test_virtual_blackhole_device_does_not_override_real_codec(self):
+        sp = (
+            "Realtek ALC295:\n"
+            "\n"
+            "BlackHole 2ch:\n"
+            "\n"
+            "Existential Audio Inc.:\n"
+        )
+        profile = hardware.HardwareProfile()
+        with patch.object(hardware, "_sp", return_value=sp):
+            hardware._detect_audio_macos(profile)
+
+        self.assertEqual(profile.audio_codec, "ALC295")
+
+    def test_virtual_only_audio_falls_back_without_claiming_a_codec(self):
+        sp = "BlackHole 2ch:\n\nExistential Audio Inc.:\n"
+        profile = hardware.HardwareProfile()
+        with patch.object(hardware, "_sp", return_value=sp):
+            hardware._detect_audio_macos(profile)
+
+        self.assertEqual(profile.audio_codec, "")
+        self.assertEqual(profile.audio_name, "")
+
+
 class MacOSPCIDetectionTests(unittest.TestCase):
     def test_uses_system_profiler_instead_of_lspci(self):
         output = "Intel UHD Graphics 630:\n    Vendor ID: 0x8086"

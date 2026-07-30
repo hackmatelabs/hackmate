@@ -940,34 +940,79 @@ def _detect_gpu_macos(profile: HardwareProfile):
             profile.gpu_vendor = "nvidia"
             profile.gpu_name = line.split(":")[-1].strip() if ":" in line else line
 
+_NOT_ONBOARD_AUDIO = (
+    "blackhole", "existential audio", "soundflower", "loopback",
+    "background music", "obs", "virtual", "steam", "displayport", "hdmi",
+)
+
 def _detect_audio_macos(profile: HardwareProfile):
     sp = _sp("SPAudioDataType")
+    fallback = ""
     for line in sp.splitlines():
-        lower = line.lower()
+        stripped = line.strip()
+        lower = stripped.lower()
         if "alc" in lower or "realtek" in lower:
             m = re.search(r'alc\d+', lower)
             if m:
                 profile.audio_codec = m.group(0).upper()
-                profile.audio_name = line.strip()
-                break
-        elif "audio" in lower and ":" in line:
-            profile.audio_name = line.split(":")[-1].strip()
+                profile.audio_name = stripped
+                return
+        elif stripped.endswith(":") and any(k in lower for k in _NOT_ONBOARD_AUDIO):
+            continue
+        elif "audio" in lower and stripped.endswith(":") and not fallback:
+            fallback = stripped.rstrip(":")
+    if fallback:
+        profile.audio_name = fallback
 
 def _detect_network_macos(profile: HardwareProfile):
-    sp = _sp("SPNetworkDataType")
-    lower = sp.lower()
-    if "i219" in lower or "i218" in lower:
-        profile.ethernet_chipset = "i219"
-        profile.ethernet_name = "Intel Ethernet"
-    elif "realtek" in lower:
-        profile.ethernet_chipset = "rtl8111"
-        profile.ethernet_name = "Realtek Ethernet"
-    if "intel" in lower and ("wi-fi" in lower or "wireless" in lower or "ax" in lower):
-        profile.wifi_chipset = "intel"
-        profile.wifi_name = "Intel WiFi"
-    elif "broadcom" in lower and ("wi-fi" in lower or "wireless" in lower):
-        profile.wifi_chipset = "broadcom"
-        profile.wifi_name = "Broadcom WiFi"
+    # SPNetworkDataType lists configured *services* ("Wi-Fi", "Ethernet") not
+    # chip names, so it never matches a vendor/model keyword — on a running
+    # Hackintosh this silently reported working, identifiable hardware as
+    # "None". SPEthernetDataType/SPAirPortDataType list the actual PCI
+    # device name (e.g. "Intel I219-V Ethernet Connection") the same way
+    # SPPCIDataType does on Linux's lspci path.
+    eth = _sp("SPEthernetDataType")
+    for line in eth.splitlines():
+        stripped = line.strip()
+        if not stripped.endswith(":") or ("Ethernet" not in stripped and "Connection" not in stripped):
+            continue
+        lower = stripped.lower()
+        if "i219" in lower or "i218" in lower:
+            profile.ethernet_chipset = "i219"
+        elif "i225" in lower or "i226" in lower:
+            profile.ethernet_chipset = "i225"
+        elif "i211" in lower or "i210" in lower:
+            profile.ethernet_chipset = "i211"
+        elif "rtl8125" in lower:
+            profile.ethernet_chipset = "rtl8125"
+        elif "rtl" in lower or "realtek" in lower:
+            profile.ethernet_chipset = "rtl8111"
+        elif "e1000e" in lower or "82574" in lower or "82577" in lower or "82578" in lower:
+            profile.ethernet_chipset = "e1000e"
+        elif "atheros" in lower or "ar81" in lower:
+            profile.ethernet_chipset = "ar81xx"
+        elif "broadcom" in lower and "bcm5722" in lower:
+            profile.ethernet_chipset = "bcm5722"
+        else:
+            continue
+        profile.ethernet_name = stripped.rstrip(":")
+        break
+
+    wifi = _sp("SPAirPortDataType")
+    for line in wifi.splitlines():
+        lower = line.lower()
+        if "card type" in lower or "driver" in lower:
+            if "intel" in lower or "itlwm" in lower:
+                profile.wifi_chipset = "intel"
+                profile.wifi_name = "Intel WiFi"
+            elif "broadcom" in lower or "0x14e4" in lower or "brcm" in lower:
+                profile.wifi_chipset = "broadcom"
+                profile.wifi_name = "Broadcom WiFi"
+            elif "atheros" in lower or "0x168c" in lower:
+                profile.wifi_chipset = "atheros"
+                profile.wifi_name = "Atheros WiFi"
+            if profile.wifi_chipset:
+                break
 
 def _detect_platform_macos(profile: HardwareProfile):
     model = _run(["sysctl", "-n", "hw.model"]).lower()
