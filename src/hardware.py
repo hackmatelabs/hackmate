@@ -717,7 +717,7 @@ def _detect_network_linux(profile: HardwareProfile):
 def _detect_network_windows(profile: HardwareProfile):
     raw = _ps("""
         $nic = Get-NetAdapter -Physical -ErrorAction Stop | Where-Object {
-            $_.InterfaceDescription -notmatch 'Wi-Fi|Wireless|WiFi|802.11|Bluetooth|Tailscale|WinTun|Wintun|TAP|VPN|Tunnel|Virtual|Loopback'
+            $_.InterfaceDescription -notmatch 'Wi-Fi|Wireless|WiFi|802.11|Bluetooth'
         } | Select-Object -First 1
         $nic.InterfaceDescription
     """)
