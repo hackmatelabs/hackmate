@@ -1552,7 +1552,12 @@ class WiFiKextScreen(Screen):
                 Static(""),
                 Static("  Native AirportBSD (AirportItlwm)", classes="info"),
                 Static("    Shows as built-in WiFi — no HeliPort needed.", classes="info"),
-                Static("    No Tahoe build yet — use for Sonoma or earlier only.", classes="info"),
+                Static("    No Sequoia/Tahoe build exists upstream — use for", classes="info"),
+                Static("    Sonoma or earlier only.", classes="info"),
+                Static("    For real native WiFi on Sequoia/Tahoe, swap in a", classes="info"),
+                Static("    genuine Apple-supported Broadcom card (e.g. BCM94360CD,", classes="info"),
+                Static("    DW1560) instead — it uses macOS's built-in AirPort", classes="info"),
+                Static("    driver and needs no version-specific kext at all.", classes="info"),
                 Static(""),
                 Static("  None", classes="info"),
                 Static("    Don't inject any WiFi/BT kexts — use this if you have a", classes="info"),
@@ -2295,6 +2300,7 @@ class InstallScreen(Screen):
                 kexts,
                 progress_cb=lambda i, n, m: self.app.call_from_thread(
                     self._status, 1 + int((i / max(n, 1)) * 4), m),
+                macos_version=version.version,
             )
             dead = [n for n, r in src_results.items() if r.startswith("ERROR")]
             checked = [n for n, r in src_results.items() if not r.startswith("SKIP")]

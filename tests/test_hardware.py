@@ -82,6 +82,22 @@ class HardwareWarningTests(unittest.TestCase):
         self.assertTrue(any("disable it in BIOS" in warning for warning in warnings))
 
 
+class IntelWifiWarningTests(unittest.TestCase):
+    def test_intel_wifi_gets_broadcom_native_wifi_recommendation(self):
+        profile = hardware.HardwareProfile(wifi_chipset="intel")
+
+        warnings = hardware.hardware_warnings(profile)
+
+        self.assertTrue(any("BCM94360CD" in warning for warning in warnings))
+
+    def test_broadcom_wifi_does_not_get_the_recommendation(self):
+        profile = hardware.HardwareProfile(wifi_chipset="broadcom")
+
+        warnings = hardware.hardware_warnings(profile)
+
+        self.assertFalse(any("BCM94360CD" in warning for warning in warnings))
+
+
 class MacOSPCIDetectionTests(unittest.TestCase):
     def test_uses_system_profiler_instead_of_lspci(self):
         output = "Intel UHD Graphics 630:\n    Vendor ID: 0x8086"

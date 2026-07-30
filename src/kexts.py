@@ -598,7 +598,7 @@ def download_heliport(dest: Path, progress_cb=None) -> bool:
     except Exception:
         return False
 
-def check_kext_sources(kexts: list[KextEntry], progress_cb=None) -> tuple[dict[str, str], dict[str, list]]:
+def check_kext_sources(kexts: list[KextEntry], progress_cb=None, macos_version: str = "") -> tuple[dict[str, str], dict[str, list]]:
     """
     Resolve every kext's download before touching the USB.
 
@@ -607,6 +607,11 @@ def check_kext_sources(kexts: list[KextEntry], progress_cb=None) -> tuple[dict[s
     finds out when the hardware it drives does not work. Checking first turns
     that into a warning you can act on. Returns (results, release_cache); pass
     the cache to download_kexts so releases are not fetched twice.
+
+    AirportItlwm is version-pinned (a Ventura zip in the release list is not
+    a usable asset when building for Tahoe) — without macos_version this used
+    to pass the generic asset_pattern check and report "OK" for a build that
+    download_kexts would silently drop WiFi from minutes later.
     """
     results: dict[str, str] = {}
     cache: dict[str, list] = {}
@@ -627,6 +632,25 @@ def check_kext_sources(kexts: list[KextEntry], progress_cb=None) -> tuple[dict[s
         assets = cache[kext.repo]
         if not assets:
             results[kext.name] = f"ERROR: no downloadable release at github.com/{kext.repo}"
+        elif kext.name == "AirportItlwm":
+            keyword = _AIRPORTITLWM_KEYWORDS.get(macos_version, "")
+            if not keyword:
+                results[kext.name] = (
+                    f"ERROR: AirportItlwm has no build for macOS {macos_version or 'this version'} "
+                    f"— use Standard (itlwm) WiFi mode instead"
+                )
+            elif not any(
+                kext.asset_pattern.lower() in a["name"].lower()
+                and keyword in a["name"].lower()
+                and a["name"].lower().endswith(".zip")
+                for a in assets
+            ):
+                results[kext.name] = (
+                    f"ERROR: no AirportItlwm build found for macOS {macos_version} "
+                    f"— use Standard (itlwm) WiFi mode instead"
+                )
+            else:
+                results[kext.name] = "OK"
         elif not _find_asset(assets, kext.asset_pattern):
             results[kext.name] = f"ERROR: no asset matching '{kext.asset_pattern}' in latest release"
         else:

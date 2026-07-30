@@ -849,6 +849,16 @@ def hardware_warnings(profile: HardwareProfile) -> list[str]:
             "will not work on any newer macOS version."
         )
 
+    if profile.wifi_chipset == "intel":
+        warnings.append(
+            "AirportItlwm (native, menu-bar-integrated Intel WiFi) has no "
+            "upstream build past macOS Sonoma — Sequoia and Tahoe are stuck "
+            "with itlwm + HeliPort, which works but isn't Apple-native. For "
+            "guaranteed native WiFi on Sequoia/Tahoe, swap in a genuine "
+            "Apple-supported Broadcom card (e.g. BCM94360CD, DW1560) — macOS's "
+            "built-in AirPort driver handles it with no version-pinned kext."
+        )
+
     return warnings
 
 

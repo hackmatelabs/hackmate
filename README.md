@@ -161,6 +161,9 @@ yep. grab `HackMate.exe` from the releases page, no python or deps needed at all
 **does hackmate download the full macos installer for offline installation?**
 not currently. hackmate downloads apple's recovery image (about 600 mb), which still downloads the full macos payload from apple after u boot it. if recovery shows `PKDownloadError 8` or ur network blocks apple's installer servers, try a different connection or prepare a full installer separately on a mac. hackmate cannot bypass filtering inside recovery.
 
+**does intel wifi show up as native (built-in) wifi on tahoe?**
+not with the onboard intel chip — opensource's AirportItlwm (the kext that makes intel wifi appear as real apple wifi in the menu bar) hasn't had a build past sonoma since mid-2024, so sequoia and tahoe are stuck with itlwm + heliport, which works for internet access but isn't apple-native (no menu bar icon, no airdrop/handoff over wifi). if u want actual native wifi on tahoe — menu bar, airdrop, handoff, all of it — swap in a genuine apple-supported broadcom card (bcm94360cd, dw1560, etc). those use macos's built-in airport driver, same as a real mac, so there's no version-pinned kext to break on any future macos release. hackmate will warn u about this and offer the broadcom-card path when it detects intel-only wifi.
+
 **my antivirus is flagging hackmate.exe**
 known false positive w/ pyinstaller-built exes. every major av (defender, kaspersky, eset) reports it clean. built from source on github actions if u wanna verify — [build logs](https://github.com/riftaway7-code/hackmate/actions/workflows/build-exe.yml).
 
