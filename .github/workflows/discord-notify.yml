@@ -52,7 +52,13 @@ jobs:
           req = urllib.request.Request(
               os.environ["DISCORD_WEBHOOK_URL"],
               data=body,
-              headers={"Content-Type": "application/json"},
+              # Discord's Cloudflare front-end 403s the default
+              # "Python-urllib/x.y" User-Agent outright — confirmed live
+              # against the real webhook before shipping this.
+              headers={
+                  "Content-Type": "application/json",
+                  "User-Agent": "hackmate-github-actions/1.0",
+              },
               method="POST",
           )
           with urllib.request.urlopen(req, timeout=10) as r:
