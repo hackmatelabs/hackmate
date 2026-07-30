@@ -795,12 +795,19 @@ def download_kexts(kexts: list[KextEntry], dest: Path, progress_cb=None, verify:
 OPENCORE_FALLBACK_VERSION = "1.0.7"
 OPENCORE_FALLBACK_URL = (
     f"https://github.com/acidanthera/OpenCorePkg/releases/download/"
-    f"{OPENCORE_FALLBACK_VERSION}/OpenCore-{OPENCORE_FALLBACK_VERSION}-RELEASE.zip"
+    f"{OPENCORE_FALLBACK_VERSION}/OpenCore-{OPENCORE_FALLBACK_VERSION}-DEBUG.zip"
 )
 
 
 def fetch_opencore(tmp: Path, log=None) -> Path:
-    """Resolve and download the OpenCore RELEASE zip, returning its local path.
+    """Resolve and download the OpenCore DEBUG zip, returning its local path.
+
+    DEBUG instead of RELEASE on purpose: it logs far more detail (ACPI
+    parsing, kext injection, quirk application) than RELEASE does, and that
+    detail is exactly what's missing when a user's build panics on real
+    hardware and all we get back is a phone photo of the kernel's own
+    verbose output — RELEASE's OpenCore-level log is comparatively silent
+    right where these builds keep failing.
 
     Order: GitHub API for the latest release (cached on disk once fetched) →
     newest previously-cached zip → pinned fallback URL. The old code had no
@@ -822,7 +829,7 @@ def fetch_opencore(tmp: Path, log=None) -> Path:
         ))
         for asset in data.get("assets", []):
             name = asset["name"].lower()
-            if "opencore-" in name and "release" in name and name.endswith(".zip"):
+            if "opencore-" in name and "debug" in name and name.endswith(".zip"):
                 oc_asset = asset
                 break
     except Exception as e:
@@ -839,7 +846,7 @@ def fetch_opencore(tmp: Path, log=None) -> Path:
         api_err = last_err
 
     # 2. API or download failed — reuse the newest cached zip
-    cached = sorted(cache_dir.glob("OpenCore-*-RELEASE.zip"), reverse=True)
+    cached = sorted(cache_dir.glob("OpenCore-*-DEBUG.zip"), reverse=True)
     if cached:
         _log(f"  GitHub unavailable ({api_err}) — using cached {cached[0].name}", "warn")
         return cached[0]

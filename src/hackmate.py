@@ -872,6 +872,8 @@ class HealthCheckScreen(Screen):
                     log_text = hwdb_submit.build_log(
                         profile, "efi_health_check", "n/a (existing EFI audit)",
                         worked=worked, issues=issues,
+                        wifi_kext_mode=getattr(self.app, "wifi_kext_mode", ""),
+                        full_log="\n".join(f"[{lvl}] {title}: {detail}" for lvl, title, detail in findings),
                     )
                     hwdb_submit.submit_log(profile, "efi_health_check", log_text)
                 except Exception:
@@ -2320,19 +2322,24 @@ class InstallScreen(Screen):
         tmp.mkdir(parents=True, exist_ok=True)
         mount = get_mount_path(device, skip_format=(skip_format or repair))
 
+        log_lines: list[str] = []
+
         def ui(pct, msg):
             self.app.call_from_thread(self._status, pct, msg)
 
         def log(msg, level="info"):
+            log_lines.append(msg)
             self.app.call_from_thread(self._log, msg, level)
 
         def cmd(args, **kw):
             self.app.call_from_thread(self._cmd_log, args)
+            log_lines.append("$ " + " ".join(str(c) for c in args))
             result = subprocess.run(args, **kw)
             if hasattr(result, "returncode") and result.returncode != 0:
                 out = (getattr(result, "stderr", b"") or b"").decode(errors="replace").strip()
                 if out:
                     for line in out.splitlines():
+                        log_lines.append(f"  {line}")
                         self.app.call_from_thread(self._cmd_out, line, True)
             return result
 
@@ -2787,6 +2794,7 @@ class InstallScreen(Screen):
                 log_text = hwdb_submit.build_log(
                     profile, feature, version.name if version else "unknown",
                     worked="build completed", issues="none", dual_boot=dual_boot,
+                    wifi_kext_mode=self.app.wifi_kext_mode, full_log="\n".join(log_lines),
                 )
                 hwdb_submit.submit_log(profile, feature, log_text, dual_boot=dual_boot)
             except Exception:
@@ -2817,6 +2825,7 @@ class InstallScreen(Screen):
                 log_text = hwdb_submit.build_log(
                     profile, feature, v.name if v else "unknown",
                     worked="build failed", issues=issues, dual_boot=locals().get("dual_boot", ""),
+                    wifi_kext_mode=self.app.wifi_kext_mode, full_log="\n".join(log_lines),
                 )
                 hwdb_submit.submit_log(profile, feature, log_text, dual_boot=locals().get("dual_boot", ""))
             except Exception:

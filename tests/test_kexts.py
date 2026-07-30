@@ -6,7 +6,8 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from kexts import DB, check_kext_sources, alc_layout_is_known, get_alc_layout
+import kexts
+from kexts import DB, check_kext_sources, alc_layout_is_known, get_alc_layout, fetch_opencore, OPENCORE_FALLBACK_URL
 
 _AIRPORTITLWM_ASSETS = [
     {"name": "AirportItlwm_v2.3.0_stable_Sonoma14.4.kext.zip"},
@@ -57,6 +58,42 @@ class AlcLayoutConfidenceTests(unittest.TestCase):
 
     def test_unrecognized_alc_model_is_not_confirmed(self):
         self.assertFalse(alc_layout_is_known("ALC1200"))
+
+
+class OpenCoreDebugBuildTests(unittest.TestCase):
+    # HackMate deliberately ships DEBUG OpenCore, not RELEASE — DEBUG logs
+    # far more detail at the bootloader level, which is what's missing when
+    # a build panics on real hardware and all that comes back is a phone
+    # photo of the kernel's own verbose output.
+    def test_fallback_url_points_at_debug_not_release(self):
+        self.assertIn("DEBUG", OPENCORE_FALLBACK_URL)
+        self.assertNotIn("RELEASE", OPENCORE_FALLBACK_URL)
+
+    def test_picks_the_debug_asset_from_the_release_list(self):
+        assets = [
+            {"name": "OpenCore-1.0.7-RELEASE.zip", "browser_download_url": "http://x/release.zip", "size": 1000},
+            {"name": "OpenCore-1.0.7-DEBUG.zip", "browser_download_url": "http://x/debug.zip", "size": 15},
+        ]
+        with (
+            patch.object(kexts, "_github_headers", return_value={}),
+            patch("kexts.http_get") as http_get,
+        ):
+            import json as _json
+            http_get.side_effect = [
+                _json.dumps({"assets": assets}).encode(),
+                b"debug-zip-bytes",
+            ]
+            path = fetch_opencore(Path("/tmp"))
+
+        try:
+            # The second http_get call downloads whichever asset was chosen —
+            # assert it targeted the DEBUG asset's URL, not RELEASE's.
+            second_call_url = http_get.call_args_list[1].args[0]
+            self.assertIn("debug.zip", second_call_url)
+        finally:
+            path.unlink(missing_ok=True)
+            cached = kexts._CACHE_ROOT / "opencore" / "OpenCore-1.0.7-DEBUG.zip"
+            cached.unlink(missing_ok=True)
 
 
 if __name__ == "__main__":

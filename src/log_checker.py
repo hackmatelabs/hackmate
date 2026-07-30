@@ -102,7 +102,6 @@ OC_PATTERNS: list[_Pattern] = [
         ),
         fix_steps=[
             "Run HackMate → Restore EFI to redownload OpenCore and all drivers.",
-            "Make sure you're using the RELEASE build of OpenCore, not DEBUG.",
         ],
         confidence="definitive",
     ),

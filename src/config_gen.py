@@ -865,7 +865,14 @@ def generate(profile: HardwareProfile, smbios: SMBIOSData, macos_major: int = 0,
                 "DisplayLevel":       2147483650,
                 "LogModules":         "*",
                 "SysReport":          False,
-                "Target":             3,
+                # 0x01 logging + 0x02 console + 0x04 Data Hub + 0x40 file log
+                # (persists to EFI/opencore-YYYY-MM-DD-HHMMSS.txt on the ESP,
+                # so a panic that wipes the screen doesn't wipe the log with
+                # it). Deliberately not 0x80 (the "faster but unsafe" file
+                # write variant) — that one risks ESP corruption on firmware
+                # that isn't fully FAT32-compliant, not worth it for a
+                # logging feature.
+                "Target":             71,
             },
             "Entries":  [],
             "Security": {

@@ -109,6 +109,8 @@ def build_log(
     issues: str,
     dual_boot: str = "",
     hackmate_version: str = VERSION,
+    wifi_kext_mode: str = "",
+    full_log: str = "",
 ) -> str:
     device = profile.smbios_model or f"{profile.cpu_codename or 'unknown'} {profile.platform or 'system'}"
     lines = [
@@ -117,19 +119,35 @@ def build_log(
         "submitted by: (auto-submitted, opt-in)",
         f"date: {date.today().isoformat()}",
         "",
-        "--- hardware ---",
+        "--- hardware (every field on the scan results screen) ---",
         f"cpu: {profile.cpu_name}",
+        f"cpu_brand: {profile.cpu_brand}",
+        f"cpu_vendor: {profile.cpu_vendor}",
         f"cpu_generation: {profile.cpu_generation}",
         f"cpu_codename: {profile.cpu_codename}",
+        f"cpu_family: {profile.cpu_family}",
+        f"core_count: {profile.core_count}",
+        f"thread_count: {profile.thread_count}",
         f"platform: {profile.platform}",
+        f"oc_platform: {profile.oc_platform}",
         "",
         f"igpu: {profile.gpu_name}",
+        f"igpu_vendor: {profile.gpu_vendor}",
+        f"igpu_device_id: {profile.gpu_device_id}",
+        f"igpu_subsystem: {profile.gpu_subsystem}",
         f"dgpu: {profile.dgpu_name or 'none'}" + (f" ({profile.dgpu_vendor})" if profile.dgpu_vendor else ""),
+        f"resizable_bar: {'yes' if profile.resizable_bar else 'no'}",
         "",
+        f"audio_name: {profile.audio_name}",
         f"audio_codec: {profile.audio_codec}",
-        f"ethernet_chipset: {profile.ethernet_chipset}",
-        f"wifi_chipset: {profile.wifi_chipset}",
         "",
+        f"ethernet_name: {profile.ethernet_name}",
+        f"ethernet_chipset: {profile.ethernet_chipset}",
+        f"wifi_name: {profile.wifi_name}",
+        f"wifi_chipset: {profile.wifi_chipset}",
+        f"wifi_kext_mode: {wifi_kext_mode or 'n/a'}",
+        "",
+        f"has_touchpad: {'yes' if profile.has_touchpad else 'no'}",
         f"touchpad_type: {profile.touchpad_type if profile.has_touchpad else 'n/a'}",
         f"nvme: {'yes' if profile.nvme_present else 'no'}",
         f"thunderbolt: {'yes' if profile.has_thunderbolt else 'no'}",
@@ -155,6 +173,8 @@ def build_log(
             "notes: auto-submitted after a failed run — the error above is "
             "where the build stopped."
         )
+    if full_log:
+        lines += ["", "--- full EFI generation log ---", full_log]
     return "\n".join(lines)
 
 
