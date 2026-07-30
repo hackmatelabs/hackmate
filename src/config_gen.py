@@ -12,14 +12,13 @@ IG_PLATFORM_IDS: dict[str, bytes] = {
     "hd4000":    bytes([0x04, 0x00, 0x66, 0x01]),
     "hd2500":    bytes([0x03, 0x00, 0x66, 0x01]),
     # Haswell
-    "hd4400":    bytes([0x00, 0x00, 0x16, 0x0A]),
-    "hd4600":    bytes([0x04, 0x00, 0x12, 0x04]),
-    "hd5000":    bytes([0x05, 0x00, 0x26, 0x0A]),
-    "iris5100":  bytes([0x05, 0x00, 0x26, 0x0A]),
+    "hsw_mobile_iris": bytes([0x05, 0x00, 0x26, 0x0A]),
+    "hsw_mobile": bytes([0x06, 0x00, 0x26, 0x0A]),
+    "hsw_desktop": bytes([0x03, 0x00, 0x22, 0x0D]),
+    "hsw_headless": bytes([0x04, 0x00, 0x12, 0x04]),
     # Broadwell
-    "hd5500":    bytes([0x00, 0x00, 0x16, 0x16]),
-    "hd6000":    bytes([0x00, 0x00, 0x26, 0x16]),
-    "iris6100":  bytes([0x00, 0x00, 0x26, 0x16]),
+    "bdw_mobile": bytes([0x06, 0x00, 0x26, 0x16]),
+    "bdw_desktop": bytes([0x07, 0x00, 0x22, 0x16]),
     # Skylake
     "hd515":     bytes([0x00, 0x00, 0x1E, 0x19]),
     "hd520":     bytes([0x00, 0x00, 0x16, 0x19]),
@@ -55,6 +54,7 @@ IG_PLATFORM_IDS: dict[str, bytes] = {
 
 DEVICE_IDS: dict[str, bytes] = {
     # Fake device-id to match known-good framebuffers
+    "hsw":       bytes([0x12, 0x04, 0x00, 0x00]),   # spoof HD 42xx/44xx as HD 4600
     "kbl_r":     bytes([0x16, 0x59, 0x00, 0x00]),   # spoof UHD 620 as 5916
     "cfl_h":     bytes([0x9B, 0x3E, 0x00, 0x00]),   # spoof as 3E9B
 }
@@ -70,13 +70,23 @@ def _igpu_config(profile: HardwareProfile, headless: bool = False) -> tuple[byte
     elif gen == 3:
         return IG_PLATFORM_IDS["hd4000"], None
     elif gen == 4:
-        if "iris" in name:     return IG_PLATFORM_IDS["iris5100"], None
-        if "hd 5000" in name:  return IG_PLATFORM_IDS["hd5000"], None
-        if "hd 4600" in name:  return IG_PLATFORM_IDS["hd4600"], None
-        return IG_PLATFORM_IDS["hd4400"], None
+        if profile.platform == "laptop":
+            if "iris" in name or "hd 5000" in name:
+                return IG_PLATFORM_IDS["hsw_mobile_iris"], None
+            return IG_PLATFORM_IDS["hsw_mobile"], DEVICE_IDS["hsw"]
+        platform_id = (
+            IG_PLATFORM_IDS["hsw_headless"]
+            if headless else
+            IG_PLATFORM_IDS["hsw_desktop"]
+        )
+        if "4200" in name or "4400" in name:
+            return platform_id, DEVICE_IDS["hsw"]
+        return platform_id, None
     elif gen == 5:
-        if "iris" in name:     return IG_PLATFORM_IDS["iris6100"], None
-        return IG_PLATFORM_IDS["hd5500"], None
+        if profile.platform == "laptop":
+            return IG_PLATFORM_IDS["bdw_mobile"], None
+        # Broadwell has no documented connectorless framebuffer.
+        return IG_PLATFORM_IDS["bdw_desktop"], None
     elif gen == 6:
         if "iris" in name:     return IG_PLATFORM_IDS["iris540"], None
         if "530" in name:      return IG_PLATFORM_IDS["hd530"], None
@@ -322,7 +332,11 @@ def _device_properties(profile: HardwareProfile, layout_id: int, audio_enabled: 
         if device_id:
             igpu_props["device-id"] = device_id
 
-        if profile.platform == "laptop":
+        if profile.platform == "laptop" and profile.cpu_generation == 4:
+            # Haswell laptop framebuffers need the documented 9 MB cursor patch.
+            igpu_props["framebuffer-patch-enable"] = bytes([0x01, 0x00, 0x00, 0x00])
+            igpu_props["framebuffer-cursormem"] = bytes([0x00, 0x00, 0x90, 0x00])
+        elif profile.platform == "laptop" and profile.cpu_generation >= 5:
             # Safe fallback for firmware locked to 32 MB DVMT pre-allocation.
             igpu_props["framebuffer-patch-enable"] = bytes([0x01, 0x00, 0x00, 0x00])
             igpu_props["framebuffer-stolenmem"]    = bytes([0x00, 0x00, 0x30, 0x01])

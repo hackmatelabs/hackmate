@@ -235,6 +235,130 @@ class OpenCoreSchemaSafetyTests(unittest.TestCase):
 
 
 class IntelGraphicsSafetyTests(unittest.TestCase):
+    def test_sandy_bridge_laptop_uses_snb_platform_id_without_dvmt_patch(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=2,
+            gpu_vendor="intel",
+            gpu_name="Intel HD Graphics 3000",
+            platform="laptop",
+        )
+
+        properties = config_gen._device_properties(profile, 1)
+        igpu = properties["Add"]["PciRoot(0x0)/Pci(0x2,0x0)"]
+
+        self.assertEqual(igpu["AAPL,snb-platform-id"], bytes.fromhex("00000100"))
+        self.assertNotIn("AAPL,ig-platform-id", igpu)
+        self.assertNotIn("framebuffer-patch-enable", igpu)
+
+    def test_ivy_bridge_laptop_does_not_get_newer_dvmt_patch(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=3,
+            gpu_vendor="intel",
+            gpu_name="Intel HD Graphics 4000",
+            platform="laptop",
+        )
+
+        properties = config_gen._device_properties(profile, 1)
+        igpu = properties["Add"]["PciRoot(0x0)/Pci(0x2,0x0)"]
+
+        self.assertEqual(igpu["AAPL,ig-platform-id"], bytes.fromhex("04006601"))
+        self.assertNotIn("framebuffer-patch-enable", igpu)
+
+    def test_haswell_hd4600_laptop_uses_supported_spoof_and_cursor_patch(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=4,
+            gpu_vendor="intel",
+            gpu_name="Intel HD Graphics 4600",
+            platform="laptop",
+        )
+
+        properties = config_gen._device_properties(profile, 1)
+        igpu = properties["Add"]["PciRoot(0x0)/Pci(0x2,0x0)"]
+
+        self.assertEqual(igpu["AAPL,ig-platform-id"], bytes.fromhex("0600260A"))
+        self.assertEqual(igpu["device-id"], bytes.fromhex("12040000"))
+        self.assertEqual(igpu["framebuffer-patch-enable"], bytes.fromhex("01000000"))
+        self.assertEqual(igpu["framebuffer-cursormem"], bytes.fromhex("00009000"))
+        self.assertNotIn("framebuffer-stolenmem", igpu)
+
+    def test_haswell_iris_laptop_uses_mobile_iris_framebuffer_without_spoof(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=4,
+            gpu_vendor="intel",
+            gpu_name="Intel Iris Pro Graphics 5200",
+            platform="laptop",
+        )
+
+        self.assertEqual(
+            config_gen._igpu_config(profile),
+            (bytes.fromhex("0500260A"), None),
+        )
+
+    def test_haswell_desktop_uses_display_and_headless_framebuffers(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=4,
+            gpu_vendor="intel",
+            gpu_name="Intel HD Graphics 4600",
+            platform="desktop",
+        )
+
+        self.assertEqual(
+            config_gen._igpu_config(profile),
+            (bytes.fromhex("0300220D"), None),
+        )
+        self.assertEqual(
+            config_gen._igpu_config(profile, headless=True),
+            (bytes.fromhex("04001204"), None),
+        )
+
+    def test_haswell_hd4400_desktop_uses_supported_device_spoof(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=4,
+            gpu_vendor="intel",
+            gpu_name="Intel HD Graphics 4400",
+            platform="desktop",
+        )
+
+        self.assertEqual(
+            config_gen._igpu_config(profile),
+            (bytes.fromhex("0300220D"), bytes.fromhex("12040000")),
+        )
+
+    def test_broadwell_uses_documented_mobile_and_desktop_framebuffers(self):
+        laptop = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=5,
+            gpu_vendor="intel",
+            gpu_name="Intel HD Graphics 5500",
+            platform="laptop",
+        )
+        desktop = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=5,
+            gpu_vendor="intel",
+            gpu_name="Intel Iris Pro Graphics 6200",
+            platform="desktop",
+        )
+
+        self.assertEqual(
+            config_gen._igpu_config(laptop),
+            (bytes.fromhex("06002616"), None),
+        )
+        self.assertEqual(
+            config_gen._igpu_config(desktop),
+            (bytes.fromhex("07002216"), None),
+        )
+        self.assertEqual(
+            config_gen._igpu_config(desktop, headless=True),
+            (bytes.fromhex("07002216"), None),
+        )
+
     def test_kaby_lake_hd630_laptop_uses_mobile_framebuffer(self):
         profile = HardwareProfile(
             cpu_vendor="intel",
@@ -435,6 +559,13 @@ class IntelGraphicsSafetyTests(unittest.TestCase):
 
     def test_config_editor_suggests_current_mobile_framebuffers(self):
         expected = {
+            "0116": "00000100",
+            "0126": "00000100",
+            "0416": "0600260a",
+            "0412": "0300220d",
+            "0d26": "0500260a",
+            "1616": "06002616",
+            "1626": "06002616",
             "5916": "00001b59",
             "5917": "0000c087",
             "3ea0": "00009b3e",
@@ -448,6 +579,25 @@ class IntelGraphicsSafetyTests(unittest.TestCase):
                 suggestions = config_editor.suggest_framebuffers(device_id)
                 self.assertTrue(suggestions)
                 self.assertEqual(suggestions[0][0], platform_id)
+
+    def test_config_editor_reads_and_updates_sandy_bridge_platform_key(self):
+        config = {
+            "DeviceProperties": {
+                "Add": {
+                    "PciRoot(0x0)/Pci(0x2,0x0)": {
+                        "AAPL,snb-platform-id": bytes.fromhex("00000100"),
+                    },
+                },
+            },
+        }
+
+        self.assertEqual(config_editor.get_igpu_platform_id(config), "00000100")
+
+        config_editor.set_igpu_platform_id(config, "10000300")
+
+        igpu = config["DeviceProperties"]["Add"]["PciRoot(0x0)/Pci(0x2,0x0)"]
+        self.assertEqual(igpu["AAPL,snb-platform-id"], bytes.fromhex("10000300"))
+        self.assertNotIn("AAPL,ig-platform-id", igpu)
 
 
 if __name__ == "__main__":

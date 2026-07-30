@@ -128,18 +128,18 @@ _IGPU_PATH = "PciRoot(0x0)/Pci(0x2,0x0)"
 # device_id (lowercase) → [(platform_id_hex, label), ...]
 IGPU_FRAMEBUFFERS: dict[str, list[tuple[str, str]]] = {
     # Sandy Bridge
-    "0116": [("00003001", "HD 3000 — laptop")],
-    "0126": [("00003001", "HD 3000 — laptop")],
+    "0116": [("00000100", "HD 3000 — laptop")],
+    "0126": [("00000100", "HD 3000 — laptop")],
     # Ivy Bridge
     "0166": [("03006601", "HD 4000 — laptop (recommended)"), ("04006601", "HD 4000 — laptop 13\"")],
     "0162": [("0b006601", "HD 4000 — desktop")],
     # Haswell
-    "0416": [("0a002604", "HD 4600 — laptop (recommended)"), ("07002604", "HD 4600 — laptop alt")],
-    "0412": [("07002604", "HD 4600 — desktop")],
-    "0d26": [("0b002604", "Iris Pro 5200 — laptop")],
+    "0416": [("0600260a", "HD 4600 — laptop (recommended)")],
+    "0412": [("0300220d", "HD 4600 — desktop")],
+    "0d26": [("0500260a", "Iris Pro 5200 — laptop")],
     # Broadwell
-    "1616": [("16000000", "HD 5500 — laptop")],
-    "1626": [("16000000", "HD 6000 — laptop")],
+    "1616": [("06002616", "HD 5500 — laptop (recommended)")],
+    "1626": [("06002616", "HD 6000 — laptop (recommended)")],
     # Skylake
     "1916": [("00001619", "HD 520 — laptop (recommended)")],
     "191b": [("00001b19", "HD 530 — desktop")],
@@ -172,7 +172,8 @@ def suggest_framebuffers(gpu_device_id: str) -> list[tuple[str, str]]:
 
 def get_igpu_platform_id(cfg: dict) -> str:
     try:
-        val = cfg["DeviceProperties"]["Add"][_IGPU_PATH]["AAPL,ig-platform-id"]
+        props = cfg["DeviceProperties"]["Add"][_IGPU_PATH]
+        val = props.get("AAPL,ig-platform-id", props.get("AAPL,snb-platform-id"))
         return val.hex()
     except (KeyError, TypeError, AttributeError):
         return ""
@@ -181,7 +182,13 @@ def set_igpu_platform_id(cfg: dict, hex_str: str) -> None:
     if not hex_str:
         return
     cfg.setdefault("DeviceProperties", {}).setdefault("Add", {}).setdefault(_IGPU_PATH, {})
-    cfg["DeviceProperties"]["Add"][_IGPU_PATH]["AAPL,ig-platform-id"] = bytes.fromhex(hex_str)
+    props = cfg["DeviceProperties"]["Add"][_IGPU_PATH]
+    key = (
+        "AAPL,snb-platform-id"
+        if "AAPL,snb-platform-id" in props and "AAPL,ig-platform-id" not in props
+        else "AAPL,ig-platform-id"
+    )
+    props[key] = bytes.fromhex(hex_str)
 
 # AppleALC supported layouts per codec — most common/reliable ones only
 AUDIO_LAYOUTS: dict[str, list[tuple[int, str]]] = {
