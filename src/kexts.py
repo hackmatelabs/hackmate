@@ -84,7 +84,7 @@ DB: dict[str, KextEntry] = {
     "SMCRadeonGPU":      KextEntry("SMCRadeonGPU",     "aluveitie/RadeonSensor",      "RadeonSensor-",      "AMD GPU temp in HWMonitor (bundled in RadeonSensor zip)"),
 
     "AppleALC":          KextEntry("AppleALC",         "acidanthera/AppleALC",        "AppleALC-",          "audio codec patches via Lilu"),
-    "VoodooHDA":         KextEntry("VoodooHDA",        "CloverHackyColor/VoodooHDA", "VoodooHDA",           "fallback audio for unsupported codecs"),
+    "VoodooHDA":         KextEntry("VoodooHDA",        "CloverHackyColor/VoodooHDA", "VoodooHDA",           "post-install fallback audio for unsupported codecs"),
     "WhateverGreen":     KextEntry("WhateverGreen",    "acidanthera/WhateverGreen",   "WhateverGreen-",     "GPU framebuffer + audio HDMI/DP patches"),
 
     "VoodooPS2Controller":KextEntry("VoodooPS2Controller","acidanthera/VoodooPS2",    "VoodooPS2Controller-","PS/2 keyboard + mouse + trackpad"),
@@ -366,10 +366,12 @@ def select_kexts(profile: HardwareProfile, wifi_kext_mode: str = "itlwm") -> lis
 
     codec = profile.audio_codec.lower()
     alc_supported = any(k.lower() in codec for k in ALC_LAYOUTS)
-    if alc_supported or not profile.audio_codec:
+    if alc_supported or not codec:
         add("AppleALC")
-    else:
-        add("VoodooHDA")
+    # VoodooHDA is not safe to prelink from an installer EFI on modern macOS.
+    # Upstream's Big Sur+ workflow installs it into /Library/Extensions after
+    # macOS is running, so leave explicitly unsupported codecs unconfigured
+    # here instead of turning a missing-audio issue into a boot failure.
     # CodecCommander (EAPD sleep fix) is handled by AppleALC on modern systems
 
     if profile.platform == "laptop":

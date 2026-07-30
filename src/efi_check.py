@@ -208,7 +208,7 @@ KNOWN_CONFLICTS = [
 
     ({"AppleALC.kext", "VoodooHDA.kext"},
      "AppleALC and VoodooHDA both present — use AppleALC for supported codecs, "
-     "VoodooHDA only as a fallback."),
+     "VoodooHDA only as a post-install fallback on modern macOS."),
 
     ({"NootedRed.kext", "WhateverGreen.kext"},
      "NootedRed and WhateverGreen both present — NootedRed handles AMD APU graphics, "

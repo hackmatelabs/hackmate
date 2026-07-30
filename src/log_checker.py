@@ -331,6 +331,22 @@ OC_PATTERNS: list[_Pattern] = [
     ),
 
     _Pattern(
+        regex=r"Prelinked injection VoodooHDA\.kext.*Invalid Parameter",
+        severity="critical", category="audio",
+        title="VoodooHDA cannot be injected from this installer EFI",
+        explanation=(
+            "OpenCore rejected VoodooHDA while building the prelinked kernel. "
+            "On modern macOS, VoodooHDA is a post-install fallback and should "
+            "not be present in the installer EFI."
+        ),
+        fix_steps=[
+            "Remove VoodooHDA.kext from EFI/OC/Kexts and Kernel → Add.",
+            "Use AppleALC for a supported codec, or install without audio first.",
+            "If VoodooHDA is still required, follow its upstream post-install instructions after macOS boots.",
+        ],
+        confidence="definitive",
+    ),
+    _Pattern(
         regex=r"Could not load.*\.kext|Failed to inject.*kext|kext.*load.*fail",
         severity="critical", category="kext",
         title="A kext failed to inject",
@@ -585,7 +601,7 @@ OC_PATTERNS: list[_Pattern] = [
         fix_steps=[
             "Make sure AppleALC.kext loads after Lilu.kext.",
             "Try a different alcid value in boot-args.",
-            "If persistent: try VoodooHDA as a fallback (lower quality but more compatible).",
+            "If VoodooHDA is still required, use its upstream post-install workflow on modern macOS.",
         ],
         confidence="likely",
     ),

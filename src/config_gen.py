@@ -3,7 +3,7 @@ from pathlib import Path
 from hardware import HardwareProfile
 from kexts import KextEntry, select_kexts, get_alc_layout
 from smbios import SMBIOSData
-from compat import IS_WINDOWS, dmi_vendor, cpu_core_count
+from compat import IS_WINDOWS, dmi_field, dmi_vendor, cpu_core_count
 
 IG_PLATFORM_IDS: dict[str, bytes] = {
     # Sandy Bridge
@@ -297,7 +297,7 @@ def _acpi_patches(profile: HardwareProfile, ssdts: list[str]) -> list[dict]:
 
     return patches
 
-def _device_properties(profile: HardwareProfile, layout_id: int) -> dict:
+def _device_properties(profile: HardwareProfile, layout_id: int, audio_enabled: bool = True) -> dict:
     props: dict[str, dict] = {}
 
     # Intel iGPU
@@ -325,11 +325,11 @@ def _device_properties(profile: HardwareProfile, layout_id: int) -> dict:
 
         props["PciRoot(0x0)/Pci(0x2,0x0)"] = igpu_props
 
-    # Audio layout-id
-    layout_bytes = layout_id.to_bytes(4, "little")
-    props["PciRoot(0x0)/Pci(0x1f,0x3)"] = {
-        "layout-id": layout_bytes,
-    }
+    if audio_enabled:
+        layout_bytes = layout_id.to_bytes(4, "little")
+        props["PciRoot(0x0)/Pci(0x1f,0x3)"] = {
+            "layout-id": layout_bytes,
+        }
 
     # Intel I225/I226 ethernet fix (needs device-id spoof)
     if profile.ethernet_chipset in ("i225", "i226"):
@@ -498,14 +498,20 @@ def _amd_kernel_patches(profile: HardwareProfile) -> list[dict]:
 
     ]
 
-def _nvram_section(profile: HardwareProfile, layout_id: int, macos_major: int = 0) -> dict:
+def _nvram_section(
+    profile: HardwareProfile,
+    layout_id: int,
+    macos_major: int = 0,
+    audio_enabled: bool = True,
+) -> dict:
     boot_args = [
         "-v",                  # verbose on first boot (remove after working)
         "debug=0x100",         # don't panic on kernel error
         "keepsyms=1",          # keep symbols for debug
         "-no_compat_check",    # bypass board ID check in boot.efi
-        f"alcid={layout_id}",
     ]
+    if audio_enabled:
+        boot_args.append(f"alcid={layout_id}")
 
     if macos_major >= 15:
         # Sequoia+: RestrictEvents VMM spoof so macOS doesn't see unsupported Intel hardware
@@ -665,7 +671,30 @@ def _uefi_section(profile: HardwareProfile, dual_boot: str = "") -> dict:
     }
 
 def _booter_section(profile: HardwareProfile, resizable_bar: bool = False) -> dict:
-    is_z390_or_hedt = profile.cpu_generation >= 9
+    platform = f"{profile.cpu_codename} {profile.oc_platform}".lower()
+    board = dmi_field("board_name").lower()
+    intel = profile.cpu_vendor.lower() == "intel"
+    amd = profile.cpu_vendor.lower() == "amd"
+
+    # Coffee Lake+ and Ryzen use the MAT-aware combination recommended by the
+    # OpenCore guide. Firmware-specific exceptions can still be diagnosed from
+    # the authoritative "OCABC: MAT support is 0/1" debug-log line.
+    modern_memory_map = amd or (intel and profile.cpu_generation >= 8)
+
+    ice_lake = "ice lake" in platform
+    comet_lake = "comet lake" in platform
+    modern_amd_board = any(chipset in board for chipset in ("x570", "b550", "a520", "trx40"))
+    setup_virtual_map = not (
+        (intel and (ice_lake or comet_lake or profile.cpu_generation >= 11))
+        or modern_amd_board
+    )
+
+    z390_or_z490 = any(chipset in board for chipset in ("z390", "z490"))
+    hedt = profile.cpu_family.lower() == "hedt"
+    devirtualise_mmio = ice_lake or (comet_lake and profile.platform == "desktop")
+    devirtualise_mmio = devirtualise_mmio or z390_or_z490 or hedt or "trx40" in board
+    protect_uefi_services = ice_lake or (comet_lake and profile.platform == "desktop")
+    protect_uefi_services = protect_uefi_services or z390_or_z490
 
     return {
         "MmioWhitelist": [],
@@ -673,31 +702,32 @@ def _booter_section(profile: HardwareProfile, resizable_bar: bool = False) -> di
         "Quirks": {
             "AllowRelocationBlock":     False,
             "AvoidRuntimeDefrag":       True,
-            "DevirtualiseMmio":         is_z390_or_hedt,
+            "DevirtualiseMmio":         devirtualise_mmio,
             "DisableSingleUser":        False,
             "DisableVariableWrite":     False,
             "DiscardHibernateMap":      False,
             "EnableSafeModeSlide":      True,
-            "EnableWriteUnprotector":   True,
+            "EnableWriteUnprotector":   not modern_memory_map,
             "FixupAppleEfiImages":      True,
             "ForceBooterSignature":     False,
             "ForceExitBootServices":    False,
             "ProtectMemoryRegions":     False,
             "ProtectSecureBoot":        False,
-            "ProtectUefiServices":      True,
+            "ProtectUefiServices":      protect_uefi_services,
             "ProvideCustomSlide":       True,
             "ProvideMaxSlide":          0,
-            "RebuildAppleMemoryMap":    False,
+            "RebuildAppleMemoryMap":    modern_memory_map,
             "ResizeAppleGpuBars":       0 if resizable_bar else -1,
-            "SetupVirtualMap":          True,
+            "SetupVirtualMap":          setup_virtual_map,
             "SignalAppleOS":            True,
-            "SyncRuntimePermissions":   False,
+            "SyncRuntimePermissions":   modern_memory_map,
         },
     }
 
 def generate(profile: HardwareProfile, smbios: SMBIOSData, macos_major: int = 0, wifi_kext_mode: str = "itlwm", dual_boot: str = "") -> dict:
     kexts = select_kexts(profile, wifi_kext_mode=wifi_kext_mode)
     layout_id = get_alc_layout(profile.audio_codec)
+    audio_enabled = any(kext.name == "AppleALC" for kext in kexts)
     ssdts = _required_ssdts(profile, kexts)
 
     return {
@@ -715,7 +745,7 @@ def generate(profile: HardwareProfile, smbios: SMBIOSData, macos_major: int = 0,
             },
         },
         "Booter":           _booter_section(profile, resizable_bar=profile.resizable_bar),
-        "DeviceProperties": _device_properties(profile, layout_id),
+        "DeviceProperties": _device_properties(profile, layout_id, audio_enabled),
         "Kernel":           _kernel_section(profile, kexts),
         "Misc": {
             "BlessOverride": [],
@@ -763,7 +793,7 @@ def generate(profile: HardwareProfile, smbios: SMBIOSData, macos_major: int = 0,
             "Serial":   {"Init": False, "Override": False},
             "Tools":    [],
         },
-        "NVRAM":            _nvram_section(profile, layout_id, macos_major),
+        "NVRAM":            _nvram_section(profile, layout_id, macos_major, audio_enabled),
         "PlatformInfo":     _platform_info(smbios),
         "UEFI":             _uefi_section(profile, dual_boot=dual_boot),
     }
