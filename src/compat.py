@@ -95,6 +95,18 @@ def http_get(url: str, headers: dict | None = None, timeout: int = 30) -> bytes:
     raise last_err
 
 
+def is_valid_pe_binary(data: bytes, min_size: int = 50 * 1024) -> bool:
+    """True if `data` looks like a real, complete PE/COFF (.efi) binary.
+
+    Field-confirmed need: an unpinned raw-GitHub download (no size or asset
+    hash to check against, unlike release-asset downloads) was written
+    straight to EFI/OC/Drivers/ with zero validation. A truncated or
+    HTML-error-page response passed through silently, and OpenCore hung
+    trying to load it at boot, well before the picker ever appeared.
+    """
+    return len(data) >= min_size and data[:2] == b"MZ"
+
+
 def real_home() -> Path:
     """The invoking user's home, not root's — HackMate runs under sudo on
     Linux, where Path.home() points at /root and caches/consent written

@@ -1725,16 +1725,30 @@ class InstallScreen(Screen):
                             shutil.copy(str(found[0]), str(driver_dir / driver))
                             log(f"  Driver: {driver}", "ok")
 
+                    # Field-confirmed: this fetch had no size/PE-header check and no
+                    # retry, unlike every other download in this file — a truncated
+                    # or corrupted response got written straight to EFI/OC/Drivers/
+                    # and OpenCore hung mid-load trying to run it, well before the
+                    # picker ever appeared.
                     hfsplus_dest = driver_dir / "HfsPlus.efi"
                     if not hfsplus_dest.exists():
                         log("  HfsPlus.efi not in OC zip — fetching from OcBinaryData...", "info")
                         hfsplus_url = "https://raw.githubusercontent.com/acidanthera/OcBinaryData/master/Drivers/HfsPlus.efi"
-                        try:
-                            from compat import http_get
-                            hfsplus_dest.write_bytes(http_get(hfsplus_url, timeout=15))
-                            log("  HfsPlus.efi downloaded", "ok")
-                        except Exception as e:
-                            log(f"  HfsPlus.efi download failed: {e}", "error")
+                        from compat import http_get, is_valid_pe_binary
+                        last_err = None
+                        for attempt in range(3):
+                            try:
+                                data = http_get(hfsplus_url, timeout=15)
+                                if not is_valid_pe_binary(data, MIN_EFI):
+                                    raise ValueError(f"corrupt download ({len(data)} bytes, bad PE header)")
+                                hfsplus_dest.write_bytes(data)
+                                log("  HfsPlus.efi downloaded", "ok")
+                                break
+                            except Exception as e:
+                                last_err = e
+                                log(f"  HfsPlus.efi download attempt {attempt + 1}/3 failed: {e}", "warn")
+                        else:
+                            log(f"  HfsPlus.efi download failed: {last_err}", "error")
                 else:
                     log("  Could not find OpenCore release asset", "error")
 
