@@ -38,6 +38,17 @@ class DiscreteGpuPromptTests(unittest.TestCase):
 
         self.assertFalse(hardware.needs_dgpu_disable_prompt(profile))
 
+    def test_amd_primary_with_nvidia_dgpu_on_desktop_still_gets_disable_choice(self):
+        # An unsupported NVIDIA card doesn't stop being a problem just
+        # because the primary display GPU happens to be AMD instead of Intel.
+        profile = hardware.HardwareProfile(
+            gpu_vendor="amd",
+            dgpu_vendor="nvidia",
+            platform="desktop",
+        )
+
+        self.assertTrue(hardware.needs_dgpu_disable_prompt(profile))
+
 class HardwareWarningTests(unittest.TestCase):
     def test_tiger_lake_laptop_warns_that_internal_graphics_are_unusable(self):
         profile = hardware.HardwareProfile(
@@ -382,6 +393,32 @@ class WindowsGpuDetectionTests(unittest.TestCase):
         self.assertEqual(profile.gpu_name, "Intel(R) UHD Graphics 620")
         self.assertEqual(profile.gpu_vendor, "intel")
         self.assertEqual(profile.dgpu_name, "NVIDIA GeForce MX150")
+        self.assertEqual(profile.dgpu_vendor, "nvidia")
+
+    def test_amd_and_nvidia_discrete_with_no_igpu_puts_amd_in_primary_slot(self):
+        # Regression: a real user's desktop (i5-14600KF, no separate iGPU
+        # reported, RTX 4070 + RX 570 both installed) had the RX 570 vanish
+        # entirely — the single dgpu_name slot was filled by whichever card
+        # WMI listed first (the RTX 4070), and the second discrete card was
+        # silently dropped instead of ending up anywhere on the profile.
+        controllers = [
+            {
+                "Name": "NVIDIA GeForce RTX 4070",
+                "PNPDeviceID": r"PCI\VEN_10DE&DEV_2786&SUBSYS_00000000",
+            },
+            {
+                "Name": "AMD Radeon RX 570 Series",
+                "PNPDeviceID": r"PCI\VEN_1002&DEV_67DF&SUBSYS_00000000",
+            },
+        ]
+        profile = hardware.HardwareProfile()
+
+        with patch.object(hardware, "_ps", return_value=json.dumps(controllers)):
+            hardware._detect_gpu_windows(profile)
+
+        self.assertEqual(profile.gpu_name, "AMD Radeon RX 570 Series")
+        self.assertEqual(profile.gpu_vendor, "amd")
+        self.assertEqual(profile.dgpu_name, "NVIDIA GeForce RTX 4070")
         self.assertEqual(profile.dgpu_vendor, "nvidia")
 
 

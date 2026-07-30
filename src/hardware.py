@@ -46,10 +46,14 @@ class HardwareProfile:
     raw_pci: list = field(default_factory=list)
 
 def needs_dgpu_disable_prompt(profile: HardwareProfile) -> bool:
-    """Return whether the build flow should offer to disable an external GPU."""
+    """Return whether the build flow should offer to disable an external GPU.
+
+    Not gated on the primary GPU being Intel — a desktop with an AMD card
+    driving the display and an NVIDIA card also installed (no native macOS
+    driver on either card past Kepler) needs this exactly as much as an
+    Intel iGPU + NVIDIA dGPU laptop does."""
     return bool(
-        profile.gpu_vendor == "intel"
-        and profile.dgpu_vendor
+        profile.dgpu_vendor
         and (profile.platform == "laptop" or profile.dgpu_vendor == "nvidia")
     )
 
@@ -596,7 +600,8 @@ def _classify_gpus(gpus: list[str]) -> tuple[str, str, str, str]:
     systems, F/KF-series Intel, and any machine where WMI listed the discrete
     card first, RTX 3050s and RX 6600 XTs were filed as "igpu" with "dgpu:
     none" all over hwdb. Classify by what the card actually is instead."""
-    igpu_name = igpu_vendor = dgpu_name = dgpu_vendor = ""
+    igpu_name = igpu_vendor = ""
+    nvidia_name = amd_discrete_name = ""
     for name in gpus:
         lower = name.lower()
         if any(k in lower for k in _VIRTUAL_GPU_KEYWORDS):
@@ -605,16 +610,31 @@ def _classify_gpus(gpus: list[str]) -> tuple[str, str, str, str]:
             if not igpu_name:
                 igpu_name, igpu_vendor = name, "intel"
         elif "nvidia" in lower or "geforce" in lower or "quadro" in lower or "rtx" in lower or "gtx" in lower:
-            if not dgpu_name:
-                dgpu_name, dgpu_vendor = name, "nvidia"
+            if not nvidia_name:
+                nvidia_name = name
         elif "amd" in lower or "radeon" in lower or "ati " in lower:
             discrete = bool(re.search(r"\brx[\s\d]|\br[579] \d{3}\b|firepro|radeon pro|\bxt\b|\bvega (56|64)\b", lower))
             if discrete:
-                if not dgpu_name:
-                    dgpu_name, dgpu_vendor = name, "amd"
-            else:
-                if not igpu_name:
-                    igpu_name, igpu_vendor = name, "amd"
+                if not amd_discrete_name:
+                    amd_discrete_name = name
+            elif not igpu_name:
+                igpu_name, igpu_vendor = name, "amd"
+
+    if not igpu_name and amd_discrete_name and nvidia_name:
+        # Two discrete cards, no separate iGPU: AMD has full native macOS
+        # support, NVIDIA (Kepler onward) effectively has none, so the AMD
+        # card is what will actually drive a display — put it in the
+        # primary slot instead of silently dropping it behind whichever
+        # card WMI/lspci happened to list first, and keep the NVIDIA card
+        # visible as the dGPU so it still gets flagged for disabling.
+        return amd_discrete_name, "amd", nvidia_name, "nvidia"
+
+    if nvidia_name:
+        dgpu_name, dgpu_vendor = nvidia_name, "nvidia"
+    elif amd_discrete_name:
+        dgpu_name, dgpu_vendor = amd_discrete_name, "amd"
+    else:
+        dgpu_name = dgpu_vendor = ""
     return igpu_name, igpu_vendor, dgpu_name, dgpu_vendor
 
 
