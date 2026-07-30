@@ -295,6 +295,9 @@
   <div class="faq-q">Do I still need to follow the Dortania guide?</div>
   <div class="faq-a">HackMate automates the Dortania guide steps using the same tools (macrecovery, SSDTTime, OpenCore). Reading the guide is still useful for understanding what's happening, but you don't need to run any of it manually.</div>
 
+  <div class="faq-q">Does HackMate download the full macOS installer for offline installation?</div>
+  <div class="faq-a">Not currently. HackMate downloads Apple's recovery image (about 600 MB), which still downloads the full macOS payload from Apple after you boot it. If Recovery shows <code>PKDownloadError 8</code> or your network blocks Apple's installer servers, try a different connection or prepare a full installer separately on a Mac. HackMate cannot bypass filtering inside Recovery.</div>
+
   <!-- footer -->
   <div class="footer">
     MIT License · <a href="https://github.com/riftaway7-code/hackmate">github.com/riftaway7-code/hackmate</a> · <a href="https://github.com/riftaway7-code/hackmate/blob/main/SECURITY.md">Security Policy</a>

@@ -158,6 +158,9 @@ yeah — hackmate was literally built and tested on a thinkpad t480s. intel wifi
 **does it work on windows without python?**
 yep. grab `HackMate.exe` from the releases page, no python or deps needed at all.
 
+**does hackmate download the full macos installer for offline installation?**
+not currently. hackmate downloads apple's recovery image (about 600 mb), which still downloads the full macos payload from apple after u boot it. if recovery shows `PKDownloadError 8` or ur network blocks apple's installer servers, try a different connection or prepare a full installer separately on a mac. hackmate cannot bypass filtering inside recovery.
+
 **my antivirus is flagging hackmate.exe**
 known false positive w/ pyinstaller-built exes. every major av (defender, kaspersky, eset) reports it clean. built from source on github actions if u wanna verify — [build logs](https://github.com/riftaway7-code/hackmate/actions/workflows/build-exe.yml).
 

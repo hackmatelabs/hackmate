@@ -82,6 +82,27 @@ class HardwareWarningTests(unittest.TestCase):
         self.assertTrue(any("disable it in BIOS" in warning for warning in warnings))
 
 
+class MacOSPCIDetectionTests(unittest.TestCase):
+    def test_uses_system_profiler_instead_of_lspci(self):
+        output = "Intel UHD Graphics 630:\n    Vendor ID: 0x8086"
+
+        with (
+            patch("platform.system", return_value="Darwin"),
+            patch.object(hardware, "_run", return_value=output) as run,
+        ):
+            lines = hardware._lspci()
+
+        run.assert_called_once_with(["system_profiler", "SPPCIDataType"])
+        self.assertEqual(lines, output.splitlines())
+
+    def test_missing_system_profiler_does_not_crash(self):
+        with (
+            patch("platform.system", return_value="Darwin"),
+            patch.object(hardware.subprocess, "run", side_effect=FileNotFoundError),
+        ):
+            self.assertEqual(hardware._lspci(), [])
+
+
 class WindowsNetworkDetectionTests(unittest.TestCase):
     def test_ethernet_query_selects_physical_adapter_without_name_blacklist(self):
         queries = []
