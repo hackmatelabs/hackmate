@@ -8,10 +8,6 @@ import compat
 
 
 class PeBinaryValidationTests(unittest.TestCase):
-    # Regression, reported live: HfsPlus.efi was fetched from an unpinned
-    # raw-GitHub URL with no size or header check — a truncated/corrupted
-    # response got written straight into EFI/OC/Drivers/, and OpenCore hung
-    # loading it at boot, before the picker ever appeared.
     def test_rejects_data_smaller_than_min_size(self):
         data = b"MZ" + b"\x00" * 100
         self.assertFalse(compat.is_valid_pe_binary(data, min_size=50 * 1024))

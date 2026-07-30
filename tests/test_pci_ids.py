@@ -27,7 +27,6 @@ class PciIdsParsingTests(unittest.TestCase):
     def test_unknown_vendor_returns_none_not_a_crash(self):
         with open(pci_ids._DATA / "pci.ids", encoding="utf-8", errors="replace") as f:
             known_ids = {line[:4].lower() for line in f if line[:1].isalnum()}
-        # 0000 is reserved/never assigned in the PCI-SIG database.
         self.assertNotIn("0000", known_ids)
         self.assertIsNone(pci_ids.pci_vendor_name("0000"))
 
@@ -38,7 +37,6 @@ class PciIdsParsingTests(unittest.TestCase):
         self.assertEqual(pci_ids.usb_vendor_name("8086"), "Intel Corp.")
 
     def test_device_lookup_needs_matching_vendor(self):
-        # a real device id under the wrong vendor id must not match
         self.assertIsNone(pci_ids.pci_device_name("1002", "1234abcd"))
 
 
@@ -64,7 +62,6 @@ class ParseIdsFileUnitTests(unittest.TestCase):
             self.assertEqual(parsed["0001"][1]["abcd"], "Device A")
             self.assertEqual(parsed["0002"][0], "Vendor Two")
             self.assertEqual(parsed["0002"][1]["dead"], "Device B")
-            # class section lines must not leak into vendor data
             self.assertNotIn("c 00", parsed)
         finally:
             path.unlink()

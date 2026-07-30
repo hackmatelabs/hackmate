@@ -72,12 +72,6 @@ class InstallerAudioSafetyTests(unittest.TestCase):
 
 class RequiredSsdtSafetyTests(unittest.TestCase):
     def test_skylake_plus_desktop_gets_standalone_usbx(self):
-        # Regression: Dortania's guide is explicit that SSDT-USBX is
-        # required on desktop systems too from Skylake (gen 6) onward, not
-        # just laptops — desktops only ever got bare SSDT-EC, so no build
-        # for any Skylake-or-newer desktop ever included USB power
-        # properties at all. Reported live: a Coffee Lake OptiPlex desktop
-        # stalling during XHCI port power-on, exactly what USBX covers.
         profile = HardwareProfile(cpu_generation=8, platform="desktop")
 
         self.assertIn("SSDT-USBX", config_gen._required_ssdts(profile, []))
@@ -97,11 +91,6 @@ class RequiredSsdtSafetyTests(unittest.TestCase):
 
 
 class XhciUnsupportedChipsetTests(unittest.TestCase):
-    # Regression: XHCI-unsupported was gated purely on cpu_generation <= 3
-    # (Sandy/Ivy Bridge) — completely missing mainstream H370/B360/H310
-    # boards (8th/9th gen, otherwise fully supported) and X79/X99 HEDT
-    # boards, both flagged directly by a community member as needing this
-    # kext regardless of CPU generation.
     def _selected_names(self, board_name: str, cpu_generation: int = 8) -> set[str]:
         profile = HardwareProfile(
             cpu_vendor="intel", cpu_generation=cpu_generation, platform="desktop",
@@ -152,11 +141,6 @@ class LegacyCpuPowerManagementSafetyTests(unittest.TestCase):
             return {entry.name for entry in kexts.select_kexts(profile)}
 
     def test_legacy_pre_sandy_bridge_gets_nullcpupowermanagement_not_cpufriend(self):
-        # Regression: CPUFriend patches AppleIntelCPUPowerManagement's
-        # frequency/voltage tables, but NullCPUPowerManagement exists
-        # specifically to keep that same native driver from loading at all
-        # on CPUs it panics on — shipping both is a documented conflict,
-        # not just redundant.
         names = self._selected_names(1)
 
         self.assertIn("NullCPUPowerManagement", names)
@@ -361,10 +345,6 @@ class OpenCoreSchemaSafetyTests(unittest.TestCase):
 
 
 class XcpmExtraMsrsSafetyTests(unittest.TestCase):
-    # OpenCore's own docs: AppleXcpmExtraMsrs is "meant for Pentiums, HEDT
-    # and other odd systems not natively supported in macOS" — the same
-    # CPUs _cpu_needs_spoof() already flags for a CPUID spoof. Was
-    # hardcoded off for every build regardless of CPU.
     def _quirk(self, profile: HardwareProfile) -> bool:
         with patch.object(config_gen, "dmi_vendor", return_value=""):
             return config_gen._kernel_section(profile, [])["Quirks"]["AppleXcpmExtraMsrs"]

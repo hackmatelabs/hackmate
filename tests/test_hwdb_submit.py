@@ -48,10 +48,6 @@ class BuildLogContentTests(unittest.TestCase):
             wifi_kext_mode="AirportItlwm",
         )
 
-        # Every field visible on the scan results screen — regression:
-        # the log used to silently drop gpu_device_id, gpu_subsystem,
-        # cpu_family, core_count, thread_count, resizable_bar, cpu_brand,
-        # oc_platform, and the actual WiFi mode the user picked.
         for expected in (
             "cpu_brand: Intel", "cpu_family: desktop", "core_count: 6",
             "thread_count: 6", "oc_platform: Coffee Lake",

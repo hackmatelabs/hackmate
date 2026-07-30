@@ -26,19 +26,9 @@ from typing import Optional
 from compat import IS_WINDOWS, get_dsdt, find_iasl, chmod_iasl, real_home
 
 SSDTTIME_ZIP_URL = "https://github.com/corpnewt/SSDTTime/archive/refs/heads/master.zip"
-# Not Path(__file__).parent — in a frozen PyInstaller EXE that's inside the
-# _MEIPASS bootloader extraction, which is wiped after every run. SSDTTime
-# (several MB, plus iasl) would silently re-download on every single launch
-# from the compiled build instead of being cached like everything else.
 SSDTTIME_DIR = real_home() / ".hackmate" / "cache" / "ssdttime"
 
 def _assets_dir() -> Path:
-    """Path to the bundled Tier-3 .aml fallbacks. In a frozen PyInstaller
-    EXE, Path(__file__).parent resolves inside the bootloader, not the
-    extracted bundle — every bundled SSDT silently "not found" from a
-    compiled build regardless of what's actually on disk in the repo,
-    with no error, just a generic SKIP. Same pattern as
-    recovery.py's _macrecovery_path()."""
     if getattr(sys, "frozen", False):
         return Path(sys._MEIPASS) / "assets" / "acpi"
     return Path(__file__).parent / "assets" / "acpi"
@@ -295,13 +285,6 @@ def _inspect_dsdt(dsdt_path: Path) -> dict:
 
     has_awac = b"ACPI000E" in data
     has_gprw = b"GPRW" in data
-    # Newer firmware (this shows up on several current Dell OptiPlex boards,
-    # among others) defines CPU cores as generic ACPI0007 Device objects
-    # instead of the legacy Processor() keyword. The bundled SSDT-PLUG
-    # template below declares `ProcessorObj` and does nothing useful against
-    # an ACPI0007 Device — SSDTTime (Tier 1) handles this correctly by
-    # generating SSDT-PLUG-ALT instead, but if Tier 1 doesn't run, there is
-    # no safe generic substitute for it.
     has_acpi0007 = b"ACPI0007" in data
 
     ec_name = "EC0"
@@ -538,13 +521,6 @@ def generate(
         dsdt_info = _inspect_dsdt(dsdt)
     else:
         cb("  DSDT not found — using generic templates")
-        # has_acpi0007 is deliberately None here, not False — "not found" and
-        # "confirmed legacy Processor()" are different states, and only the
-        # ACPI0007 check below treats them differently. Field-confirmed: a
-        # machine with no readable DSDT got the bundled SSDT-PLUG (hardcoded
-        # \_SB.PR00, Processor-style) injected blind, and the boot hung
-        # before the picker ever appeared — almost certainly this SSDT's
-        # External() target not matching this board's real CPU object.
         dsdt_info = {"has_awac": False, "ec_name": "EC0", "igpu_name": "GFX0",
                      "cpu_path": r"\_SB.PR00", "has_gpi0": False, "has_gprw": False,
                      "has_acpi0007": None}
@@ -645,12 +621,6 @@ def generate(
             continue
 
         if ssdt == "SSDT-PLUG" and dsdt_info.get("has_acpi0007"):
-            # This firmware defines CPU cores as ACPI0007 Device objects.
-            # The generic template/bundled SSDT-PLUG both assume the legacy
-            # Processor() keyword and would compile "successfully" while
-            # doing nothing useful — that's a silent boot-time failure
-            # (macOS never gets working CPU power management), not a build
-            # failure, so it has to be reported instead of papered over.
             results[ssdt] = (
                 "ERROR: this system defines CPUs as ACPI0007 devices — needs "
                 "SSDT-PLUG-ALT, which only SSDTTime can generate correctly "
@@ -662,14 +632,6 @@ def generate(
             continue
 
         if ssdt == "SSDT-PLUG" and dsdt_info.get("has_acpi0007") is None:
-            # No DSDT could be extracted at all, so whether this board uses
-            # legacy Processor() objects or ACPI0007 Devices is unknown. The
-            # bundled/template SSDT-PLUG hardcodes an External declaration
-            # against a guessed CPU path (\_SB.PR00) — if that path doesn't
-            # match reality, OpenCore can hang loading ACPI tables, before
-            # the picker ever appears. Confirmed in the field on a board
-            # with no readable DSDT. Guessing wrong here is worse than
-            # skipping, so this has to be reported instead of injected blind.
             results[ssdt] = (
                 "ERROR: could not read this system's DSDT, so whether it "
                 "needs SSDT-PLUG or SSDT-PLUG-ALT can't be determined — "

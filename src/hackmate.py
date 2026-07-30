@@ -893,7 +893,6 @@ class HealthCheckScreen(Screen):
 
 
 class HistoryScreen(Screen):
-    """Browse past builds and reopen a config.plist that's still on disk."""
 
     def compose(self) -> ComposeResult:
         import build_history
@@ -1724,7 +1723,6 @@ class BuildModeScreen(Screen):
             self.app.pop_screen()
 
 class GPUChoiceScreen(Screen):
-    """Two GPUs detected — let the user pick which one macOS should use."""
     def __init__(self, device: str, repair: bool, skip_format: bool):
         super().__init__()
         self.device      = device
@@ -2703,12 +2701,6 @@ class InstallScreen(Screen):
                             shutil.copy(str(found[0]), str(driver_dir / driver))
                             log(f"  Driver: {driver}", "ok")
 
-                    # HfsPlus.efi is not in the OC zip — download from OcBinaryData.
-                    # Field-confirmed: this fetch had no size/PE-header check and no
-                    # retry, unlike every other download in this file — a truncated
-                    # or corrupted response got written straight to EFI/OC/Drivers/
-                    # and OpenCore hung mid-load trying to run it, well before the
-                    # picker ever appeared.
                     hfsplus_dest = driver_dir / "HfsPlus.efi"
                     if not hfsplus_dest.exists():
                         log("  HfsPlus.efi not in OC zip — fetching from OcBinaryData...", "info")

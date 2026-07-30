@@ -39,8 +39,6 @@ class DiscreteGpuPromptTests(unittest.TestCase):
         self.assertFalse(hardware.needs_dgpu_disable_prompt(profile))
 
     def test_amd_primary_with_nvidia_dgpu_on_desktop_still_gets_disable_choice(self):
-        # An unsupported NVIDIA card doesn't stop being a problem just
-        # because the primary display GPU happens to be AMD instead of Intel.
         profile = hardware.HardwareProfile(
             gpu_vendor="amd",
             dgpu_vendor="nvidia",
@@ -144,10 +142,6 @@ class MacOSNetworkDetectionTests(unittest.TestCase):
         return lambda data_type: mapping.get(data_type, "")
 
     def test_working_i219_ethernet_is_identified_not_reported_as_none(self):
-        # Regression: SPNetworkDataType lists the *service* name ("Ethernet")
-        # not the chip, so this exact real-world output used to leave
-        # ethernet_chipset/name empty despite the NIC working and being
-        # fully identifiable from SPEthernetDataType.
         profile = hardware.HardwareProfile()
         with patch.object(hardware, "_sp", side_effect=self._sp_for({
             "SPEthernetDataType": _REAL_SP_ETHERNET_I219,
@@ -189,10 +183,6 @@ class MacOSAudioDetectionTests(unittest.TestCase):
         self.assertEqual(profile.audio_codec, "ALC295")
 
     def test_virtual_only_audio_falls_back_without_claiming_a_codec(self):
-        # Regression: the real SPAudioDataType output wraps devices in
-        # "Audio:" / "Devices:" section headers that also end with ":" —
-        # "Audio:" itself used to get matched as a fallback device name
-        # before ever reaching the (correctly-filtered) BlackHole entries.
         sp = (
             "Audio:\n"
             "\n"
@@ -291,11 +281,6 @@ _REAL_SP_PCI_T480S = """PCI:
 
 class MacOSThunderboltDetectionTests(unittest.TestCase):
     def test_alpine_ridge_controller_detected_from_pci_ids_not_name(self):
-        # Regression: this real ThinkPad T480s PCI dump labels the Alpine
-        # Ridge Thunderbolt 3 controller "ExpressCard" (no friendly name
-        # without a loaded driver) — text-matching "thunderbolt" against it
-        # finds nothing, so detection has to go by Intel's known device IDs
-        # (0x15bf / 0x15c1 here) instead.
         profile = hardware.HardwareProfile()
         with (
             patch.object(hardware, "_sp", side_effect=lambda dt: (
@@ -343,11 +328,6 @@ class MacOSPCIDetectionTests(unittest.TestCase):
 
 class WindowsAudioDetectionTests(unittest.TestCase):
     def test_generic_realtek_device_name_resolves_to_real_codec_via_registry(self):
-        # Regression: Win32_SoundDevice only ever reports the generic driver
-        # name "Realtek High Definition Audio" — never the actual ALCxxx
-        # chip — so audio_codec ended up as the bare string "Realtek" and
-        # get_alc_layout() had nothing to match, silently defaulting to
-        # layout-id 1 for every Windows user regardless of their real codec.
         profile = hardware.HardwareProfile()
         responses = iter([
             "Realtek High Definition Audio",
@@ -422,11 +402,6 @@ class WindowsGpuDetectionTests(unittest.TestCase):
         self.assertEqual(profile.dgpu_vendor, "nvidia")
 
     def test_amd_and_nvidia_discrete_with_no_igpu_puts_amd_in_primary_slot(self):
-        # Regression: a real user's desktop (i5-14600KF, no separate iGPU
-        # reported, RTX 4070 + RX 570 both installed) had the RX 570 vanish
-        # entirely — the single dgpu_name slot was filled by whichever card
-        # WMI listed first (the RTX 4070), and the second discrete card was
-        # silently dropped instead of ending up anywhere on the profile.
         controllers = [
             {
                 "Name": "NVIDIA GeForce RTX 4070",
@@ -448,9 +423,6 @@ class WindowsGpuDetectionTests(unittest.TestCase):
         self.assertEqual(profile.dgpu_vendor, "nvidia")
 
     def test_driverless_gpu_with_blank_wmi_name_is_resolved_via_pci_ids(self):
-        # A newly-detected/driverless GPU can report an empty WMI Name
-        # while its PNPDeviceID (and therefore VEN_/DEV_) is always
-        # present — this used to just vanish from the profile entirely.
         controllers = [
             {
                 "Name": "",
@@ -468,10 +440,6 @@ class WindowsGpuDetectionTests(unittest.TestCase):
 
 class LinuxGpuFallbackNameTests(unittest.TestCase):
     def test_generic_lspci_name_is_resolved_via_bundled_pci_ids(self):
-        # A live/minimal Linux USB environment can have a missing or stale
-        # local pci.ids copy, so lspci falls back to a generic placeholder
-        # name instead of the real product name even though the raw
-        # vendor:device hex pair is always present.
         profile = hardware.HardwareProfile()
         profile.raw_pci = [
             "00:02.0 VGA compatible controller [0300]: Device [8086:591b]",
@@ -485,13 +453,6 @@ class LinuxGpuFallbackNameTests(unittest.TestCase):
 
 class SmbiosGenerationMatchTests(unittest.TestCase):
     def test_kaby_lake_laptop_gets_a_genuine_kaby_lake_smbios(self):
-        # Regression: mapped to MacBookPro16,1, a 2019 Coffee Lake Refresh
-        # SMBIOS — two generations off a real 2017 Kaby Lake machine.
-        # Dortania's own guide picks MacBookPro14,1 specifically "for
-        # compatibility's sake"; the project's own OpenCore validation
-        # fixtures (tests/generate_validation_configs.py) already assumed
-        # MacBookPro14,1 was correct here, so the live scan path was out
-        # of sync with the project's own test data.
         profile = hardware.HardwareProfile(cpu_generation=7, platform="laptop")
 
         hardware.detect_smbios(profile)

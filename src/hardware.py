@@ -31,6 +31,8 @@ class HardwareProfile:
 
     wifi_name: str = ""
     wifi_chipset: str = ""
+    wifi_pci_device: int = -1
+    wifi_pci_function: int = -1
 
     platform: str = ""        # laptop / desktop
     has_touchpad: bool = False
@@ -47,12 +49,6 @@ class HardwareProfile:
     raw_pci: list = field(default_factory=list)
 
 def needs_dgpu_disable_prompt(profile: HardwareProfile) -> bool:
-    """Return whether the build flow should offer to disable an external GPU.
-
-    Not gated on the primary GPU being Intel — a desktop with an AMD card
-    driving the display and an NVIDIA card also installed (no native macOS
-    driver on either card past Kepler) needs this exactly as much as an
-    Intel iGPU + NVIDIA dGPU laptop does."""
     return bool(
         profile.dgpu_vendor
         and (profile.platform == "laptop" or profile.dgpu_vendor == "nvidia")
@@ -136,20 +132,11 @@ SMBIOS_MAP = {
     (4, "laptop"):  "MacBookPro11,1",
     (5, "laptop"):  "MacBookPro12,1",
     (6, "laptop"):  "MacBookPro13,1",
-    # Kaby Lake (7th gen) laptop — was MacBookPro16,1 (a 2019 Coffee Lake
-    # Refresh SMBIOS, two generations off). MacBookPro14,1 is the genuine
-    # 2017 Kaby Lake model; Dortania's own guide picks it specifically
-    # "for compatibility's sake" over 14,2/14,3.
     (7, "laptop"):  "MacBookPro14,1",
     (8, "laptop"):  "MacBookPro15,2",
     (9, "laptop"):  "MacBookPro16,1",
     (9, "desktop"): "iMac19,1",
     (10, "laptop"): "MacBookPro16,2",
-    # 11th gen and newer laptops (Tiger Lake onward) have no genuine native
-    # SMBIOS at all — Apple never shipped an Intel MacBook Pro past the
-    # 2020 Ice Lake refresh (MacBookPro16,2/16,3) before moving to Apple
-    # Silicon. MacBookPro16,1 is the closest available, same as every
-    # community guide recommends for this gap; it isn't a detection bug.
     (11, "laptop"): "MacBookPro16,1",
     (12, "laptop"): "MacBookPro16,1",
     (13, "laptop"): "MacBookPro16,1",
@@ -160,9 +147,6 @@ SMBIOS_MAP = {
     (8, "desktop"):  "iMac19,1",
     (9, "desktop"):  "iMac19,1",
     (10, "desktop"): "iMac20,1",
-    # 11th gen and newer desktops (Rocket Lake onward) similarly have no
-    # native iMac SMBIOS — the 2020 iMac20,1 was Apple's last Intel iMac
-    # refresh. MacPro7,1 (2019) is the standard fallback for this gap.
     (11, "desktop"): "MacPro7,1",
     (12, "desktop"): "MacPro7,1",
     (13, "desktop"): "MacPro7,1",
@@ -575,12 +559,6 @@ _UNHELPFUL_NAME_RE = re.compile(
 
 
 def _is_unhelpful_device_name(name: str) -> bool:
-    """True when a name extracted from lspci/WMI is a generic placeholder
-    rather than an actual product name — happens when the host's own local
-    pci.ids copy is missing or stale (common on minimal/live Linux USB
-    environments), or a driver hasn't enumerated the device's friendly name
-    yet on Windows. In that case the bundled pci.ids (kept current, unlike
-    whatever's on the host) is worth falling back to."""
     return not name or bool(_UNHELPFUL_NAME_RE.match(name.strip()))
 
 
@@ -653,12 +631,6 @@ def _classify_gpus(gpus: list[str]) -> tuple[str, str, str, str]:
                 igpu_name, igpu_vendor = name, "amd"
 
     if not igpu_name and amd_discrete_name and nvidia_name:
-        # Two discrete cards, no separate iGPU: AMD has full native macOS
-        # support, NVIDIA (Kepler onward) effectively has none, so the AMD
-        # card is what will actually drive a display — put it in the
-        # primary slot instead of silently dropping it behind whichever
-        # card WMI/lspci happened to list first, and keep the NVIDIA card
-        # visible as the dGPU so it still gets flagged for disabling.
         return amd_discrete_name, "amd", nvidia_name, "nvidia"
 
     if nvidia_name:
@@ -685,9 +657,6 @@ def _detect_gpu_windows(profile: HardwareProfile):
     except (TypeError, ValueError):
         controllers = []
 
-    # A driverless/newly-detected GPU can report an empty WMI Name even
-    # though its PNPDeviceID (and therefore VEN_/DEV_) is always present —
-    # resolve those through the bundled pci.ids instead of dropping them.
     for item in controllers:
         if not isinstance(item, dict):
             continue
@@ -759,14 +728,6 @@ def _detect_audio_linux(profile: HardwareProfile):
                     profile.audio_codec = codec if codec else ids
 
 def _get_hda_codec_windows() -> str:
-    """Win32_SoundDevice only ever reports a generic driver name ("Realtek
-    High Definition Audio"), never the actual ALCxxx chip — so
-    get_alc_layout() had nothing to match against and silently fell back
-    to layout-id 1 for every Windows user regardless of their real codec.
-    The exact codec is in the PnP device instance ID (VEN_10EC&DEV_xxxx);
-    Realtek's device IDs spell the model number directly in hex (DEV_0256
-    -> ALC256), which is the same convention every Hackintosh guide uses
-    to identify a codec from Device Manager."""
     try:
         raw = _ps(
             "(Get-PnpDevice | Where-Object { $_.InstanceId -match 'HDAUDIO.*VEN_10EC' } | "
@@ -813,6 +774,9 @@ def _detect_audio_windows(profile: HardwareProfile):
     else:
         profile.audio_codec = best
 
+_LSPCI_ADDRESS_RE = re.compile(r'^[0-9a-f]{2,4}:([0-9a-f]{2})\.([0-9a-f])')
+
+
 def _detect_network_linux(profile: HardwareProfile):
     for line in profile.raw_pci:
         lower = line.lower()
@@ -828,6 +792,10 @@ def _detect_network_linux(profile: HardwareProfile):
                     profile.wifi_chipset = "atheros"
                 elif "realtek" in lower:
                     profile.wifi_chipset = "realtek"
+                addr = _LSPCI_ADDRESS_RE.match(line)
+                if addr:
+                    profile.wifi_pci_device = int(addr.group(1), 16)
+                    profile.wifi_pci_function = int(addr.group(2), 16)
             else:
                 profile.ethernet_name = name
                 if "i219" in lower or "i218" in lower:
@@ -1035,9 +1003,6 @@ _NOT_ONBOARD_AUDIO = (
     "blackhole", "existential audio", "soundflower", "loopback",
     "background music", "obs", "virtual", "steam", "displayport", "hdmi",
 )
-# SPAudioDataType wraps real devices in generic section headers ("Audio:",
-# "Devices:") that end with ":" just like a device name does — without this,
-# "Audio:" itself was matching as a fallback "device" ahead of anything real.
 _GENERIC_AUDIO_HEADERS = ("audio", "devices", "inputs", "outputs")
 
 def _detect_audio_macos(profile: HardwareProfile):
@@ -1064,12 +1029,6 @@ def _detect_audio_macos(profile: HardwareProfile):
         profile.audio_name = fallback
 
 def _detect_network_macos(profile: HardwareProfile):
-    # SPNetworkDataType lists configured *services* ("Wi-Fi", "Ethernet") not
-    # chip names, so it never matches a vendor/model keyword — on a running
-    # Hackintosh this silently reported working, identifiable hardware as
-    # "None". SPEthernetDataType/SPAirPortDataType list the actual PCI
-    # device name (e.g. "Intel I219-V Ethernet Connection") the same way
-    # SPPCIDataType does on Linux's lspci path.
     eth = _sp("SPEthernetDataType")
     for line in eth.splitlines():
         stripped = line.strip()
@@ -1113,10 +1072,6 @@ def _detect_network_macos(profile: HardwareProfile):
             if profile.wifi_chipset:
                 break
 
-# Alpine Ridge / Titan Ridge Thunderbolt 3 controller PCI IDs (Intel vendor
-# 0x8086). Text-matching for "thunderbolt" in SPPCIDataType doesn't work —
-# without a loaded driver, macOS has no friendly name for these and falls
-# back to a generic "ExpressCard" placeholder, so detection has to go by ID.
 _THUNDERBOLT_DEVICE_IDS = {
     "0x15b8", "0x15b9", "0x15ba", "0x15bb", "0x15bc", "0x15bd", "0x15be", "0x15bf",
     "0x15c0", "0x15c1",

@@ -213,10 +213,6 @@ def get_alc_layout(codec: str) -> int:
     return 1
 
 def alc_layout_is_known(codec: str) -> bool:
-    """False means get_alc_layout() had nothing to match and returned the
-    blind default (1) — not a real guess, just a placeholder. Layout 1
-    isn't valid for every codec; a caller should point the user at the
-    AppleALC wiki instead of presenting it as a confident answer."""
     return any(key.lower() in codec.lower() for key in ALC_LAYOUTS)
 
 def _dmi(field: str) -> str:
@@ -306,20 +302,9 @@ def _is_hedt(profile: HardwareProfile) -> bool:
     name = profile.cpu_name.lower()
     return any(x in name for x in ["threadripper", "xeon w-", "i9-79", "i9-78", "i7-79", "i7-78"])
 
-# Chipsets (not CPU generations) whose XHCI controller isn't on Apple's
-# native driver whitelist, per RehabMan/OS-X-USB-Inject-All's own compat
-# notes: mainstream H370/B360/H310 boards need it despite pairing with a
-# fully-supported 8th/9th gen CPU, and X79/X99 HEDT boards need it
-# regardless of which CPU generation _is_hedt() would otherwise catch by
-# name. cpu_generation <= 3 (Sandy/Ivy Bridge) already covers the general
-# pre-native-USB3 era separately from this chipset-specific list.
 _XHCI_UNSUPPORTED_CHIPSETS = ("h370", "b360", "h310", "x79", "x99")
 
 def _needs_xhci_unsupported(board_name: str) -> bool:
-    """Board-name substring match — works for DIY boards (ASUS/MSI/Gigabyte/
-    ASRock all put the chipset in the model string) but OEM desktops
-    (Dell/HP/Lenovo) often expose only an internal part number here, so this
-    can't catch those cases; cpu_generation <= 3 is the only signal for them."""
     name = board_name.lower()
     return any(chipset in name for chipset in _XHCI_UNSUPPORTED_CHIPSETS)
 
@@ -457,12 +442,6 @@ def select_kexts(profile: HardwareProfile, wifi_kext_mode: str = "itlwm") -> lis
         add("RadeonSensor")
 
     if legacy:
-        # NullCPUPowerManagement exists because AppleIntelCPUPowerManagement
-        # panics or spams debug output on pre-Sandy-Bridge CPUs — it
-        # replaces native power management outright. CPUFriend patches
-        # *that* native power management's frequency/voltage tables, so
-        # it has nothing to act on once NullCPUPowerManagement is in play;
-        # shipping both is a documented conflict, not just a wasted kext.
         add("NullCPUPowerManagement")
     else:
         add("CPUFriend")
@@ -641,11 +620,6 @@ def check_kext_sources(kexts: list[KextEntry], progress_cb=None, macos_version: 
     finds out when the hardware it drives does not work. Checking first turns
     that into a warning you can act on. Returns (results, release_cache); pass
     the cache to download_kexts so releases are not fetched twice.
-
-    AirportItlwm is version-pinned (a Ventura zip in the release list is not
-    a usable asset when building for Tahoe) — without macos_version this used
-    to pass the generic asset_pattern check and report "OK" for a build that
-    download_kexts would silently drop WiFi from minutes later.
     """
     results: dict[str, str] = {}
     cache: dict[str, list] = {}
@@ -820,15 +794,7 @@ OPENCORE_FALLBACK_URL = (
 
 
 def fetch_opencore(tmp: Path, log=None) -> Path:
-    """Resolve and download the OpenCore DEBUG zip, returning its local path.
-
-    DEBUG instead of RELEASE on purpose: it logs far more detail (ACPI
-    parsing, kext injection, quirk application) than RELEASE does, and that
-    detail is exactly what's missing when a user's build panics on real
-    hardware and all we get back is a phone photo of the kernel's own
-    verbose output — RELEASE's OpenCore-level log is comparatively silent
-    right where these builds keep failing.
-
+    """
     Order: GitHub API for the latest release (cached on disk once fetched) →
     newest previously-cached zip → pinned fallback URL. The old code had no
     cache and no fallback, so an API rate limit killed the whole build — the

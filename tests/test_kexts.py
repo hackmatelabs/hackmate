@@ -37,9 +37,6 @@ class AirportItlwmSourceCheckTests(unittest.TestCase):
         self.assertTrue(result.startswith("ERROR"))
 
     def test_missing_macos_version_argument_does_not_silently_pass(self):
-        # Regression: without macos_version, the old generic asset_pattern
-        # check found *a* AirportItlwm zip (Ventura's) and reported "OK" for
-        # any target, including ones with no matching build.
         result = self._check("")
 
         self.assertTrue(result.startswith("ERROR"))
@@ -50,9 +47,6 @@ class AlcLayoutConfidenceTests(unittest.TestCase):
         self.assertTrue(alc_layout_is_known("ALC897"))
 
     def test_generic_realtek_string_is_not_confirmed(self):
-        # Regression: Windows previously reported the codec as the bare
-        # string "Realtek" with no model number — get_alc_layout() silently
-        # returned the layout-1 fallback as if it were a real match.
         self.assertFalse(alc_layout_is_known("Realtek"))
         self.assertEqual(get_alc_layout("Realtek"), 1)
 
@@ -61,10 +55,6 @@ class AlcLayoutConfidenceTests(unittest.TestCase):
 
 
 class OpenCoreDebugBuildTests(unittest.TestCase):
-    # HackMate deliberately ships DEBUG OpenCore, not RELEASE — DEBUG logs
-    # far more detail at the bootloader level, which is what's missing when
-    # a build panics on real hardware and all that comes back is a phone
-    # photo of the kernel's own verbose output.
     def test_fallback_url_points_at_debug_not_release(self):
         self.assertIn("DEBUG", OPENCORE_FALLBACK_URL)
         self.assertNotIn("RELEASE", OPENCORE_FALLBACK_URL)
@@ -86,8 +76,6 @@ class OpenCoreDebugBuildTests(unittest.TestCase):
             path = fetch_opencore(Path("/tmp"))
 
         try:
-            # The second http_get call downloads whichever asset was chosen —
-            # assert it targeted the DEBUG asset's URL, not RELEASE's.
             second_call_url = http_get.call_args_list[1].args[0]
             self.assertIn("debug.zip", second_call_url)
         finally:

@@ -271,10 +271,6 @@ def _required_ssdts(profile: HardwareProfile, kexts: list[KextEntry]) -> list[st
         ssdts.append("SSDT-EC-USBX")
     else:
         ssdts.append("SSDT-EC")
-        # Dortania: "For Skylake and newer systems, SSDT-USBX is still
-        # required on desktop systems as well" — the EC-USBX bundle above
-        # only ever covers laptops, so desktops need it added separately
-        # or they never get USB power-property injection at all.
         if gen >= 6:
             ssdts.append("SSDT-USBX")
 
@@ -466,12 +462,6 @@ def _kernel_section(profile: HardwareProfile, kexts: list[KextEntry]) -> dict:
     quirks = {
         "AppleCpuPmCfgLock":          True,   # assume CFG Lock can't be disabled
         "AppleXcpmCfgLock":           True,
-        # OpenCore's own docs: "meant for Pentiums, HEDT and other odd
-        # systems not natively supported in macOS" — the exact same CPUs
-        # _cpu_needs_spoof() already flags as needing a CPUID spoof to get
-        # XCPM to recognize them at all, since a CPU model XCPM doesn't
-        # recognize is also very likely to have an MSR layout it doesn't
-        # expect. Was hardcoded off for every build regardless.
         "AppleXcpmExtraMsrs":         _cpu_needs_spoof(profile) is not None,
         "AppleXcpmForceBoost":        False,
         "CustomPciSerialDevice":      False,
@@ -865,13 +855,6 @@ def generate(profile: HardwareProfile, smbios: SMBIOSData, macos_major: int = 0,
                 "DisplayLevel":       2147483650,
                 "LogModules":         "*",
                 "SysReport":          False,
-                # 0x01 logging + 0x02 console + 0x04 Data Hub + 0x40 file log
-                # (persists to EFI/opencore-YYYY-MM-DD-HHMMSS.txt on the ESP,
-                # so a panic that wipes the screen doesn't wipe the log with
-                # it). Deliberately not 0x80 (the "faster but unsafe" file
-                # write variant) — that one risks ESP corruption on firmware
-                # that isn't fully FAT32-compliant, not worth it for a
-                # logging feature.
                 "Target":             71,
             },
             "Entries":  [],

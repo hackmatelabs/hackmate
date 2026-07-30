@@ -54,10 +54,6 @@ class Acpi0007PlugFallbackTests(unittest.TestCase):
             )
 
     def test_acpi0007_with_no_ssdttime_reports_error_not_a_silent_wrong_ssdt(self):
-        # Regression: the generic SSDT-PLUG template/bundled .aml both
-        # declare a legacy `ProcessorObj` — compiling one against an
-        # ACPI0007 Device-style firmware "succeeds" while doing nothing
-        # useful, which is a silent boot-time failure, not a build one.
         results = self._generate(_ACPI0007_DSDT)
 
         self.assertTrue(results["SSDT-PLUG"].startswith("ERROR"))
@@ -71,10 +67,6 @@ class Acpi0007PlugFallbackTests(unittest.TestCase):
 
 
 class UnknownDsdtPlugSafetyTests(unittest.TestCase):
-    # Regression, reported live: a board with no readable DSDT got the
-    # bundled/template SSDT-PLUG injected blind (hardcoded \_SB.PR00,
-    # legacy Processor-style External), and boot hung before the picker —
-    # this system's real CPU object path/style was never actually known.
     def setUp(self):
         self.acpi_dir = Path(tempfile.mkdtemp(prefix="hackmate-test-acpi-"))
         self.tmp_dir = Path(tempfile.mkdtemp(prefix="hackmate-test-tmp-"))
@@ -100,12 +92,6 @@ class UnknownDsdtPlugSafetyTests(unittest.TestCase):
 
 
 class FrozenAssetsPathTests(unittest.TestCase):
-    # Regression, reported live: every bundled Tier-3 SSDT (SSDT-PLUG,
-    # SSDT-GPRW, SSDT-EC, SSDT-USBX, SSDT-PMC) "not found" from the
-    # compiled .exe even though those exact files exist in src/assets/acpi
-    # in the repo — Path(__file__).parent resolves inside PyInstaller's
-    # _MEIPASS bootloader in a frozen build, not the extracted bundle,
-    # so _ASSETS pointed at a directory that was never checked at all.
     def test_source_checkout_uses_the_real_assets_directory(self):
         with patch.object(sys, "frozen", False, create=True):
             path = ssdt._assets_dir()

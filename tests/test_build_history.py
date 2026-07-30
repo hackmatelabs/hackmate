@@ -42,7 +42,6 @@ class BuildHistoryTests(unittest.TestCase):
         self.assertEqual(len(builds), 1)
         self.assertEqual(builds[0]["macos_version"], "Sequoia")
         self.assertEqual(builds[0]["hardware"]["cpu_name"], "Intel(R) Core(TM) i7-8700K")
-        # non-scalar debug fields (raw_pci) shouldn't bloat the saved record
         self.assertNotIn("raw_pci", builds[0]["hardware"])
 
     def test_list_is_newest_first(self):

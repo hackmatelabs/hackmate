@@ -1,11 +1,3 @@
-"""
-Build history: a JSON snapshot saved after each successful build, so a
-past EFI generation can be reviewed or reopened in config_editor instead
-of starting the whole wizard over. Scoped to what HackMate actually
-needs — enough to identify what hardware/macOS version/options produced
-a given EFI, not a full replayable build pipeline.
-"""
-
 import json
 import time
 import uuid
@@ -16,9 +8,6 @@ from compat import real_home
 
 HISTORY_DIR = real_home() / ".hackmate" / "history"
 
-# Keep only JSON-safe scalar fields from HardwareProfile — raw_pci and
-# similar list/dict debug fields aren't needed to identify a past build
-# and would bloat every history entry.
 _SCALAR_TYPES = (str, int, float, bool, type(None))
 
 
@@ -41,7 +30,6 @@ def save_build(
     wifi_kext_mode: str = "",
     dual_boot: str = "",
 ) -> Path:
-    """Write a history entry, return the path it was saved to."""
     HISTORY_DIR.mkdir(parents=True, exist_ok=True)
     entry_id = f"{int(time.time())}-{uuid.uuid4().hex[:8]}"
     record = {
@@ -60,8 +48,6 @@ def save_build(
 
 
 def list_builds() -> list[dict]:
-    """All saved history entries, newest first. Corrupt entries are skipped,
-    not fatal — a single bad JSON file shouldn't hide every other build."""
     if not HISTORY_DIR.exists():
         return []
     records = []
