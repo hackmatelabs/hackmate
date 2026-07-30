@@ -142,8 +142,9 @@ IGPU_FRAMEBUFFERS: dict[str, list[tuple[str, str]]] = {
     "1626": [("06002616", "HD 6000 — laptop (recommended)")],
     # Skylake
     "1916": [("00001619", "HD 520 — laptop (recommended)")],
-    "191b": [("00001b19", "HD 530 — desktop")],
-    "1926": [("00002619", "Iris 540/550 — laptop")],
+    "191b": [("00001619", "HD 530 — laptop (recommended)")],
+    "1912": [("00001219", "HD 530 — desktop"), ("01001219", "HD 530 — headless")],
+    "1926": [("00001619", "Iris 540/550 — laptop (recommended)")],
     # Kaby Lake
     "5916": [("00001b59", "HD 620 — laptop (recommended)"), ("00001659", "HD 620 — laptop alt")],
     "591b": [("00001b59", "HD 630 — laptop (recommended)")],

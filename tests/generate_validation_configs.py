@@ -58,6 +58,17 @@ PROFILES = {
         audio_codec="ALC1150",
         smbios_model="iMac16,2",
     ),
+    "skylake-laptop": HardwareProfile(
+        cpu_vendor="intel",
+        cpu_generation=6,
+        cpu_codename="Skylake",
+        oc_platform="Skylake",
+        gpu_vendor="intel",
+        gpu_name="Intel HD Graphics 530",
+        platform="laptop",
+        audio_codec="ALC293",
+        smbios_model="MacBookPro13,1",
+    ),
     "comet-amd-dgpu": HardwareProfile(
         cpu_vendor="intel",
         cpu_generation=10,

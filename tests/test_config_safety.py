@@ -298,6 +298,20 @@ class IntelGraphicsSafetyTests(unittest.TestCase):
             (bytes.fromhex("0500260A"), None),
         )
 
+    def test_haswell_hd5000_laptop_uses_mobile_iris_framebuffer_without_spoof(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=4,
+            gpu_vendor="intel",
+            gpu_name="Intel HD Graphics 5000",
+            platform="laptop",
+        )
+
+        self.assertEqual(
+            config_gen._igpu_config(profile),
+            (bytes.fromhex("0500260A"), None),
+        )
+
     def test_haswell_desktop_uses_display_and_headless_framebuffers(self):
         profile = HardwareProfile(
             cpu_vendor="intel",
@@ -357,6 +371,63 @@ class IntelGraphicsSafetyTests(unittest.TestCase):
         self.assertEqual(
             config_gen._igpu_config(desktop, headless=True),
             (bytes.fromhex("07002216"), None),
+        )
+
+    def test_skylake_hd530_laptop_uses_mobile_framebuffer(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=6,
+            gpu_vendor="intel",
+            gpu_name="Intel HD Graphics 530",
+            platform="laptop",
+        )
+
+        self.assertEqual(
+            config_gen._igpu_config(profile),
+            (bytes.fromhex("00001619"), None),
+        )
+
+    def test_skylake_desktop_uses_display_and_headless_framebuffers(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=6,
+            gpu_vendor="intel",
+            gpu_name="Intel HD Graphics 530",
+            platform="desktop",
+        )
+
+        self.assertEqual(
+            config_gen._igpu_config(profile),
+            (bytes.fromhex("00001219"), None),
+        )
+        self.assertEqual(
+            config_gen._igpu_config(profile, headless=True),
+            (bytes.fromhex("01001219"), None),
+        )
+
+    def test_skylake_unsupported_variants_use_documented_device_spoofs(self):
+        hd510 = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=6,
+            gpu_vendor="intel",
+            gpu_name="Intel HD Graphics 510",
+            platform="laptop",
+        )
+        p530 = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=6,
+            gpu_vendor="intel",
+            gpu_name="Intel HD Graphics P530",
+            platform="desktop",
+        )
+
+        self.assertEqual(
+            config_gen._igpu_config(hd510),
+            (bytes.fromhex("00001B19"), bytes.fromhex("02190000")),
+        )
+        self.assertEqual(
+            config_gen._igpu_config(p530),
+            (bytes.fromhex("00001219"), bytes.fromhex("1B190000")),
         )
 
     def test_kaby_lake_hd630_laptop_uses_mobile_framebuffer(self):
@@ -566,6 +637,9 @@ class IntelGraphicsSafetyTests(unittest.TestCase):
             "0d26": "0500260a",
             "1616": "06002616",
             "1626": "06002616",
+            "191b": "00001619",
+            "1912": "00001219",
+            "1926": "00001619",
             "5916": "00001b59",
             "5917": "0000c087",
             "3ea0": "00009b3e",

@@ -20,10 +20,10 @@ IG_PLATFORM_IDS: dict[str, bytes] = {
     "bdw_mobile": bytes([0x06, 0x00, 0x26, 0x16]),
     "bdw_desktop": bytes([0x07, 0x00, 0x22, 0x16]),
     # Skylake
-    "hd515":     bytes([0x00, 0x00, 0x1E, 0x19]),
-    "hd520":     bytes([0x00, 0x00, 0x16, 0x19]),
-    "hd530":     bytes([0x00, 0x00, 0x12, 0x19]),
-    "iris540":   bytes([0x00, 0x00, 0x26, 0x19]),
+    "skl_mobile": bytes([0x00, 0x00, 0x16, 0x19]),
+    "skl_mobile_hd510": bytes([0x00, 0x00, 0x1B, 0x19]),
+    "skl_desktop": bytes([0x00, 0x00, 0x12, 0x19]),
+    "skl_headless": bytes([0x01, 0x00, 0x12, 0x19]),
     # Kaby Lake
     "hd615":     bytes([0x00, 0x00, 0x1B, 0x59]),
     "hd620":     bytes([0x00, 0x00, 0x16, 0x59]),
@@ -55,6 +55,9 @@ IG_PLATFORM_IDS: dict[str, bytes] = {
 DEVICE_IDS: dict[str, bytes] = {
     # Fake device-id to match known-good framebuffers
     "hsw":       bytes([0x12, 0x04, 0x00, 0x00]),   # spoof HD 42xx/44xx as HD 4600
+    "skl_hd510": bytes([0x02, 0x19, 0x00, 0x00]),   # enable unsupported mobile HD 510
+    "skl_p530_mobile": bytes([0x16, 0x19, 0x00, 0x00]),
+    "skl_p530_desktop": bytes([0x1B, 0x19, 0x00, 0x00]),
     "kbl_r":     bytes([0x16, 0x59, 0x00, 0x00]),   # spoof UHD 620 as 5916
     "cfl_h":     bytes([0x9B, 0x3E, 0x00, 0x00]),   # spoof as 3E9B
 }
@@ -71,7 +74,7 @@ def _igpu_config(profile: HardwareProfile, headless: bool = False) -> tuple[byte
         return IG_PLATFORM_IDS["hd4000"], None
     elif gen == 4:
         if profile.platform == "laptop":
-            if "iris" in name or "hd 5000" in name:
+            if "iris" in name or "5000" in name:
                 return IG_PLATFORM_IDS["hsw_mobile_iris"], None
             return IG_PLATFORM_IDS["hsw_mobile"], DEVICE_IDS["hsw"]
         platform_id = (
@@ -88,10 +91,20 @@ def _igpu_config(profile: HardwareProfile, headless: bool = False) -> tuple[byte
         # Broadwell has no documented connectorless framebuffer.
         return IG_PLATFORM_IDS["bdw_desktop"], None
     elif gen == 6:
-        if "iris" in name:     return IG_PLATFORM_IDS["iris540"], None
-        if "530" in name:      return IG_PLATFORM_IDS["hd530"], None
-        if "515" in name:      return IG_PLATFORM_IDS["hd515"], None
-        return IG_PLATFORM_IDS["hd520"], None
+        if profile.platform == "laptop":
+            if "p530" in name or "550" in name:
+                return IG_PLATFORM_IDS["skl_mobile"], DEVICE_IDS["skl_p530_mobile"]
+            if "510" in name:
+                return IG_PLATFORM_IDS["skl_mobile_hd510"], DEVICE_IDS["skl_hd510"]
+            return IG_PLATFORM_IDS["skl_mobile"], None
+        platform_id = (
+            IG_PLATFORM_IDS["skl_headless"]
+            if headless else
+            IG_PLATFORM_IDS["skl_desktop"]
+        )
+        if "p530" in name:
+            return platform_id, DEVICE_IDS["skl_p530_desktop"]
+        return platform_id, None
     elif gen == 7:
         if "iris" in name:     return IG_PLATFORM_IDS["iris640"], None
         if "630" in name:
