@@ -204,6 +204,35 @@ class OpenCoreSchemaSafetyTests(unittest.TestCase):
             "ShimRetainProtocol",
         }.issubset(uefi["Quirks"]))
 
+    def test_amd_uses_complete_vanilla_patch_set_with_physical_core_count(self):
+        profile = HardwareProfile(
+            cpu_vendor="amd",
+            cpu_generation=11,
+            cpu_codename="Zen 3",
+            oc_platform="Ryzen",
+            core_count=12,
+            gpu_vendor="amd",
+            gpu_name="AMD Radeon RX 6600",
+            platform="desktop",
+        )
+
+        with patch.object(config_gen, "dmi_vendor", return_value=""):
+            kernel = config_gen._kernel_section(profile, [])
+
+        patches = kernel["Patch"]
+        core_patches = [
+            entry for entry in patches
+            if "Force cpuid_cores_per_package" in entry["Comment"]
+        ]
+
+        self.assertTrue(kernel["Quirks"]["ProvideCurrentCpuInfo"])
+        self.assertEqual(len(patches), 25)
+        self.assertEqual(len(core_patches), 4)
+        self.assertTrue(all(entry["Replace"][1] == 12 for entry in core_patches))
+        for entry in patches:
+            with self.subTest(comment=entry["Comment"]):
+                self.assertEqual(len(entry["Find"]), len(entry["Replace"]))
+
 
 class IntelGraphicsSafetyTests(unittest.TestCase):
     def test_kaby_lake_hd630_laptop_uses_mobile_framebuffer(self):

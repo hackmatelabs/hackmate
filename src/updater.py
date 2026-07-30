@@ -21,6 +21,7 @@ FILES = [
     "hardware.py",
     "kexts.py",
     "config_gen.py",
+    "amd_patches.plist",
     "smbios.py",
     "recovery.py",
     "ssdt.py",

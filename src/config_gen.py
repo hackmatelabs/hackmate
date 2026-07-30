@@ -415,7 +415,8 @@ def _kernel_section(profile: HardwareProfile, kexts: list[KextEntry]) -> dict:
     if profile.cpu_vendor == "amd":
         quirks["AppleCpuPmCfgLock"]  = False
         quirks["AppleXcpmCfgLock"]   = False
-        quirks["ProvideCurrentCpuInfo"] = False
+        # Required by the universal AMD Vanilla patch set.
+        quirks["ProvideCurrentCpuInfo"] = True
 
     # AMD needs extra kernel patches
     patches = []
@@ -452,64 +453,24 @@ def _kernel_section(profile: HardwareProfile, kexts: list[KextEntry]) -> dict:
     }
 
 def _amd_kernel_patches(profile: HardwareProfile) -> list[dict]:
-    cores = cpu_core_count()
-    core_hex = format(cores, "02x")
+    patch_path = Path(__file__).with_name("amd_patches.plist")
+    with patch_path.open("rb") as patch_file:
+        patches = plistlib.load(patch_file)["Kernel"]["Patch"]
 
-    def p(comment, base, find, replace, count=1, min_k="", max_k="", identifier="kernel"):
-        return {
-            "Arch":         "x86_64",
-            "Base":         base,
-            "Comment":      f"AMD - {comment}",
-            "Count":        count,
-            "Enabled":      True,
-            "Find":         bytes.fromhex(find.replace(" ", "")) if find else b"",
-            "Identifier":   identifier,
-            "Limit":        0,
-            "Mask":         b"",
-            "MaxKernel":    max_k,
-            "MinKernel":    min_k,
-            "Replace":      bytes.fromhex(replace.replace(" ", "")),
-            "ReplaceMask":  b"",
-            "Skip":         0,
-        }
+    cores = profile.core_count or cpu_core_count()
+    if not 1 <= cores <= 255:
+        raise ValueError(f"Invalid AMD physical core count: {cores}")
 
-    return [
-        # cpuid_set_cpufamily — make macOS treat AMD as supported Intel family
-        p("cpuid_set_cpufamily",
-          "_cpuid_set_cpufamily",
-          "B9 78000000 31C0 39D9 75 13",
-          "B8 A1000000 31C0 31C0 31C0 EB 02",
-          min_k="20.0.0"),
+    # AMD Vanilla ships four version-specific core-count patches. Byte 1 of
+    # each Replace value is the user-supplied physical core count.
+    for patch in patches:
+        if "Force cpuid_cores_per_package" not in patch.get("Comment", ""):
+            continue
+        replacement = bytearray(patch["Replace"])
+        replacement[1] = cores
+        patch["Replace"] = bytes(replacement)
 
-        # cpuid_set_info_rdmsr — prevent RDMSR crash on AMD
-        p("cpuid_set_info_rdmsr",
-          "_cpuid_set_info_rdmsr",
-          "B9 000000C0 0F32",
-          "B9 000000C0 31C0",
-          count=4, min_k="20.0.0"),
-
-        # commpage_populate — disable commpage CPU features AMD doesn't have
-        p("commpage_populate",
-          "_commpage_populate",
-          "EB 4E",
-          "EB 00",
-          min_k="20.0.0"),
-
-        # mp_cpus_callin — patch CPU count with actual core count
-        p("mp_cpus_callin",
-          "_mp_cpus_callin",
-          "B8 01000000",
-          f"B8 {core_hex}000000",
-          min_k="20.0.0"),
-
-        # cpuid_vmm_present — prevent VMM detection hang
-        p("cpuid_vmm_present",
-          "_cpuid_vmm_present",
-          "B8 01000000 C3",
-          "B8 00000000 C3",
-          min_k="20.0.0"),
-
-    ]
+    return patches
 
 def _nvram_section(
     profile: HardwareProfile,
