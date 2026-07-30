@@ -31,7 +31,7 @@ from hardware import scan, HardwareProfile, needs_dgpu_disable_prompt
 from kexts import select_kexts, get_alc_layout
 from smbios import generate as gen_smbios, SMBIOSData
 from config_gen import generate as gen_config, write_plist, _required_ssdts
-from recovery import compatible_versions, download_recovery, MacOSVersion
+from recovery import compatible_versions, download_recovery, macrecovery_args, MacOSVersion
 
 
 BG      = "#0d0d0d"
@@ -1465,9 +1465,7 @@ class InstallScreen(Screen):
                 recovery_dest = tmp / "recovery"
                 self.app.call_from_thread(self._cmd_log_write, [
                     "python3" if not IS_WINDOWS else "python", "macrecovery.py",
-                    "-b", version.board_id, "-m", version.mlb,
-                    *(version.os_flag.split() if version.os_flag else []),
-                    "download", "--outdir", str(recovery_dest),
+                    *macrecovery_args(version, recovery_dest),
                 ])
 
                 def recovery_progress(msg):

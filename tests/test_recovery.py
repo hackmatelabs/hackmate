@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from recovery import compatible_versions
+from recovery import MACOS_VERSIONS, compatible_versions, macrecovery_args
 
 
 class RecoveryCompatibilityTests(unittest.TestCase):
@@ -103,3 +103,54 @@ class RecoveryCompatibilityTests(unittest.TestCase):
         )
 
         self.assertEqual([], versions)
+
+
+class RecoveryCommandTests(unittest.TestCase):
+    def _version(self, version: str):
+        return next(item for item in MACOS_VERSIONS if item.version == version)
+
+    def test_only_tahoe_requests_the_latest_recovery(self):
+        tahoe_args = macrecovery_args(self._version("26"))
+        sequoia_args = macrecovery_args(self._version("15"))
+        sonoma_args = macrecovery_args(self._version("14"))
+
+        self.assertIn("-os", tahoe_args)
+        self.assertIn("latest", tahoe_args)
+        self.assertNotIn("-os", sequoia_args)
+        self.assertNotIn("-os", sonoma_args)
+
+    def test_shared_command_builder_includes_output_directory(self):
+        args = macrecovery_args(self._version("15"), Path("/tmp/recovery"))
+
+        self.assertEqual(
+            [
+                "-b", "Mac-7BA5B2D9E42DDD94",
+                "-m", "00000000000000000",
+                "download",
+                "--outdir", "/tmp/recovery",
+            ],
+            args,
+        )
+
+    def test_recovery_identifiers_match_opencore_guide(self):
+        expected = {
+            "26": ("Mac-CFF7D910A743CAAF", "00000000000000000"),
+            "15": ("Mac-7BA5B2D9E42DDD94", "00000000000000000"),
+            "14": ("Mac-827FAC58A8FDFA22", "00000000000000000"),
+            "13": ("Mac-B4831CEBD52A0C4C", "00000000000000000"),
+            "12": ("Mac-E43C1C25D4880AD6", "00000000000000000"),
+            "11": ("Mac-2BD1B31983FE1663", "00000000000000000"),
+            "10.15": ("Mac-CFF7D910A743CAAF", "00000000000PHCD00"),
+            "10.14": ("Mac-7BA5B2DFE22DDD8C", "00000000000KXPG00"),
+            "10.13": ("Mac-7BA5B2D9E42DDD94", "00000000000J80300"),
+            "10.12": ("Mac-77F17D7DA9285301", "00000000000J0DX00"),
+            "10.11": ("Mac-FFE5EF870D7BA81A", "00000000000GQRX00"),
+            "10.10": ("Mac-E43C1C25D4880AD6", "00000000000GDVW00"),
+        }
+
+        actual = {
+            version.version: (version.board_id, version.mlb)
+            for version in MACOS_VERSIONS
+        }
+
+        self.assertEqual(expected, actual)

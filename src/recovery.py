@@ -23,7 +23,7 @@ class MacOSVersion:
     version: str          # marketing version, e.g. "13" or "10.15"
     board_id: str
     mlb: str
-    os_flag: str = ""     # "--os latest" for Tahoe
+    os_flag: str = ""     # "-os latest" for Tahoe
     min_gen: int = 0      # minimum CPU generation supported
     max_gen: int = 99     # maximum CPU generation supported
     notes: str = ""
@@ -42,9 +42,9 @@ class MacOSVersion:
 
 
 MACOS_VERSIONS = [
-    MacOSVersion("macOS Tahoe (26)",      "26", "Mac-CFF7D910A743CAAF", "00000000000000000", os_flag="--os latest", min_gen=7,  notes="Latest — Intel 7th gen+ (Nvidia dGPU must be disabled in BIOS)"),
-    MacOSVersion("macOS Sequoia (15)",    "15", "Mac-7BA5B2D9E42DDD94", "00000000000000000", os_flag="--os latest", min_gen=7,  notes="Intel 7th gen+"),
-    MacOSVersion("macOS Sonoma (14)",     "14", "Mac-827FAC58A8FDFA22", "00000000000000000", os_flag="--os latest", min_gen=7,  notes="Intel 7th gen+"),
+    MacOSVersion("macOS Tahoe (26)",      "26", "Mac-CFF7D910A743CAAF", "00000000000000000", os_flag="-os latest", min_gen=7,  notes="Latest — Intel 7th gen+ (Nvidia dGPU must be disabled in BIOS)"),
+    MacOSVersion("macOS Sequoia (15)",    "15", "Mac-7BA5B2D9E42DDD94", "00000000000000000", min_gen=7,  notes="Intel 7th gen+"),
+    MacOSVersion("macOS Sonoma (14)",     "14", "Mac-827FAC58A8FDFA22", "00000000000000000", min_gen=7,  notes="Intel 7th gen+"),
     MacOSVersion("macOS Ventura (13)",    "13", "Mac-B4831CEBD52A0C4C", "00000000000000000", min_gen=6,  notes="Intel 6th gen+"),
     MacOSVersion("macOS Monterey (12)",   "12", "Mac-E43C1C25D4880AD6", "00000000000000000", min_gen=5,  notes="Intel 5th gen+"),
     MacOSVersion("macOS Big Sur (11)",    "11", "Mac-2BD1B31983FE1663", "00000000000000000", min_gen=4,  notes="Intel 4th gen+"),
@@ -214,6 +214,22 @@ def _cached_recovery_files(version: MacOSVersion) -> list[Path]:
     return files
 
 
+def macrecovery_args(
+    version: MacOSVersion,
+    outdir: Path | None = None,
+) -> list[str]:
+    args = [
+        "-b", version.board_id,
+        "-m", version.mlb,
+    ]
+    if version.os_flag:
+        args.extend(version.os_flag.split())
+    args.append("download")
+    if outdir is not None:
+        args.extend(["--outdir", str(outdir)])
+    return args
+
+
 def _ensure_cert_bundle_env() -> None:
     """macrecovery.py (vendored from Acidanthera, re-downloaded fresh at every
     build — never hand-edit it) calls urlopen() with no SSL context of its
@@ -273,13 +289,7 @@ def _download_recovery_once(version: MacOSVersion, dest: Path, progress_cb=None)
 
     dest.mkdir(parents=True, exist_ok=True)
 
-    script_args = [
-        "-b", version.board_id,
-        "-m", version.mlb,
-    ]
-    if version.os_flag:
-        script_args += version.os_flag.split()
-    script_args += ["download", "--outdir", str(dest)]
+    script_args = macrecovery_args(version, dest)
 
     if progress_cb:
         progress_cb("Connecting to Apple servers...")
