@@ -1505,7 +1505,7 @@ class NoUSBPathScreen(Screen):
         if getattr(profile, "wifi_chipset", ""):
             self.app.push_screen(WiFiKextScreen("local", repair=False, skip_format=True))
         elif needs_dgpu_disable_prompt(profile):
-            self.app.push_screen(DGPUScreen("local", repair=False, skip_format=True))
+            self.app.push_screen(GPUChoiceScreen("local", repair=False, skip_format=True))
         else:
             self.app.push_screen(DualBootScreen("local", repair=False, skip_format=True))
 
@@ -1592,7 +1592,7 @@ class WiFiKextScreen(Screen):
     def _next(self) -> None:
         profile: HardwareProfile = self.app.profile
         if needs_dgpu_disable_prompt(profile):
-            self.app.push_screen(DGPUScreen(self.device, repair=self.repair, skip_format=self.skip_format))
+            self.app.push_screen(GPUChoiceScreen(self.device, repair=self.repair, skip_format=self.skip_format))
         else:
             self.app.push_screen(DualBootScreen(self.device, repair=self.repair, skip_format=self.skip_format))
 
@@ -1642,7 +1642,7 @@ class BuildModeScreen(Screen):
         if getattr(profile, "wifi_chipset", ""):
             self.app.push_screen(WiFiKextScreen(self.device, repair=repair, skip_format=skip_format))
         elif needs_dgpu_disable_prompt(profile):
-            self.app.push_screen(DGPUScreen(self.device, repair=repair, skip_format=skip_format))
+            self.app.push_screen(GPUChoiceScreen(self.device, repair=repair, skip_format=skip_format))
         else:
             self.app.push_screen(DualBootScreen(self.device, repair=repair, skip_format=skip_format))
 
@@ -1653,6 +1653,49 @@ class BuildModeScreen(Screen):
             self._next_screen(repair=False, skip_format=True)
         elif event.button.id == "repair":
             self._next_screen(repair=True, skip_format=False)
+        elif event.button.id == "back":
+            self.app.pop_screen()
+
+class GPUChoiceScreen(Screen):
+    """Two GPUs detected — let the user pick which one macOS should use."""
+    def __init__(self, device: str, repair: bool, skip_format: bool):
+        super().__init__()
+        self.device      = device
+        self.repair      = repair
+        self.skip_format = skip_format
+
+    def compose(self) -> ComposeResult:
+        profile: HardwareProfile = self.app.profile
+        working    = getattr(profile, "gpu_name", "")  or "GPU 1"
+        unsupported = getattr(profile, "dgpu_name", "") or "GPU 2"
+        yield Header()
+        yield Container(
+            Vertical(
+                Static("── Choose Display GPU ──────────────────────────────────", classes="title"),
+                Static(""),
+                Static("  Two GPUs were detected on this system. Which one is", classes="info"),
+                Static("  connected to your monitor / do you want macOS to use?", classes="info"),
+                Static(""),
+                Static(f"  {working}", classes="info"),
+                Static("    supported — HackMate will build around this one", classes="info"),
+                Static(""),
+                Static(f"  {unsupported}", classes="info"),
+                Static("    not supported by modern macOS", classes="info"),
+                Static(""),
+                Button(working,     id="supported",   classes="primary"),
+                Button(unsupported, id="unsupported", classes="primary"),
+                Button("← Back",    id="back",        classes="back"),
+                classes="screen-inner"
+            )
+        )
+        yield Footer()
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "supported":
+            self.app.disable_dgpu = True
+            self.app.push_screen(DualBootScreen(self.device, repair=self.repair, skip_format=self.skip_format))
+        elif event.button.id == "unsupported":
+            self.app.push_screen(DGPUScreen(self.device, repair=self.repair, skip_format=self.skip_format))
         elif event.button.id == "back":
             self.app.pop_screen()
 
@@ -1676,10 +1719,11 @@ class DGPUScreen(Screen):
                 Static("  You can also disable it in BIOS under Switchable Graphics.", classes="info"),
             ]
         else:
+            working = getattr(profile, "gpu_name", "") or "your other GPU"
             explanation = [
                 Static("  This external GPU is not supported by modern macOS.", classes="info"),
-                Static("  Disable it and connect the monitor to the motherboard", classes="info"),
-                Static("  video output so the Intel iGPU can drive the display.", classes="info"),
+                Static("  Disable it and connect the monitor to the port driven", classes="info"),
+                Static(f"  by {working} instead.", classes="info"),
             ]
         yield Header()
         yield Container(

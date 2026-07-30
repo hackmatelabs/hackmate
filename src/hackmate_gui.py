@@ -1035,7 +1035,7 @@ class NoUSBPathScreen(Screen):
         if getattr(profile, "wifi_chipset", ""):
             self.app.push_screen(WiFiKextScreen, "local", False, True)
         elif needs_dgpu_disable_prompt(profile):
-            self.app.push_screen(DGPUScreen, "local", False, True)
+            self.app.push_screen(GPUChoiceScreen, "local", False, True)
         else:
             self.app.push_screen(DualBootScreen, "local", False, True)
 
@@ -1107,7 +1107,7 @@ class WiFiKextScreen(Screen):
         self.app.wifi_kext_mode = mode
         profile: HardwareProfile = self.app.profile
         if needs_dgpu_disable_prompt(profile):
-            self.app.push_screen(DGPUScreen, self.device, self.repair, self.skip_format)
+            self.app.push_screen(GPUChoiceScreen, self.device, self.repair, self.skip_format)
         else:
             self.app.push_screen(DualBootScreen, self.device, self.repair, self.skip_format)
 
@@ -1142,9 +1142,54 @@ class BuildModeScreen(Screen):
         if getattr(profile, "wifi_chipset", ""):
             self.app.push_screen(WiFiKextScreen, self.device, repair, skip_format)
         elif needs_dgpu_disable_prompt(profile):
-            self.app.push_screen(DGPUScreen, self.device, repair, skip_format)
+            self.app.push_screen(GPUChoiceScreen, self.device, repair, skip_format)
         else:
             self.app.push_screen(DualBootScreen, self.device, repair, skip_format)
+
+
+class GPUChoiceScreen(Screen):
+    """Two GPUs detected — let the user pick which one macOS should use."""
+
+    def __init__(self, app, device: str, repair: bool, skip_format: bool):
+        super().__init__(app)
+        self.device = device
+        self.repair = repair
+        self.skip_format = skip_format
+
+    def on_show(self):
+        profile: HardwareProfile = self.app.profile
+        working     = getattr(profile, "gpu_name", "")  or "GPU 1"
+        unsupported = getattr(profile, "dgpu_name", "") or "GPU 2"
+
+        wrap = tk.Frame(self, bg=BG)
+        wrap.pack(fill="both", expand=True, padx=30, pady=20)
+        title(wrap, "── Choose Display GPU ──────────────────────────────────").pack(anchor="w")
+        info(wrap, "").pack(anchor="w")
+        for line in [
+            "  Two GPUs were detected on this system. Which one is",
+            "  connected to your monitor / do you want macOS to use?",
+            "",
+            f"  {working}",
+            "    supported — HackMate will build around this one",
+            "",
+            f"  {unsupported}",
+            "    not supported by modern macOS",
+        ]:
+            info(wrap, line).pack(anchor="w")
+        info(wrap, "").pack(anchor="w")
+
+        btn_row = tk.Frame(wrap, bg=BG)
+        btn_row.pack(fill="x", pady=(8, 0))
+        button(btn_row, working, self._choose_supported, "primary").pack(anchor="w", pady=(0, 4), fill="x")
+        button(btn_row, unsupported, self._choose_unsupported, "primary").pack(anchor="w", pady=(0, 4), fill="x")
+        button(btn_row, "← Back", self.app.pop_screen, "back").pack(anchor="w")
+
+    def _choose_supported(self):
+        self.app.disable_dgpu = True
+        self.app.push_screen(DualBootScreen, self.device, self.repair, self.skip_format)
+
+    def _choose_unsupported(self):
+        self.app.push_screen(DGPUScreen, self.device, self.repair, self.skip_format)
 
 
 class DGPUScreen(Screen):
@@ -1175,10 +1220,11 @@ class DGPUScreen(Screen):
                 "  You can also disable it in BIOS under Switchable Graphics.",
             ]
         else:
+            working = getattr(profile, "gpu_name", "") or "your other GPU"
             details = [
                 "  This external GPU is not supported by modern macOS.",
-                "  Disable it and connect the monitor to the motherboard",
-                "  video output so the Intel iGPU can drive the display.",
+                "  Disable it and connect the monitor to the port driven",
+                f"  by {working} instead.",
             ]
         for line in details + [
             "  Disable via DeviceProperties (recommended)?",
