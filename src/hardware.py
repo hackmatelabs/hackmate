@@ -710,6 +710,29 @@ def _detect_audio_linux(profile: HardwareProfile):
                     codec = _get_hda_codec_linux()
                     profile.audio_codec = codec if codec else ids
 
+def _get_hda_codec_windows() -> str:
+    """Win32_SoundDevice only ever reports a generic driver name ("Realtek
+    High Definition Audio"), never the actual ALCxxx chip — so
+    get_alc_layout() had nothing to match against and silently fell back
+    to layout-id 1 for every Windows user regardless of their real codec.
+    The exact codec is in the PnP device instance ID (VEN_10EC&DEV_xxxx);
+    Realtek's device IDs spell the model number directly in hex (DEV_0256
+    -> ALC256), which is the same convention every Hackintosh guide uses
+    to identify a codec from Device Manager."""
+    try:
+        raw = _ps(
+            "(Get-PnpDevice | Where-Object { $_.InstanceId -match 'HDAUDIO.*VEN_10EC' } | "
+            "Select-Object -ExpandProperty InstanceId) -join '||'"
+        ).strip()
+    except Exception:
+        return ""
+    for instance_id in raw.split("||"):
+        m = re.search(r"VEN_10EC&DEV_([0-9A-Fa-f]{4})", instance_id)
+        if m:
+            model = m.group(1).lstrip("0") or "0"
+            return f"ALC{model}"
+    return ""
+
 def _detect_audio_windows(profile: HardwareProfile):
     raw = _ps("(Get-WmiObject Win32_SoundDevice | ForEach-Object { $_.Name }) -join '||'").strip()
     devices = [d.strip() for d in raw.split("||") if d.strip()]
@@ -738,7 +761,7 @@ def _detect_audio_windows(profile: HardwareProfile):
     if m:
         profile.audio_codec = f"ALC{m.group(1)}"
     elif "realtek" in best.lower():
-        profile.audio_codec = "Realtek"
+        profile.audio_codec = _get_hda_codec_windows() or "Realtek"
     else:
         profile.audio_codec = best
 

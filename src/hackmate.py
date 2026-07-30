@@ -147,7 +147,7 @@ except ModuleNotFoundError:
     sys.exit(1)
 
 from hardware import scan, HardwareProfile, needs_dgpu_disable_prompt
-from kexts import select_kexts, get_alc_layout
+from kexts import select_kexts, get_alc_layout, alc_layout_is_known
 from smbios import generate as gen_smbios
 from config_gen import generate as gen_config, write_plist, _required_ssdts
 from recovery import compatible_versions, download_recovery, macrecovery_args, MacOSVersion
@@ -1357,7 +1357,14 @@ class ScanScreen(Screen):
             f"  NVMe      {'Yes' if profile.nvme_present else 'No'}   Thunderbolt: {'Yes' if profile.has_thunderbolt else 'No'}",
         ]
         from hardware import hardware_warnings
-        for w in hardware_warnings(profile):
+        warnings = hardware_warnings(profile)
+        if profile.audio_codec and not alc_layout_is_known(profile.audio_codec):
+            warnings.append(
+                f"layout-id {layout} for codec \"{profile.audio_codec}\" is an unconfirmed default, "
+                "not a verified match — if you get no audio, try other layout IDs from "
+                "https://github.com/acidanthera/AppleALC/wiki/Supported-codecs"
+            )
+        for w in warnings:
             lines.append("")
             lines.append(f"  ⚠ {w}")
         self.query_one("#scan-status", Static).update("")

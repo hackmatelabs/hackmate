@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from kexts import DB, check_kext_sources
+from kexts import DB, check_kext_sources, alc_layout_is_known, get_alc_layout
 
 _AIRPORTITLWM_ASSETS = [
     {"name": "AirportItlwm_v2.3.0_stable_Sonoma14.4.kext.zip"},
@@ -42,6 +42,21 @@ class AirportItlwmSourceCheckTests(unittest.TestCase):
         result = self._check("")
 
         self.assertTrue(result.startswith("ERROR"))
+
+
+class AlcLayoutConfidenceTests(unittest.TestCase):
+    def test_known_codec_is_confirmed(self):
+        self.assertTrue(alc_layout_is_known("ALC897"))
+
+    def test_generic_realtek_string_is_not_confirmed(self):
+        # Regression: Windows previously reported the codec as the bare
+        # string "Realtek" with no model number — get_alc_layout() silently
+        # returned the layout-1 fallback as if it were a real match.
+        self.assertFalse(alc_layout_is_known("Realtek"))
+        self.assertEqual(get_alc_layout("Realtek"), 1)
+
+    def test_unrecognized_alc_model_is_not_confirmed(self):
+        self.assertFalse(alc_layout_is_known("ALC1200"))
 
 
 if __name__ == "__main__":

@@ -212,6 +212,13 @@ def get_alc_layout(codec: str) -> int:
             return layouts[0]
     return 1
 
+def alc_layout_is_known(codec: str) -> bool:
+    """False means get_alc_layout() had nothing to match and returned the
+    blind default (1) — not a real guess, just a placeholder. Layout 1
+    isn't valid for every codec; a caller should point the user at the
+    AppleALC wiki instead of presenting it as a confident answer."""
+    return any(key.lower() in codec.lower() for key in ALC_LAYOUTS)
+
 def _dmi(field: str) -> str:
     if IS_WINDOWS:
         wmi_map = {

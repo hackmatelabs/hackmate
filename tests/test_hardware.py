@@ -341,6 +341,32 @@ class MacOSPCIDetectionTests(unittest.TestCase):
             self.assertEqual(hardware._lspci(), [])
 
 
+class WindowsAudioDetectionTests(unittest.TestCase):
+    def test_generic_realtek_device_name_resolves_to_real_codec_via_registry(self):
+        # Regression: Win32_SoundDevice only ever reports the generic driver
+        # name "Realtek High Definition Audio" — never the actual ALCxxx
+        # chip — so audio_codec ended up as the bare string "Realtek" and
+        # get_alc_layout() had nothing to match, silently defaulting to
+        # layout-id 1 for every Windows user regardless of their real codec.
+        profile = hardware.HardwareProfile()
+        responses = iter([
+            "Realtek High Definition Audio",
+            r"HDAUDIO\FUNC_01&VEN_10EC&DEV_0897&SUBSYS_10438694\4&2E4E0D6&0&0001",
+        ])
+        with patch.object(hardware, "_ps", side_effect=lambda *a, **k: next(responses)):
+            hardware._detect_audio_windows(profile)
+
+        self.assertEqual(profile.audio_codec, "ALC897")
+
+    def test_no_realtek_pnp_entry_falls_back_to_generic_label(self):
+        profile = hardware.HardwareProfile()
+        responses = iter(["Realtek High Definition Audio", ""])
+        with patch.object(hardware, "_ps", side_effect=lambda *a, **k: next(responses)):
+            hardware._detect_audio_windows(profile)
+
+        self.assertEqual(profile.audio_codec, "Realtek")
+
+
 class WindowsNetworkDetectionTests(unittest.TestCase):
     def test_ethernet_query_selects_physical_adapter_without_name_blacklist(self):
         queries = []
