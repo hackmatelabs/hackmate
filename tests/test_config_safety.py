@@ -237,6 +237,46 @@ class IntelGraphicsSafetyTests(unittest.TestCase):
             (bytes.fromhex("0900A53E"), bytes.fromhex("9B3E0000")),
         )
 
+    def test_coffee_lake_desktop_uses_documented_display_and_headless_ids(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=8,
+            cpu_codename="Coffee Lake",
+            oc_platform="Coffee Lake",
+            gpu_vendor="intel",
+            gpu_name="Intel UHD Graphics 630",
+            platform="desktop",
+        )
+
+        self.assertEqual(
+            config_gen._igpu_config(profile),
+            (bytes.fromhex("07009B3E"), None),
+        )
+        self.assertEqual(
+            config_gen._igpu_config(profile, headless=True),
+            (bytes.fromhex("0300913E"), None),
+        )
+
+    def test_comet_lake_desktop_uses_documented_display_and_headless_ids(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=10,
+            cpu_codename="Comet Lake",
+            oc_platform="Comet Lake",
+            gpu_vendor="intel",
+            gpu_name="Intel UHD Graphics 630",
+            platform="desktop",
+        )
+
+        self.assertEqual(
+            config_gen._igpu_config(profile),
+            (bytes.fromhex("07009B3E"), None),
+        )
+        self.assertEqual(
+            config_gen._igpu_config(profile, headless=True),
+            (bytes.fromhex("0300C89B"), None),
+        )
+
     def test_comet_lake_uhd620_uses_supported_mobile_spoof(self):
         profile = HardwareProfile(
             cpu_vendor="intel",

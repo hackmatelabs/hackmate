@@ -40,18 +40,16 @@ IG_PLATFORM_IDS: dict[str, bytes] = {
     "uhd630_dt": bytes([0x07, 0x00, 0x9B, 0x3E]),
     # Coffee Lake laptop
     "uhd630_mb": bytes([0x09, 0x00, 0xA5, 0x3E]),
-    # Comet Lake desktop
-    "uhd630_cml":bytes([0x03, 0x00, 0x92, 0x3E]),
+    # Connectorless desktop framebuffers (dGPU drives the display)
+    "uhd630_cfl_headless": bytes([0x03, 0x00, 0x91, 0x3E]),
+    "uhd630_cml_headless": bytes([0x03, 0x00, 0xC8, 0x9B]),
     # Ice Lake
     "iris_ice":  bytes([0x00, 0x00, 0x52, 0x8A]),
     # Tiger Lake
     "iris_tgl":  bytes([0x00, 0x00, 0x49, 0x9A]),
     # Alder Lake (no iGPU support in macOS natively, needs NootedBlue or patch)
     "uhd770":    bytes([0x00, 0x00, 0xA6, 0x46]),
-    # Headless variants (when dGPU drives display)
-    "uhd620_headless":    bytes([0x03, 0x00, 0x9B, 0x3E]),
-    "uhd630_headless":    bytes([0x00, 0x00, 0x9B, 0x3E]),
-    "uhd630_dt_headless": bytes([0x02, 0x00, 0x9B, 0x3E]),
+    # Headless variant (when dGPU drives display)
     "iris_tgl_headless":  bytes([0x02, 0x00, 0x49, 0x9A]),
 }
 
@@ -96,11 +94,7 @@ def _igpu_config(profile: HardwareProfile, headless: bool = False) -> tuple[byte
         return IG_PLATFORM_IDS["hd620"], None
     elif gen in (8, 9):
         if headless:
-            if profile.platform == "desktop":
-                return IG_PLATFORM_IDS["uhd630_dt_headless"], None
-            if "uhd 630" in name:
-                return IG_PLATFORM_IDS["uhd630_headless"], None
-            return IG_PLATFORM_IDS["uhd620_headless"], None
+            return IG_PLATFORM_IDS["uhd630_cfl_headless"], None
         if profile.platform == "desktop":
             return IG_PLATFORM_IDS["uhd630_dt"], None
         if "kaby lake-r" in platform:
@@ -112,7 +106,9 @@ def _igpu_config(profile: HardwareProfile, headless: bool = False) -> tuple[byte
         if "ice lake" in platform:
             return IG_PLATFORM_IDS["iris_ice"], None
         if profile.platform == "desktop":
-            return IG_PLATFORM_IDS["uhd630_cml"], None
+            if headless:
+                return IG_PLATFORM_IDS["uhd630_cml_headless"], None
+            return IG_PLATFORM_IDS["uhd630_dt"], None
         if "630" in name:
             return IG_PLATFORM_IDS["uhd630_mb"], DEVICE_IDS["cfl_h"]
         return IG_PLATFORM_IDS["uhd620_mb"], DEVICE_IDS["cfl_h"]
