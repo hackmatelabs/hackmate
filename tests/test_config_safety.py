@@ -289,8 +289,44 @@ class IntelGraphicsSafetyTests(unittest.TestCase):
         properties = config_gen._device_properties(profile, 1)
         igpu = properties["Add"]["PciRoot(0x0)/Pci(0x2,0x0)"]
 
-        self.assertEqual(igpu["AAPL,ig-platform-id"], bytes.fromhex("04006601"))
+        self.assertEqual(igpu["AAPL,ig-platform-id"], bytes.fromhex("03006601"))
         self.assertNotIn("framebuffer-patch-enable", igpu)
+
+    def test_sandy_bridge_desktop_uses_display_and_headless_values(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=2,
+            gpu_vendor="intel",
+            gpu_name="Intel HD Graphics 3000",
+            platform="desktop",
+        )
+
+        self.assertEqual(
+            config_gen._igpu_config(profile),
+            (bytes.fromhex("10000300"), bytes.fromhex("26010000")),
+        )
+        self.assertEqual(
+            config_gen._igpu_config(profile, headless=True),
+            (bytes.fromhex("00000500"), bytes.fromhex("02010000")),
+        )
+
+    def test_ivy_bridge_desktop_uses_display_and_headless_values(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=3,
+            gpu_vendor="intel",
+            gpu_name="Intel HD Graphics 4000",
+            platform="desktop",
+        )
+
+        self.assertEqual(
+            config_gen._igpu_config(profile),
+            (bytes.fromhex("0A006601"), None),
+        )
+        self.assertEqual(
+            config_gen._igpu_config(profile, headless=True),
+            (bytes.fromhex("07006201"), None),
+        )
 
     def test_haswell_hd4600_laptop_uses_supported_spoof_and_cursor_patch(self):
         profile = HardwareProfile(
@@ -679,6 +715,7 @@ class IntelGraphicsSafetyTests(unittest.TestCase):
         expected = {
             "0116": "00000100",
             "0126": "00000100",
+            "0162": "0a006601",
             "0416": "0600260a",
             "0412": "0300220d",
             "0d26": "0500260a",

@@ -7,10 +7,13 @@ from compat import IS_WINDOWS, dmi_field, dmi_vendor, cpu_core_count
 
 IG_PLATFORM_IDS: dict[str, bytes] = {
     # Sandy Bridge
-    "hd3000":    bytes([0x00, 0x00, 0x01, 0x00]),   # AAPL,snb-platform-id
+    "snb_mobile": bytes([0x00, 0x00, 0x01, 0x00]),
+    "snb_desktop": bytes([0x10, 0x00, 0x03, 0x00]),
+    "snb_headless": bytes([0x00, 0x00, 0x05, 0x00]),
     # Ivy Bridge
-    "hd4000":    bytes([0x04, 0x00, 0x66, 0x01]),
-    "hd2500":    bytes([0x03, 0x00, 0x66, 0x01]),
+    "ivb_mobile": bytes([0x03, 0x00, 0x66, 0x01]),
+    "ivb_desktop": bytes([0x0A, 0x00, 0x66, 0x01]),
+    "ivb_headless": bytes([0x07, 0x00, 0x62, 0x01]),
     # Haswell
     "hsw_mobile_iris": bytes([0x05, 0x00, 0x26, 0x0A]),
     "hsw_mobile": bytes([0x06, 0x00, 0x26, 0x0A]),
@@ -48,6 +51,8 @@ IG_PLATFORM_IDS: dict[str, bytes] = {
 
 DEVICE_IDS: dict[str, bytes] = {
     # Fake device-id to match known-good framebuffers
+    "snb_display": bytes([0x26, 0x01, 0x00, 0x00]),
+    "snb_headless": bytes([0x02, 0x01, 0x00, 0x00]),
     "hsw":       bytes([0x12, 0x04, 0x00, 0x00]),   # spoof HD 42xx/44xx as HD 4600
     "skl_hd510": bytes([0x02, 0x19, 0x00, 0x00]),   # enable unsupported mobile HD 510
     "skl_p530_mobile": bytes([0x16, 0x19, 0x00, 0x00]),
@@ -63,9 +68,17 @@ def _igpu_config(profile: HardwareProfile, headless: bool = False) -> tuple[byte
     platform = f"{profile.cpu_codename} {profile.oc_platform}".lower()
 
     if gen == 2:
-        return IG_PLATFORM_IDS["hd3000"], None
+        if profile.platform == "laptop":
+            return IG_PLATFORM_IDS["snb_mobile"], None
+        if headless:
+            return IG_PLATFORM_IDS["snb_headless"], DEVICE_IDS["snb_headless"]
+        return IG_PLATFORM_IDS["snb_desktop"], DEVICE_IDS["snb_display"]
     elif gen == 3:
-        return IG_PLATFORM_IDS["hd4000"], None
+        if profile.platform == "laptop":
+            return IG_PLATFORM_IDS["ivb_mobile"], None
+        if headless:
+            return IG_PLATFORM_IDS["ivb_headless"], None
+        return IG_PLATFORM_IDS["ivb_desktop"], None
     elif gen == 4:
         if profile.platform == "laptop":
             if "iris" in name or "5000" in name:

@@ -132,7 +132,7 @@ IGPU_FRAMEBUFFERS: dict[str, list[tuple[str, str]]] = {
     "0126": [("00000100", "HD 3000 — laptop")],
     # Ivy Bridge
     "0166": [("03006601", "HD 4000 — laptop (recommended)"), ("04006601", "HD 4000 — laptop 13\"")],
-    "0162": [("0b006601", "HD 4000 — desktop")],
+    "0162": [("0a006601", "HD 4000 — desktop"), ("07006201", "HD 4000 — headless")],
     # Haswell
     "0416": [("0600260a", "HD 4600 — laptop (recommended)")],
     "0412": [("0300220d", "HD 4600 — desktop")],

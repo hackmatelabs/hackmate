@@ -113,6 +113,16 @@ PROFILES = {
         platform="laptop",
         smbios_model="MacBookPro8,1",
     ),
+    "ivy-desktop": HardwareProfile(
+        cpu_vendor="intel",
+        cpu_generation=3,
+        cpu_codename="Ivy Bridge",
+        oc_platform="Ivy Bridge",
+        gpu_vendor="intel",
+        gpu_name="Intel HD Graphics 4000",
+        platform="desktop",
+        smbios_model="iMac13,2",
+    ),
 }
 
 
