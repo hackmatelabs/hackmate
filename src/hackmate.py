@@ -1379,7 +1379,12 @@ class ScanScreen(Screen):
 class VersionScreen(Screen):
     def compose(self) -> ComposeResult:
         profile: HardwareProfile = self.app.profile
-        versions = compatible_versions(profile.cpu_generation, profile.gpu_vendor, profile.cpu_vendor)
+        versions = compatible_versions(
+            profile.cpu_generation,
+            profile.gpu_vendor,
+            profile.cpu_vendor,
+            profile.cpu_codename,
+        )
         self.versions = versions
 
         items = []

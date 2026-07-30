@@ -57,9 +57,62 @@ MACOS_VERSIONS = [
 ]
 
 
-def compatible_versions(cpu_gen: int, gpu_vendor: str, cpu_vendor: str = "intel") -> list[MacOSVersion]:
+def _version_key(version: str) -> tuple[int, ...]:
+    return tuple(int(part) for part in version.split("."))
+
+
+def _minimum_macos_version(
+    cpu_gen: int,
+    cpu_vendor: str,
+    cpu_codename: str = "",
+) -> str:
+    """Return the oldest installer that can support this CPU family."""
+    if cpu_vendor == "amd":
+        codename = cpu_codename.lower()
+        if "zen 5" in codename:
+            return "15"
+        if "zen 4" in codename:
+            return "13"
+        if "zen 3" in codename:
+            return "11"
+        if "zen 2" in codename:
+            return "10.15"
+        if cpu_gen >= 12:
+            return "13"
+        if cpu_gen >= 11:
+            return "11"
+        if cpu_gen >= 10:
+            return "10.15"
+        return "10.13"
+
+    if cpu_gen >= 11:
+        return "11"
+    if cpu_gen >= 10:
+        return "10.15"
+    if cpu_gen >= 8:
+        return "10.13"
+    if cpu_gen >= 7:
+        return "10.12"
+    if cpu_gen >= 6:
+        return "10.11"
+    return "10.10"
+
+
+def compatible_versions(
+    cpu_gen: int,
+    gpu_vendor: str,
+    cpu_vendor: str = "intel",
+    cpu_codename: str = "",
+) -> list[MacOSVersion]:
+    minimum_version = _minimum_macos_version(
+        cpu_gen,
+        cpu_vendor,
+        cpu_codename,
+    )
     result = []
     for v in MACOS_VERSIONS:
+        if _version_key(v.version) < _version_key(minimum_version):
+            continue
         if cpu_vendor != "amd":
             if cpu_gen < v.min_gen:
                 continue
@@ -308,7 +361,12 @@ def _download_recovery_once(version: MacOSVersion, dest: Path, progress_cb=None)
 if __name__ == "__main__":
     from hardware import scan
     profile = scan()
-    versions = compatible_versions(profile.cpu_generation, profile.gpu_vendor, profile.cpu_vendor)
+    versions = compatible_versions(
+        profile.cpu_generation,
+        profile.gpu_vendor,
+        profile.cpu_vendor,
+        profile.cpu_codename,
+    )
     print(f"\nCompatible macOS versions for Gen {profile.cpu_generation} {profile.cpu_vendor.upper()} [{profile.gpu_vendor} GPU]:\n")
     for i, v in enumerate(versions):
         note = f"  ({v.notes})" if v.notes else ""

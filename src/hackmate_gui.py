@@ -902,7 +902,12 @@ class ManualHardwareScreen(Screen):
 class VersionScreen(Screen):
     def on_show(self):
         profile: HardwareProfile = self.app.profile
-        versions = compatible_versions(profile.cpu_generation, profile.gpu_vendor, profile.cpu_vendor)
+        versions = compatible_versions(
+            profile.cpu_generation,
+            profile.gpu_vendor,
+            profile.cpu_vendor,
+            profile.cpu_codename,
+        )
         self.versions = versions
 
         wrap = tk.Frame(self, bg=BG)
