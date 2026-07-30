@@ -14,14 +14,17 @@ class RecoveryCompatibilityTests(unittest.TestCase):
         cpu_gen: int,
         cpu_vendor: str = "intel",
         cpu_codename: str = "",
+        gpu_vendor: str = "amd",
+        gpu_name: str = "",
     ) -> list[str]:
         return [
             version.version
             for version in compatible_versions(
                 cpu_gen,
-                "amd",
+                gpu_vendor,
                 cpu_vendor,
                 cpu_codename,
+                gpu_name,
             )
         ]
 
@@ -66,3 +69,37 @@ class RecoveryCompatibilityTests(unittest.TestCase):
 
         self.assertIn("15", versions)
         self.assertNotIn("14", versions)
+
+    def test_pascal_nvidia_stops_at_high_sierra(self):
+        versions = self._versions(
+            8,
+            gpu_vendor="nvidia",
+            gpu_name="NVIDIA GeForce GTX 1080",
+        )
+
+        self.assertEqual(["10.13"], versions)
+
+    def test_kepler_nvidia_stops_at_big_sur(self):
+        versions = self._versions(
+            4,
+            gpu_vendor="nvidia",
+            gpu_name="NVIDIA GeForce GTX 770",
+        )
+
+        self.assertIn("11", versions)
+        self.assertNotIn("12", versions)
+
+    def test_unknown_nvidia_stops_at_high_sierra(self):
+        versions = self._versions(6, gpu_vendor="nvidia")
+
+        self.assertIn("10.13", versions)
+        self.assertNotIn("10.14", versions)
+
+    def test_modern_nvidia_has_no_accelerated_macos_release(self):
+        versions = self._versions(
+            12,
+            gpu_vendor="nvidia",
+            gpu_name="NVIDIA GeForce RTX 3060",
+        )
+
+        self.assertEqual([], versions)

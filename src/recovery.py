@@ -1,4 +1,5 @@
 import os
+import re
 import urllib.request
 import subprocess
 import sys
@@ -25,7 +26,6 @@ class MacOSVersion:
     os_flag: str = ""     # "--os latest" for Tahoe
     min_gen: int = 0      # minimum CPU generation supported
     max_gen: int = 99     # maximum CPU generation supported
-    nvidia_ok: bool = True
     notes: str = ""
 
     @property
@@ -48,12 +48,12 @@ MACOS_VERSIONS = [
     MacOSVersion("macOS Ventura (13)",    "13", "Mac-B4831CEBD52A0C4C", "00000000000000000", min_gen=6,  notes="Intel 6th gen+"),
     MacOSVersion("macOS Monterey (12)",   "12", "Mac-E43C1C25D4880AD6", "00000000000000000", min_gen=5,  notes="Intel 5th gen+"),
     MacOSVersion("macOS Big Sur (11)",    "11", "Mac-2BD1B31983FE1663", "00000000000000000", min_gen=4,  notes="Intel 4th gen+"),
-    MacOSVersion("macOS Catalina (10.15)","10.15", "Mac-CFF7D910A743CAAF", "00000000000PHCD00", min_gen=4,  nvidia_ok=False, notes="Last 32-bit app support"),
-    MacOSVersion("macOS Mojave (10.14)",  "10.14", "Mac-7BA5B2DFE22DDD8C", "00000000000KXPG00", min_gen=3,  nvidia_ok=True,  notes="Last Metal-optional, last NVIDIA web driver support (Kepler/Maxwell/Pascal)"),
-    MacOSVersion("macOS High Sierra (10.13)","10.13","Mac-7BA5B2D9E42DDD94","00000000000J80300",min_gen=2,  nvidia_ok=True,  notes=""),
-    MacOSVersion("macOS Sierra (10.12)",  "10.12", "Mac-77F17D7DA9285301", "00000000000J0DX00", min_gen=2,  nvidia_ok=True,  notes=""),
-    MacOSVersion("macOS El Capitan (10.11)","10.11","Mac-FFE5EF870D7BA81A","00000000000GQRX00",min_gen=2,  nvidia_ok=True,  notes=""),
-    MacOSVersion("macOS Yosemite (10.10)","10.10", "Mac-E43C1C25D4880AD6", "00000000000GDVW00", min_gen=2,  nvidia_ok=True,  notes=""),
+    MacOSVersion("macOS Catalina (10.15)","10.15", "Mac-CFF7D910A743CAAF", "00000000000PHCD00", min_gen=4, notes="First release without 32-bit app support"),
+    MacOSVersion("macOS Mojave (10.14)",  "10.14", "Mac-7BA5B2DFE22DDD8C", "00000000000KXPG00", min_gen=3, notes="Last release with 32-bit app support; NVIDIA Kepler only"),
+    MacOSVersion("macOS High Sierra (10.13)","10.13","Mac-7BA5B2D9E42DDD94","00000000000J80300",min_gen=2, notes="Last NVIDIA Web Driver release for Maxwell and Pascal"),
+    MacOSVersion("macOS Sierra (10.12)",  "10.12", "Mac-77F17D7DA9285301", "00000000000J0DX00", min_gen=2, notes=""),
+    MacOSVersion("macOS El Capitan (10.11)","10.11","Mac-FFE5EF870D7BA81A","00000000000GQRX00",min_gen=2, notes=""),
+    MacOSVersion("macOS Yosemite (10.10)","10.10", "Mac-E43C1C25D4880AD6", "00000000000GDVW00", min_gen=2, notes=""),
 ]
 
 
@@ -98,28 +98,78 @@ def _minimum_macos_version(
     return "10.10"
 
 
+def _nvidia_max_macos_version(gpu_name: str) -> str | None:
+    """Return the newest accelerated macOS release for an NVIDIA GPU."""
+    name = gpu_name.lower()
+
+    if (
+        "titan rtx" in name
+        or re.search(r"\brtx\s*[2345]\d{2,3}\b", name)
+        or re.search(r"\bgtx\s*16\d{2}\b", name)
+    ):
+        return None
+
+    if (
+        re.search(r"\bgtx\s*(?:10\d{2}|9\d{2}|7(?:45|50)(?:\s*ti)?)\b", name)
+        or re.search(r"\bgt\s*10(?:10|30)\b", name)
+        or re.search(r"\bquadro\s+[pm]\d{3,4}\b", name)
+        or re.search(r"\bquadro\s+k(?:620|1200|2200)\b", name)
+        or "titan x" in name
+    ):
+        return "10.13"
+
+    if (
+        re.search(r"\bgtx\s*(?:6(?:60|70|80|90)|7(?:60|70|80)(?:\s*ti)?)\b", name)
+        or (
+            re.search(r"\b(?:gtx\s+)?titan(?:\s+(?:black|z))?\b", name)
+            and "titan x" not in name
+        )
+        or (
+            re.search(r"\bquadro\s+k\d{3,4}\b", name)
+            and not re.search(r"\bquadro\s+k(?:620|1200|2200)\b", name)
+        )
+    ):
+        return "11"
+
+    # Low-end 600/700 cards were sold with both Fermi and Kepler cores.
+    # Without a PCI core identifier, High Sierra is the safe common ceiling.
+    return "10.13"
+
+
 def compatible_versions(
     cpu_gen: int,
     gpu_vendor: str,
     cpu_vendor: str = "intel",
     cpu_codename: str = "",
+    gpu_name: str = "",
 ) -> list[MacOSVersion]:
     minimum_version = _minimum_macos_version(
         cpu_gen,
         cpu_vendor,
         cpu_codename,
     )
+    nvidia_maximum = (
+        _nvidia_max_macos_version(gpu_name)
+        if gpu_vendor == "nvidia"
+        else None
+    )
+    if gpu_vendor == "nvidia" and nvidia_maximum is None:
+        return []
+
     result = []
     for v in MACOS_VERSIONS:
         if _version_key(v.version) < _version_key(minimum_version):
+            continue
+        if (
+            nvidia_maximum
+            and _version_key(v.version) > _version_key(nvidia_maximum)
+        ):
             continue
         if cpu_vendor != "amd":
             if cpu_gen < v.min_gen:
                 continue
             if cpu_gen > v.max_gen:
                 continue
-        if gpu_vendor == "nvidia" and not v.nvidia_ok:
-            continue
         result.append(v)
     return result
 
@@ -366,6 +416,7 @@ if __name__ == "__main__":
         profile.gpu_vendor,
         profile.cpu_vendor,
         profile.cpu_codename,
+        profile.gpu_name,
     )
     print(f"\nCompatible macOS versions for Gen {profile.cpu_generation} {profile.cpu_vendor.upper()} [{profile.gpu_vendor} GPU]:\n")
     for i, v in enumerate(versions):
