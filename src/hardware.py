@@ -1,5 +1,6 @@
 import subprocess
 import re
+import json
 from dataclasses import dataclass, field
 from compat import IS_WINDOWS, IS_LINUX, IS_MACOS
 
@@ -610,26 +611,53 @@ def _classify_gpus(gpus: list[str]) -> tuple[str, str, str, str]:
 
 
 def _detect_gpu_windows(profile: HardwareProfile):
-    raw = _ps("(Get-WmiObject Win32_VideoController | ForEach-Object { $_.Name }) -join '||'").strip()
-    gpus = [g.strip() for g in raw.split("||") if g.strip()]
+    raw = _ps(
+        "Get-WmiObject Win32_VideoController | "
+        "Select-Object Name,PNPDeviceID | ConvertTo-Json -Compress"
+    ).strip()
+    controllers = []
+    try:
+        controllers = json.loads(raw) if raw else []
+        if isinstance(controllers, dict):
+            controllers = [controllers]
+        if not isinstance(controllers, list):
+            controllers = []
+    except (TypeError, ValueError):
+        controllers = []
+
+    gpus = [
+        str(item.get("Name", "")).strip()
+        for item in controllers
+        if isinstance(item, dict) and str(item.get("Name", "")).strip()
+    ]
     if not gpus:
-        raw = _ps("(Get-WmiObject Win32_VideoController | Select-Object -First 1).Name").strip()
-        if raw:
-            gpus = [raw]
+        names_raw = _ps(
+            "(Get-WmiObject Win32_VideoController | "
+            "ForEach-Object { $_.Name }) -join '||'"
+        ).strip()
+        gpus = [name.strip() for name in names_raw.split("||") if name.strip()]
+
+    ids_by_name = {}
+    for item in controllers:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("Name", "")).strip()
+        pnp = str(item.get("PNPDeviceID", ""))
+        match = re.search(r"DEV_([0-9A-Fa-f]{4})", pnp)
+        if name and match:
+            ids_by_name[name] = match.group(1).upper()
 
     igpu_name, igpu_vendor, dgpu_name, dgpu_vendor = _classify_gpus(gpus)
     if igpu_name:
         profile.gpu_name, profile.gpu_vendor = igpu_name, igpu_vendor
+        profile.gpu_device_id = ids_by_name.get(igpu_name, "")
         profile.dgpu_name, profile.dgpu_vendor = dgpu_name, dgpu_vendor
     elif dgpu_name:
         profile.gpu_name, profile.gpu_vendor = dgpu_name, dgpu_vendor
+        profile.gpu_device_id = ids_by_name.get(dgpu_name, "")
     elif gpus:
         profile.gpu_name = gpus[0]
-
-    pnp = _ps("(Get-WmiObject Win32_VideoController | Select-Object -First 1).PNPDeviceID")
-    m = re.search(r"DEV_([0-9A-Fa-f]{4})", pnp)
-    if m:
-        profile.gpu_device_id = m.group(1).upper()
+        profile.gpu_device_id = ids_by_name.get(gpus[0], "")
 
 def _get_hda_codec_linux() -> str:
     try:
