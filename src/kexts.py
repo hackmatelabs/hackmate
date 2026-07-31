@@ -302,11 +302,30 @@ def _is_hedt(profile: HardwareProfile) -> bool:
     name = profile.cpu_name.lower()
     return any(x in name for x in ["threadripper", "xeon w-", "i9-79", "i9-78", "i7-79", "i7-78"])
 
-_XHCI_UNSUPPORTED_CHIPSETS = ("h370", "b360", "h310", "x79", "x99")
+_XHCI_UNSUPPORTED_CHIPSETS = (
+    "h370", "b360", "h310", "x79", "x99",
+    # b365, q370, c246 share the same 300-series PCH die and USB3 XHCI
+    # controller silicon as h370/b360/h310 (fuse-differentiated only) —
+    # same "unsupported controller" problem, just missing from this list.
+    "b365", "q370", "c246",
+)
 
-def _needs_xhci_unsupported(board_name: str) -> bool:
+_XHCI_UNSUPPORTED_OEM_VENDORS = ("dell", "hp", "hewlett-packard", "lenovo")
+
+def _needs_xhci_unsupported(board_name: str, vendor: str = "", platform: str = "", cpu_generation: int = 0) -> bool:
     name = board_name.lower()
-    return any(chipset in name for chipset in _XHCI_UNSUPPORTED_CHIPSETS)
+    if any(chipset in name for chipset in _XHCI_UNSUPPORTED_CHIPSETS):
+        return True
+    # OEM desktops (Dell/HP/Lenovo) report cryptic board names (e.g. Dell's
+    # "0G8YWV") that never mention the chipset, so the string match above
+    # can't catch them — field-confirmed on a Dell OptiPlex (i3-9100/B365).
+    # OEM prebuilts in this CPU generation range only ever ship the 300-series
+    # PCH family (B360/H370/B365/Q370), never enthusiast boards like Z390, so
+    # generation + OEM vendor alone is a safe stand-in for chipset detection.
+    vendor_l = vendor.lower()
+    if platform == "desktop" and cpu_generation in (8, 9) and any(v in vendor_l for v in _XHCI_UNSUPPORTED_OEM_VENDORS):
+        return True
+    return False
 
 def _has_card_reader() -> bool:
     import platform
@@ -457,7 +476,8 @@ def select_kexts(profile: HardwareProfile, wifi_kext_mode: str = "itlwm") -> lis
 
     add("USBToolBox", "UTBMap")
     if profile.cpu_vendor == "intel" and (
-        profile.cpu_generation <= 3 or _needs_xhci_unsupported(board_name)
+        profile.cpu_generation <= 3
+        or _needs_xhci_unsupported(board_name, vendor, profile.platform, profile.cpu_generation)
     ):
         add("XHCI-unsupported")
 
