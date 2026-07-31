@@ -552,10 +552,22 @@ def _format_usb_windows(drive_letter: str, mount_letter: str = "Z") -> bool:
             f"unmap whatever's using {target_letter}: — then try again."
         )
 
+    # Drives sold as "4GB"+ often report under 4096 MiB to Windows (decimal
+    # vs binary GB, plus reserved sectors), so a fixed size=4096 request
+    # fails outright on them with diskpart's generic "specified size and
+    # offset" error — cap to whatever the disk actually has.
+    disk_size_mb_raw = _run([
+        "powershell", "-NoProfile", "-Command",
+        f"[math]::Floor((Get-Disk -Number {disk_num_raw}).Size / 1MB)"
+    ]).strip()
+    partition_size_mb = 4096
+    if disk_size_mb_raw.isdigit():
+        partition_size_mb = min(4096, max(1, int(disk_size_mb_raw) - 8))
+
     create_script = (
         f"select disk {disk_num_raw}\n"
         "clean\n"
-        "create partition primary size=4096\n"
+        f"create partition primary size={partition_size_mb}\n"
         "exit\n"
     )
     format_script = (
