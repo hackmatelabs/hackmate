@@ -2688,14 +2688,15 @@ class InstallScreen(Screen):
                 log("  UTBMap.kext auto-generated and enabled — run USB Mapping later for a more precise map", "ok")
 
             MIN_EFI = 50 * 1024  # sane minimum — corrupt/truncated files are smaller
+            MIN_HFSPLUS = 20 * 1024  # HfsPlus.efi is legitimately ~37KB, well under MIN_EFI
             oc_required = [
-                boot_dir / "BOOTx64.efi",
-                oc_dir   / "OpenCore.efi",
-                driver_dir / "OpenRuntime.efi",
-                driver_dir / "HfsPlus.efi",
+                (boot_dir / "BOOTx64.efi", MIN_EFI),
+                (oc_dir   / "OpenCore.efi", MIN_EFI),
+                (driver_dir / "OpenRuntime.efi", MIN_EFI),
+                (driver_dir / "HfsPlus.efi", MIN_HFSPLUS),
             ]
             oc_valid = repair and all(
-                f.exists() and f.stat().st_size > MIN_EFI for f in oc_required
+                f.exists() and f.stat().st_size > min_size for f, min_size in oc_required
             )
 
             if oc_valid:
@@ -2745,7 +2746,7 @@ class InstallScreen(Screen):
                         for attempt in range(3):
                             try:
                                 data = http_get(hfsplus_url, timeout=15)
-                                if not is_valid_pe_binary(data, MIN_EFI):
+                                if not is_valid_pe_binary(data, MIN_HFSPLUS):
                                     raise ValueError(f"corrupt download ({len(data)} bytes, bad PE header)")
                                 hfsplus_dest.write_bytes(data)
                                 log("  HfsPlus.efi downloaded", "ok")

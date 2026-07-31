@@ -170,6 +170,30 @@ def cpu_core_count() -> int:
         return 8
 
 
+def _get_dsdt_windows_registry(tmp: Path) -> Optional[Path]:
+    """Fallback DSDT source: Windows caches the raw ACPI table Windows booted
+    with under HKLM\\HARDWARE\\ACPI\\DSDT\\<vendor>\\<oem>\\<revision>\\00000000
+    as a REG_BINARY value. This works on machines where GetSystemFirmwareTable
+    returns nothing (seen in the field across a wide, hardware-independent
+    spread of Windows builds — cause unconfirmed, but this registry path is
+    populated independently by the OS at boot, not by that API)."""
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"HARDWARE\ACPI\DSDT") as dsdt_key:
+            vendor = winreg.EnumKey(dsdt_key, 0)
+            with winreg.OpenKey(dsdt_key, vendor) as vendor_key:
+                oem = winreg.EnumKey(vendor_key, 0)
+                with winreg.OpenKey(vendor_key, oem) as oem_key:
+                    revision = winreg.EnumKey(oem_key, 0)
+                    with winreg.OpenKey(oem_key, revision) as rev_key:
+                        data, _ = winreg.QueryValueEx(rev_key, "00000000")
+                        dst = tmp / "DSDT.aml"
+                        dst.write_bytes(bytes(data))
+                        return dst
+    except Exception:
+        return None
+
+
 def get_dsdt(tmp: Path) -> Optional[Path]:
     """Dump the system DSDT to tmp/DSDT.aml"""
     if IS_WINDOWS:
@@ -183,17 +207,16 @@ def get_dsdt(tmp: Path) -> Optional[Path]:
                 ctypes.c_uint32, ctypes.c_uint32, ctypes.c_void_p, ctypes.c_uint32
             ]
             size = k32.GetSystemFirmwareTable(provider, table_id, None, 0)
-            if not size:
-                return None
-            buf = ctypes.create_string_buffer(size)
-            read = k32.GetSystemFirmwareTable(provider, table_id, buf, size)
-            if not read:
-                return None
-            dst = tmp / "DSDT.aml"
-            dst.write_bytes(bytes(buf[:read]))
-            return dst
+            if size:
+                buf = ctypes.create_string_buffer(size)
+                read = k32.GetSystemFirmwareTable(provider, table_id, buf, size)
+                if read:
+                    dst = tmp / "DSDT.aml"
+                    dst.write_bytes(bytes(buf[:read]))
+                    return dst
         except Exception:
-            return None
+            pass
+        return _get_dsdt_windows_registry(tmp)
     if IS_MACOS:
         try:
             dst = tmp / "DSDT.aml"
