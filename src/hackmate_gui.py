@@ -27,7 +27,10 @@ from updater import check_and_update
 if check_and_update():
     os.execv(sys.executable, [sys.executable] + sys.argv)
 
-from hardware import scan, HardwareProfile, needs_dgpu_disable_prompt
+from hardware import (
+    scan, HardwareProfile, needs_dgpu_disable_prompt,
+    CPU_OPTIONS, GPU_OPTIONS, ETHERNET_OPTIONS, WIFI_OPTIONS, CPU_META,
+)
 from kexts import select_kexts, get_alc_layout, alc_layout_is_known
 from smbios import generate as gen_smbios, SMBIOSData
 from config_gen import generate as gen_config, write_plist, _required_ssdts
@@ -671,123 +674,9 @@ class ScanScreen(Screen):
 
 
 class ManualHardwareScreen(Screen):
-    CPU_OPTIONS = [
-        ("intel-2",    "Intel Core i3/i5/i7-2xxx  —  Sandy Bridge (2nd gen desktop)"),
-        ("intel-3",    "Intel Core i3/i5/i7-3xxx  —  Ivy Bridge (3rd gen desktop)"),
-        ("intel-4",    "Intel Core i3/i5/i7-4xxx  —  Haswell (4th gen desktop)"),
-        ("intel-5d",   "Intel Core i5/i7-5xxx  —  Broadwell (5th gen desktop)"),
-        ("intel-6d",   "Intel Core i3/i5/i7-6xxx  —  Skylake (6th gen desktop)"),
-        ("intel-7d",   "Intel Core i3/i5/i7-7xxx  —  Kaby Lake (7th gen desktop)"),
-        ("intel-8d",   "Intel Core i3/i5/i7/i9-8xxx  —  Coffee Lake (8th gen desktop)"),
-        ("intel-9d",   "Intel Core i5/i7/i9-9xxx  —  Coffee Lake Refresh (9th gen desktop)"),
-        ("intel-10d",  "Intel Core i3/i5/i7/i9-10xxx  —  Comet Lake (10th gen desktop)"),
-        ("intel-2m",   "Intel Core i5/i7-2xxx  —  Sandy Bridge (2nd gen laptop)"),
-        ("intel-3m",   "Intel Core i5/i7-3xxx  —  Ivy Bridge (3rd gen laptop)"),
-        ("intel-4m",   "Intel Core i5/i7-4xxx  —  Haswell (4th gen laptop)"),
-        ("intel-5m",   "Intel Core i5/i7-5xxx  —  Broadwell (5th gen laptop)"),
-        ("intel-6m",   "Intel Core i3/i5/i7-6xxx  —  Skylake (6th gen laptop)"),
-        ("intel-7m",   "Intel Core i3/i5/i7-7xxx  —  Kaby Lake (7th gen laptop)"),
-        ("intel-8kr",  "Intel Core i5/i7-8xxx U  —  Kaby Lake-R (8th gen, 4-core laptop)"),
-        ("intel-8wl",  "Intel Core i5/i7-8xxx U  —  Whiskey Lake (8th gen, 4-core laptop)"),
-        ("intel-8cl",  "Intel Core i7/i9-8xxx H  —  Coffee Lake-H (8th gen, 6-core laptop)"),
-        ("intel-9m",   "Intel Core i5/i7/i9-9xxx H  —  Coffee Lake Refresh (9th gen laptop)"),
-        ("intel-10cm", "Intel Core i3/i5/i7-10xxx H  —  Comet Lake-H (10th gen laptop)"),
-        ("intel-10il", "Intel Core i3/i5/i7-10xxx U/Y  —  Ice Lake (10th gen laptop, Iris Plus)"),
-        ("intel-11tl", "Intel Core i5/i7-11xxx  —  Tiger Lake (11th gen laptop, iGPU unsupported)"),
-        ("amd-zen1d",  "AMD Ryzen 3/5/7 1xxx  —  Zen (desktop)"),
-        ("amd-zenpd",  "AMD Ryzen 3/5/7 2xxx  —  Zen+ (desktop)"),
-        ("amd-zen2d",  "AMD Ryzen 5/7/9 3xxx  —  Zen 2 (desktop)"),
-        ("amd-tr3",    "AMD Threadripper 3xxx  —  Zen 2 (HEDT)"),
-        ("amd-zen3d",  "AMD Ryzen 5/7/9 5xxx  —  Zen 3 (desktop)"),
-        ("amd-tr5",    "AMD Threadripper 5xxx  —  Zen 3 (HEDT)"),
-        ("amd-zen4d",  "AMD Ryzen 5/7/9 7xxx  —  Zen 4 (desktop, AM5)"),
-        ("amd-zen5d",  "AMD Ryzen 5/7/9 9xxx  —  Zen 5 (desktop, AM5)"),
-        ("amd-zen1m",  "AMD Ryzen 3/5/7 2xxx U  —  Zen (laptop APU)"),
-        ("amd-zenpm",  "AMD Ryzen 3/5/7 3xxx U  —  Zen+ (laptop APU)"),
-        ("amd-zen2m",  "AMD Ryzen 4xxx / 5xxx U  —  Zen 2 (laptop APU)"),
-        ("amd-zen3m",  "AMD Ryzen 5xxx / PRO 5xxx  —  Zen 3 (laptop APU)"),
-        ("amd-zen3pm", "AMD Ryzen 6xxx  —  Zen 3+ (laptop APU)"),
-        ("amd-zen4m",  "AMD Ryzen 7xxx / AI 3xx  —  Zen 4 (laptop APU)"),
-        ("amd-zen5m",  "AMD Ryzen AI 3xx / 9xxx  —  Zen 5 (laptop APU)"),
-    ]
-
-    GPU_OPTIONS = [
-        ("",         "Auto / same as CPU iGPU"),
-        ("5916",     "Intel HD 620 (Kaby Lake)"),
-        ("591b",     "Intel HD 630 (Kaby Lake)"),
-        ("5917",     "Intel UHD 620 (Kaby Lake-R)"),
-        ("3ea0",     "Intel UHD 620 (Whiskey Lake)"),
-        ("3e98",     "Intel UHD 630 (Coffee Lake)"),
-        ("9bca",     "Intel UHD 620 (Comet Lake)"),
-        ("9bc4",     "Intel UHD 630 (Comet Lake)"),
-        ("0166",     "Intel HD 4000 (Ivy Bridge)"),
-        ("0416",     "Intel HD 4600 (Haswell)"),
-        ("1916",     "Intel HD 520 (Skylake)"),
-        ("amd",      "AMD Radeon (iGPU / dGPU)"),
-        ("nvidia",   "Nvidia (must disable in BIOS for macOS)"),
-    ]
-
-    ETHERNET_OPTIONS = [
-        ("",        "None / Unknown"),
-        ("rtl8111", "Realtek RTL8111 / RTL8168"),
-        ("rtl8125", "Realtek RTL8125 (2.5G)"),
-        ("i219",    "Intel I219-V / I219-LM"),
-        ("i225",    "Intel I225-V (2.5G)"),
-        ("i226",    "Intel I226-V (2.5G)"),
-        ("i211",    "Intel I211-AT"),
-    ]
-
-    WIFI_OPTIONS = [
-        ("",         "None"),
-        ("intel",    "Intel (AX200 / AX210 / AC-9260 / AC-8265)"),
-        ("broadcom", "Broadcom (BCM94360 / BCM943602)"),
-        ("atheros",  "Atheros / Qualcomm"),
-        ("realtek",  "Realtek (limited support)"),
-    ]
-
-    _CPU_META = {
-        "intel-2":    (2,  "Sandy Bridge",        "intel", "Sandy Bridge"),
-        "intel-3":    (3,  "Ivy Bridge",          "intel", "Ivy Bridge"),
-        "intel-4":    (4,  "Haswell",             "intel", "Haswell"),
-        "intel-5d":   (5,  "Broadwell",           "intel", "Broadwell"),
-        "intel-6d":   (6,  "Skylake",             "intel", "Skylake"),
-        "intel-7d":   (7,  "Kaby Lake",           "intel", "Kaby Lake"),
-        "intel-8d":   (8,  "Coffee Lake",         "intel", "Coffee Lake"),
-        "intel-9d":   (9,  "Coffee Lake Refresh", "intel", "Coffee Lake Refresh"),
-        "intel-10d":  (10, "Comet Lake",          "intel", "Comet Lake"),
-        "intel-2m":   (2,  "Sandy Bridge",        "intel", "Sandy Bridge"),
-        "intel-3m":   (3,  "Ivy Bridge",          "intel", "Ivy Bridge"),
-        "intel-4m":   (4,  "Haswell",             "intel", "Haswell"),
-        "intel-5m":   (5,  "Broadwell",           "intel", "Broadwell"),
-        "intel-6m":   (6,  "Skylake",             "intel", "Skylake"),
-        "intel-7m":   (7,  "Kaby Lake",           "intel", "Kaby Lake"),
-        "intel-8kr":  (8,  "Kaby Lake-R",         "intel", "Kaby Lake"),
-        "intel-8wl":  (8,  "Whiskey Lake",        "intel", "Coffee Lake"),
-        "intel-8cl":  (8,  "Coffee Lake-H",       "intel", "Coffee Lake"),
-        "intel-9m":   (9,  "Coffee Lake Refresh", "intel", "Coffee Lake Refresh"),
-        "intel-10cm": (10, "Comet Lake-H",        "intel", "Comet Lake"),
-        "intel-10il": (10, "Ice Lake",            "intel", "Ice Lake"),
-        "intel-11tl": (11, "Tiger Lake",          "intel", "Tiger Lake"),
-        "amd-zen1d":  (8,  "Zen",                "amd",   "Ryzen"),
-        "amd-zenpd":  (8,  "Zen+",               "amd",   "Ryzen"),
-        "amd-zen2d":  (10, "Zen 2",              "amd",   "Ryzen"),
-        "amd-tr3":    (10, "Zen 2 Threadripper", "amd",   "Threadripper"),
-        "amd-zen3d":  (11, "Zen 3",              "amd",   "Ryzen"),
-        "amd-tr5":    (11, "Zen 3 Threadripper", "amd",   "Threadripper"),
-        "amd-zen4d":  (12, "Zen 4",              "amd",   "Ryzen"),
-        "amd-zen5d":  (12, "Zen 5",              "amd",   "Ryzen"),
-        "amd-zen1m":  (8,  "Zen APU",            "amd",   "Ryzen"),
-        "amd-zenpm":  (8,  "Zen+ APU",           "amd",   "Ryzen"),
-        "amd-zen2m":  (10, "Zen 2 APU",          "amd",   "Ryzen"),
-        "amd-zen3m":  (11, "Zen 3 APU",          "amd",   "Ryzen"),
-        "amd-zen3pm": (11, "Zen 3+ APU",         "amd",   "Ryzen"),
-        "amd-zen4m":  (12, "Zen 4 APU",          "amd",   "Ryzen"),
-        "amd-zen5m":  (12, "Zen 5 APU",          "amd",   "Ryzen"),
-    }
-
     def __init__(self, app):
         super().__init__(app)
-        self.cpu_var = tk.StringVar(value=self.CPU_OPTIONS[6][0])   # default: Intel 7th gen desktop
+        self.cpu_var = tk.StringVar(value=CPU_OPTIONS[6][0])   # default: Intel 7th gen desktop
         self.gpu_var = tk.StringVar(value="")
         self.eth_var = tk.StringVar(value="")
         self.wifi_var = tk.StringVar(value="")
@@ -811,7 +700,7 @@ class ManualHardwareScreen(Screen):
 
         def by(prefix, suffix_excl=(), suffix_incl=None):
             out = []
-            for k, l in self.CPU_OPTIONS:
+            for k, l in CPU_OPTIONS:
                 if not k.startswith(prefix):
                     continue
                 if suffix_incl is not None:
@@ -822,15 +711,15 @@ class ManualHardwareScreen(Screen):
                         out.append((k, l))
             return out
 
-        intel_desktop = [(k, l) for k, l in self.CPU_OPTIONS
+        intel_desktop = [(k, l) for k, l in CPU_OPTIONS
                          if k.startswith("intel-") and not k.endswith("m")
                          and not any(k.endswith(s) for s in ("kr", "wl", "cl", "cm", "il", "tl"))]
-        intel_laptop = [(k, l) for k, l in self.CPU_OPTIONS
+        intel_laptop = [(k, l) for k, l in CPU_OPTIONS
                         if k.startswith("intel-") and (k.endswith("m") or
                             any(k.endswith(s) for s in ("kr", "wl", "cl", "cm", "il", "tl")))]
-        amd_desktop = [(k, l) for k, l in self.CPU_OPTIONS if k.startswith("amd-") and k.endswith("d")]
-        amd_tr = [(k, l) for k, l in self.CPU_OPTIONS if k.startswith("amd-tr")]
-        amd_laptop = [(k, l) for k, l in self.CPU_OPTIONS if k.startswith("amd-") and k.endswith("m")]
+        amd_desktop = [(k, l) for k, l in CPU_OPTIONS if k.startswith("amd-") and k.endswith("d")]
+        amd_tr = [(k, l) for k, l in CPU_OPTIONS if k.startswith("amd-tr")]
+        amd_laptop = [(k, l) for k, l in CPU_OPTIONS if k.startswith("amd-") and k.endswith("m")]
 
         self._radio_group(inner, "CPU — Intel Desktop", intel_desktop, self.cpu_var)
         self._radio_group(inner, "CPU — Intel Laptop", intel_laptop, self.cpu_var)
@@ -853,7 +742,7 @@ class ManualHardwareScreen(Screen):
         self.in_cores = Entry(r, value="4", width=8)
         self.in_cores.pack(side="left")
 
-        self._radio_group(inner, "GPU", self.GPU_OPTIONS, self.gpu_var)
+        self._radio_group(inner, "GPU", GPU_OPTIONS, self.gpu_var)
 
         section(inner, "Audio Codec").pack(anchor="w", pady=(10, 2), fill="x")
         info(inner, "  e.g. ALC256, ALC269, ALC1220").pack(anchor="w")
@@ -862,8 +751,8 @@ class ManualHardwareScreen(Screen):
         self.in_audio = Entry(r, placeholder="ALC256", width=12)
         self.in_audio.pack(side="left")
 
-        self._radio_group(inner, "Ethernet", self.ETHERNET_OPTIONS, self.eth_var)
-        self._radio_group(inner, "WiFi", self.WIFI_OPTIONS, self.wifi_var)
+        self._radio_group(inner, "Ethernet", ETHERNET_OPTIONS, self.eth_var)
+        self._radio_group(inner, "WiFi", WIFI_OPTIONS, self.wifi_var)
 
         section(inner, "Other").pack(anchor="w", pady=(10, 2), fill="x")
         r = row(inner); r.pack(anchor="w", fill="x")
@@ -886,7 +775,7 @@ class ManualHardwareScreen(Screen):
         from hardware import HardwareProfile as HWP, SMBIOS_MAP
 
         cpu_key = self.cpu_var.get()
-        gen, codename, vendor, oc_platform = self._CPU_META[cpu_key]
+        gen, codename, vendor, oc_platform = CPU_META[cpu_key]
 
         gpu_key = self.gpu_var.get()
         gpu_vendor = "intel"
@@ -906,7 +795,7 @@ class ManualHardwareScreen(Screen):
         except ValueError:
             cores = 4
 
-        gpu_label = next((l for k, l in self.GPU_OPTIONS if k == gpu_key), "")
+        gpu_label = next((l for k, l in GPU_OPTIONS if k == gpu_key), "")
 
         profile = HWP(
             cpu_name=f"{vendor.title()} {codename}",
