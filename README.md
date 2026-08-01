@@ -8,9 +8,8 @@
 ```
 
 
-# goal
-bog makes youtube video using hackmate.
-
+# shoutout
+thank you so much GaM1ngN0tDev for making the flutter ui for hackmate!
 
 [![Stars](https://img.shields.io/github/stars/riftaway7-code/hackmate?style=flat&color=gold)](https://github.com/riftaway7-code/hackmate/stargazers)
 [![Downloads](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Friftaway7-code.github.io%2Fhackmate%2Fstats.json&query=total_downloads&label=downloads&color=brightgreen&style=flat&cacheSeconds=3600)](https://github.com/riftaway7-code/hackmate/releases)
