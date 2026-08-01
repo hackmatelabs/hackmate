@@ -43,7 +43,7 @@ jobs:
         run: |
           Invoke-WebRequest -Uri "https://raw.githubusercontent.com/acidanthera/OpenCorePkg/master/Utilities/macrecovery/macrecovery.py" -OutFile "src\macrecovery.py"
 
-      - name: Build EXE
+      - name: Build TUI EXE
         run: |
           pyinstaller --onefile --name HackMate --paths src `
             --hidden-import hardware `
@@ -81,9 +81,73 @@ jobs:
             --add-data "src\assets\data;assets\data" `
             src/hackmate.py
 
-      - name: Upload EXE to release
+      - name: Build Tkinter GUI EXE
+        run: |
+          pyinstaller --onefile --windowed --uac-admin --name HackMate-GUI --paths src `
+            --hidden-import hardware `
+            --hidden-import kexts `
+            --hidden-import config_gen `
+            --hidden-import smbios `
+            --hidden-import recovery `
+            --hidden-import ssdt `
+            --hidden-import updater `
+            --hidden-import efi_check `
+            --hidden-import compat `
+            --hidden-import oc_log `
+            --hidden-import certifi `
+            --hidden-import hwdb_submit `
+            --hidden-import config_editor `
+            --hidden-import pci_ids `
+            --hidden-import pci_disable `
+            --hidden-import build_history `
+            --hidden-import i18n `
+            --hidden-import auto_usb_map `
+            --hidden-import discord_prompt `
+            --hidden-import dualboot `
+            --hidden-import efi_doctor `
+            --hidden-import efi_health `
+            --hidden-import log_checker `
+            --hidden-import partutil `
+            --hidden-import project_stats `
+            --hidden-import tkinter `
+            --hidden-import tkinter.filedialog `
+            --add-data "src\.version;." `
+            --add-data "src\.release_tag;." `
+            --add-data "src\macrecovery.py;." `
+            --add-data "src\amd_patches.plist;." `
+            --add-data "src\assets\acpi;assets\acpi" `
+            --add-data "src\assets\data;assets\data" `
+            src/hackmate_gui.py
+
+      - name: Upload EXEs to release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/HackMate.exe
+          files: |
+            dist/HackMate.exe
+            dist/HackMate-GUI.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Build Flutter GUI
+        working-directory: gui-flutter
+        run: |
+          flutter config --enable-windows-desktop
+          flutter pub get
+          flutter build windows --release
+
+      - name: Zip Flutter GUI
+        shell: pwsh
+        run: |
+          Compress-Archive -Path gui-flutter\build\windows\x64\runner\Release\* -DestinationPath HackMate-Flutter-GUI-Windows.zip
+
+      - name: Upload Flutter GUI to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: HackMate-Flutter-GUI-Windows.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

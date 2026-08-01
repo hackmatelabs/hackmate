@@ -41,11 +41,7 @@ class BridgeClient {
     _setStatus(BridgeStatus.connecting);
     final scriptPath = _resolveBridgeScript();
     try {
-      final process = await Process.start(
-        'python',
-        [scriptPath],
-        workingDirectory: File(scriptPath).parent.path,
-      );
+      final process = await _startPython(scriptPath);
       _process = process;
       _stdoutSub = process.stdout
           .transform(utf8.decoder)
@@ -66,13 +62,33 @@ class BridgeClient {
         onTimeout: () => throw BridgeException('Bridge did not respond in time'),
       );
       if (pong['admin'] != true) {
-        _setStatus(BridgeStatus.error, 'Bridge is not running with administrator privileges');
+        final hint = Platform.isWindows
+            ? 'Bridge is not running with administrator privileges'
+            : 'Bridge is not running as root — relaunch this app with sudo';
+        _setStatus(BridgeStatus.error, hint);
         return;
       }
       _setStatus(BridgeStatus.connected);
     } catch (e) {
       _setStatus(BridgeStatus.error, e.toString());
     }
+  }
+
+  Future<Process> _startPython(String scriptPath) async {
+    final candidates = Platform.isWindows ? ['python', 'py'] : ['python3', 'python'];
+    Object? lastError;
+    for (final exe in candidates) {
+      try {
+        return await Process.start(
+          exe,
+          [scriptPath],
+          workingDirectory: File(scriptPath).parent.path,
+        );
+      } catch (e) {
+        lastError = e;
+      }
+    }
+    throw BridgeException('Could not find a Python interpreter (tried ${candidates.join(", ")}): $lastError');
   }
 
   String _resolveBridgeScript() {

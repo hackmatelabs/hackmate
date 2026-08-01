@@ -124,15 +124,24 @@ def _is_frozen() -> bool:
     return getattr(sys, "frozen", False)
 
 
+def _current_exe_name() -> str:
+    """Filename (no extension) of the exe currently running, e.g. 'HackMate' or 'HackMate-GUI'."""
+    return Path(sys.executable).stem if _is_frozen() else "HackMate"
+
+
 def _get_latest_exe_url() -> str | None:
-    """Return the direct download URL for the latest HackMate.exe release asset."""
+    """Return the direct download URL for the release asset matching the exe currently running —
+    releases can carry multiple .exe assets (TUI, Tkinter GUI), so match by name rather than
+    grabbing whichever .exe happens to be listed first."""
     data = _get(f"https://api.github.com/repos/{REPO}/releases/latest")
     if not data:
         return None
-    for asset in data.get("assets", []):
-        if asset["name"].endswith(".exe"):
+    assets = [a for a in data.get("assets", []) if a["name"].lower().endswith(".exe")]
+    want = _current_exe_name().lower()
+    for asset in assets:
+        if Path(asset["name"]).stem.lower() == want:
             return asset["browser_download_url"]
-    return None
+    return assets[0]["browser_download_url"] if assets else None
 
 
 def check_update_silent() -> tuple[bool, str, list[str]]:
@@ -174,7 +183,7 @@ def check_and_update(silent: bool = False) -> bool:
             for msg in changelog:
                 print(f"    • {msg}")
         print()
-        print("  To update, download the new HackMate.exe from:")
+        print(f"  To update, download the new {_current_exe_name()}.exe from:")
         print(f"  https://github.com/{REPO}/releases/latest")
         if exe_url:
             print(f"  Direct link: {exe_url}")

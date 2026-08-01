@@ -5,3 +5,6 @@ _ssdttime/
 macrecovery.py
 .venv/
 packaging/hwdb_relay/.wrangler/
+/build/
+/dist/
+*.spec

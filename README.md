@@ -111,6 +111,34 @@ sudo .venv/bin/python3 src/hackmate_gui.py      # linux / macos
 .venv\Scripts\python.exe src\hackmate_gui.py    # windows, run powershell as administrator
 ```
 
+### gui (flutter, newer alternative ui)
+
+a separate windowed frontend built in flutter (shoutout GaM1ngN0tDev again) — same python backend underneath, talking to it thru a json-rpc bridge (`src/bridge.py`). build history, log checker, efi health check, disk map, restore, usb mapping, config editor, and the full guided/manual build efi wizard all work. not distributed as a prebuilt exe yet, so u build it urself.
+
+needs the [flutter sdk](https://docs.flutter.dev/get-started/install) + platform build tools (visual studio build tools w/ the "desktop development w/ c++" workload on windows, xcode on macos, gtk3/clang/cmake/ninja on linux — see [flutter's linux setup docs](https://docs.flutter.dev/platform-integration/linux/building)).
+
+```bash
+git clone https://github.com/riftaway7-code/hackmate.git
+cd hackmate/gui-flutter
+flutter pub get
+flutter run                # dev mode, picks up connected/desktop targets automatically
+# or build a standalone release:
+flutter build windows      # -> build/windows/x64/runner/Release/gui_flutter.exe
+flutter build macos        # -> build/macos/Build/Products/Release/gui_flutter.app
+flutter build linux        # -> build/linux/x64/release/bundle/gui_flutter
+```
+
+**windows:** just run the built exe — it prompts for admin (uac) on launch, and the python backend it spawns inherits that automatically, no separate elevation step.
+
+**linux / macos:** the app doesn't self-elevate, so launch it w/ sudo from a terminal same as the tkinter gui:
+
+```bash
+sudo ./build/linux/x64/release/bundle/gui_flutter                                    # linux
+sudo ./build/macos/Build/Products/Release/gui_flutter.app/Contents/MacOS/gui_flutter  # macos
+```
+
+> linux and macos support was just added and hasn't actually been run on either platform yet — this was built and tested on windows only so far. if u hit something broken on linux/macos, open an issue.
+
 ---
 
 ## what it actually does
