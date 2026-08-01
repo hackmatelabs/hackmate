@@ -39,9 +39,8 @@ class BridgeClient {
 
   Future<void> start() async {
     _setStatus(BridgeStatus.connecting);
-    final scriptPath = _resolveBridgeScript();
     try {
-      final process = await _startPython(scriptPath);
+      final process = await _startBackend();
       _process = process;
       _stdoutSub = process.stdout
           .transform(utf8.decoder)
@@ -72,6 +71,17 @@ class BridgeClient {
     } catch (e) {
       _setStatus(BridgeStatus.error, e.toString());
     }
+  }
+
+  Future<Process> _startBackend() async {
+    final exeDir = File(Platform.resolvedExecutable).parent;
+    final bundledName = Platform.isWindows ? 'hackmate-bridge.exe' : 'hackmate-bridge';
+    final bundled = File('${exeDir.path}/$bundledName');
+    if (bundled.existsSync()) {
+      return Process.start(bundled.path, [], workingDirectory: exeDir.path);
+    }
+    final scriptPath = _resolveBridgeScript();
+    return _startPython(scriptPath);
   }
 
   Future<Process> _startPython(String scriptPath) async {

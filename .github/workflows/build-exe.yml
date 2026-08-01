@@ -140,9 +140,40 @@ jobs:
           flutter pub get
           flutter build windows --release
 
+      - name: Build bridge EXE
+        run: |
+          pyinstaller --onefile --console --name hackmate-bridge --paths src `
+            --hidden-import compat `
+            --hidden-import hardware `
+            --hidden-import config_editor `
+            --hidden-import dualboot `
+            --hidden-import efi_health `
+            --hidden-import hwdb_submit `
+            --hidden-import log_checker `
+            --hidden-import recovery `
+            --hidden-import build_history `
+            --hidden-import build_runner `
+            --hidden-import auto_usb_map `
+            --hidden-import config_gen `
+            --hidden-import efi_check `
+            --hidden-import kexts `
+            --hidden-import smbios `
+            --hidden-import ssdt `
+            --hidden-import pci_ids `
+            --hidden-import pci_disable `
+            --hidden-import certifi `
+            --add-data "src\.version;." `
+            --add-data "src\.release_tag;." `
+            --add-data "src\macrecovery.py;." `
+            --add-data "src\amd_patches.plist;." `
+            --add-data "src\assets\acpi;assets\acpi" `
+            --add-data "src\assets\data;assets\data" `
+            src/bridge.py
+
       - name: Zip Flutter GUI
         shell: pwsh
         run: |
+          Copy-Item dist\hackmate-bridge.exe gui-flutter\build\windows\x64\runner\Release\hackmate-bridge.exe
           Compress-Archive -Path gui-flutter\build\windows\x64\runner\Release\* -DestinationPath HackMate-Flutter-GUI-Windows.zip
 
       - name: Upload Flutter GUI to release
