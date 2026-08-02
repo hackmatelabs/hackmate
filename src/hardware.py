@@ -427,11 +427,8 @@ def _detect_cpu_windows(profile: HardwareProfile):
         profile.cpu_generation = gen
         profile.cpu_codename = codename or "Unknown"
 
-        # Try to get device ID from PCI for more accurate gen detection
-        pnp = _ps("(Get-WmiObject Win32_VideoController | Select-Object -First 1).PNPDeviceID")
-        m2 = re.search(r"DEV_([0-9A-Fa-f]{4})", pnp)
-        if m2:
-            dev_id = m2.group(1).lower()
+        if profile.gpu_device_id:
+            dev_id = profile.gpu_device_id.lower()
             if dev_id in INTEL_GENERATIONS:
                 gen, codename, oc_platform = INTEL_GENERATIONS[dev_id]
                 profile.cpu_generation = gen
@@ -1224,8 +1221,8 @@ def scan() -> HardwareProfile:
     profile = HardwareProfile()
 
     if IS_WINDOWS:
-        _detect_cpu_windows(profile)
         _detect_gpu_windows(profile)
+        _detect_cpu_windows(profile)
         _detect_audio_windows(profile)
         _detect_network_windows(profile)
         _detect_platform_windows(profile)

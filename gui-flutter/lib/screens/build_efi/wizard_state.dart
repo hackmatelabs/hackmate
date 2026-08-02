@@ -115,7 +115,6 @@ class WizardState extends ChangeNotifier {
       await _afterProfileReady();
       loading = false;
       notifyListeners();
-      goTo(WizardStep.version);
     } catch (e) {
       loading = false;
       error = e is BridgeException ? e.message : e.toString();
