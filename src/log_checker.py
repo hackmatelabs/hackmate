@@ -4,6 +4,7 @@ and generic boot output to identify issues and suggest specific fixes.
 """
 
 from __future__ import annotations
+import plistlib
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -1105,6 +1106,49 @@ def _analyze_kernel_panic(text: str) -> list[Finding]:
 def _analyze_generic(text: str) -> list[Finding]:
     return _analyze_oc_log(text)
 
+def _find_config_plist(log_path: Path) -> Path | None:
+    for candidate in (
+        log_path.parent / "config.plist",
+        log_path.parent.parent / "config.plist",
+        log_path.parent.parent / "OC" / "config.plist",
+    ):
+        if candidate.is_file():
+            return candidate
+    return None
+
+def _read_secure_boot_model(config_path: Path) -> str | None:
+    try:
+        plist = plistlib.loads(config_path.read_bytes())
+        return plist["Misc"]["Security"]["SecureBootModel"]
+    except Exception:
+        return None
+
+def _enrich_root_hash(findings: list[Finding], secure_boot_model: str | None) -> None:
+    if secure_boot_model is None or secure_boot_model.lower() != "disabled":
+        return
+    for f in findings:
+        if f.title != "Recovery image root hash check failed":
+            continue
+        f.explanation = (
+            "boot.efi tried to verify the recovery image's root hash and the read failed. "
+            "SecureBootModel is already set to Disabled in your config.plist, so this "
+            "specific line is very likely benign — Apple's boot.efi performs this check "
+            "regardless of SecureBootModel, and Disabled just means it isn't fatal. "
+            "The actual hang is almost always something that happens after this point, "
+            "which verbose logging stops capturing right before ExitBootServices."
+        )
+        f.fix_steps = [
+            "SecureBootModel is already Disabled — that is not the cause here.",
+            "Set DmgLoading to Any in config.plist → Misc → Security, if not already.",
+            "Set ScanPolicy to 0 in config.plist → Misc → Security to rule out picker scanning issues.",
+            "If on AMD: confirm every patch in config.plist → Kernel → Patch from your Zen "
+            "generation's AMD_Vanilla set is present and enabled — a hang right after this "
+            "point is commonly an AMD kernel patch mismatch, not a security policy block.",
+            "Boot recovery again with -v and check what (if anything) prints after "
+            "'EXITBS:START' — a true hang there points to a kext or GPU driver issue instead.",
+        ]
+        f.confidence = "possible"
+
 def _enrich(findings: list[Finding], profile) -> None:
     for f in findings:
         if f.category == "audio" and getattr(profile, "audio_codec", ""):
@@ -1137,10 +1181,12 @@ _SEV = {"critical": 0, "warning": 1, "info": 2}
 def _sort(findings: list[Finding]) -> list[Finding]:
     return sorted(findings, key=lambda f: (_SEV.get(f.severity, 9), f.category))
 
-def analyze(text: str, profile=None) -> list[Finding]:
+def analyze(text: str, profile=None, secure_boot_model: str | None = None) -> list[Finding]:
     """
     Analyze a log string. Auto-detects log type.
     Pass a HardwareProfile for hardware-specific suggestions.
+    Pass secure_boot_model (from the matching config.plist) to correct
+    advice that no longer applies once that setting is already changed.
     Returns findings sorted by severity.
     """
     log_type = _detect_log_type(text)
@@ -1177,12 +1223,15 @@ def analyze(text: str, profile=None) -> list[Finding]:
     if profile is not None:
         _enrich(findings, profile)
 
+    _enrich_root_hash(findings, secure_boot_model)
+
     return _sort(findings)
 
 def analyze_file(path: str | Path, profile=None) -> list[Finding]:
     """Read a file and return findings."""
+    log_path = Path(path)
     try:
-        text = Path(path).read_text(errors="replace")
+        text = log_path.read_text(errors="replace")
     except Exception as e:
         return [Finding(
             severity="critical",
@@ -1191,4 +1240,10 @@ def analyze_file(path: str | Path, profile=None) -> list[Finding]:
             explanation=str(e),
             fix_steps=["Check the file path and permissions and try again."],
         )]
-    return analyze(text, profile)
+
+    secure_boot_model = None
+    config_path = _find_config_plist(log_path)
+    if config_path is not None:
+        secure_boot_model = _read_secure_boot_model(config_path)
+
+    return analyze(text, profile, secure_boot_model)
