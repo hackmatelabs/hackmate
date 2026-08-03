@@ -190,7 +190,7 @@ def check_and_update(silent: bool = False) -> bool:
         print()
         try:
             input("  Press Enter to continue with the current version...")
-        except (EOFError, KeyboardInterrupt):
+        except (EOFError, KeyboardInterrupt, OSError, RuntimeError):
             pass
         return False
 
@@ -225,7 +225,7 @@ def check_and_update(silent: bool = False) -> bool:
 
     try:
         ans = input("  Update now? [Y/n] ").strip().lower()
-    except (EOFError, KeyboardInterrupt):
+    except (EOFError, KeyboardInterrupt, OSError, RuntimeError):
         print("\n  Skipping update.")
         return False
 

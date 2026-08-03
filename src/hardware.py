@@ -1021,12 +1021,15 @@ def hardware_warnings(profile: HardwareProfile) -> list[str]:
 
     if profile.wifi_chipset == "intel":
         warnings.append(
-            "AirportItlwm (native, menu-bar-integrated Intel WiFi) has no "
-            "upstream build past macOS Sonoma — Sequoia and Tahoe are stuck "
-            "with itlwm + HeliPort, which works but isn't Apple-native. For "
-            "guaranteed native WiFi on Sequoia/Tahoe, swap in a genuine "
-            "Apple-supported Broadcom card (e.g. BCM94360CD, DW1560) — macOS's "
-            "built-in AirPort driver handles it with no version-pinned kext."
+            "AirportItlwm (menu-bar-integrated Intel WiFi) has no upstream "
+            "build past macOS Sonoma — Sequoia and Tahoe are stuck with "
+            "itlwm + HeliPort, which works but isn't Apple's native AirPort "
+            "stack. Switching to a Broadcom card is not a guaranteed fix "
+            "either: Apple also dropped native driver support for most "
+            "Broadcom WiFi chips starting in Sonoma, so those need OpenCore "
+            "Legacy Patcher's WiFi/Bluetooth root patch after install too — "
+            "or, for some chipsets, "
+            "github.com/0xFireWolf/AppleBCMWLANCompanion instead."
         )
 
     if profile.wifi_chipset == "realtek":

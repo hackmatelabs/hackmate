@@ -99,12 +99,13 @@ class HardwareWarningTests(unittest.TestCase):
 
 
 class IntelWifiWarningTests(unittest.TestCase):
-    def test_intel_wifi_gets_broadcom_native_wifi_recommendation(self):
+    def test_intel_wifi_warning_notes_broadcom_also_needs_a_root_patch(self):
         profile = hardware.HardwareProfile(wifi_chipset="intel")
 
         warnings = hardware.hardware_warnings(profile)
 
-        self.assertTrue(any("BCM94360CD" in warning for warning in warnings))
+        self.assertTrue(any("root patch" in warning for warning in warnings))
+        self.assertFalse(any("BCM94360CD" in warning for warning in warnings))
 
     def test_broadcom_wifi_does_not_get_the_recommendation(self):
         profile = hardware.HardwareProfile(wifi_chipset="broadcom")

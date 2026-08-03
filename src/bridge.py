@@ -298,6 +298,33 @@ def _recovery_compatible_versions(params, emit):
     return {"versions": result}
 
 
+def _recovery_all_versions(params, emit):
+    """All known macOS recovery versions, unfiltered by hardware — for
+    standalone recovery downloads where the user may want any version."""
+    result = []
+    for v in recovery.MACOS_VERSIONS:
+        d = _to_jsonable(v)
+        d["major"] = v.major
+        d["slug"] = v.slug
+        result.append(d)
+    return {"versions": result}
+
+
+def _recovery_download(params, emit):
+    version = recovery.MacOSVersion(**{
+        k: v for k, v in params["macos_version"].items()
+        if k in recovery.MacOSVersion.__dataclass_fields__
+    })
+    dest = Path(params["dest"])
+    dest.mkdir(parents=True, exist_ok=True)
+
+    def progress_cb(msg):
+        emit("progress", {"message": msg})
+
+    ok, msg = recovery.download_recovery(version, dest, progress_cb=progress_cb)
+    return {"ok": ok, "message": msg, "dest": str(dest)}
+
+
 def _build_run(params, emit):
     return build_runner.run(params, emit)
 
@@ -493,6 +520,8 @@ METHODS = {
     "hardware.needs_dgpu_prompt": _hardware_needs_dgpu_prompt,
     "hardware.manual_options": _hardware_manual_options,
     "recovery.compatible_versions": _recovery_compatible_versions,
+    "recovery.all_versions": _recovery_all_versions,
+    "recovery.download": _recovery_download,
     "build.run": _build_run,
 }
 

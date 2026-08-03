@@ -170,6 +170,38 @@ jobs:
             --add-data "src\assets\data;assets\data" `
             src/bridge.py
 
+      - name: Bundle VC++ runtime DLLs (app-local deployment)
+        shell: pwsh
+        run: |
+          $dest = "gui-flutter\build\windows\x64\runner\Release"
+          $dlls = @("msvcp140.dll", "vcruntime140.dll", "vcruntime140_1.dll")
+
+          $redistRoot = $null
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          if (Test-Path $vswhere) {
+            $vsPath = & $vswhere -latest -products * -property installationPath
+            if ($vsPath) {
+              $verFile = Join-Path $vsPath "VC\Auxiliary\Build\Microsoft.VCToolsVersion.default.txt"
+              if (Test-Path $verFile) {
+                $ver = (Get-Content $verFile).Trim()
+                $redistRoot = Join-Path $vsPath "VC\Redist\MSVC\$ver\x64\Microsoft.VC143.CRT"
+              }
+            }
+          }
+
+          foreach ($dll in $dlls) {
+            $src = $null
+            if ($redistRoot -and (Test-Path (Join-Path $redistRoot $dll))) {
+              $src = Join-Path $redistRoot $dll
+            } elseif (Test-Path "$env:SystemRoot\System32\$dll") {
+              $src = "$env:SystemRoot\System32\$dll"
+            }
+            if (-not $src) {
+              throw "Could not locate $dll to bundle for app-local deployment"
+            }
+            Copy-Item $src $dest
+          }
+
       - name: Zip Flutter GUI
         shell: pwsh
         run: |

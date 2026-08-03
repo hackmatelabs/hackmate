@@ -424,14 +424,24 @@ def _get_usb_drives_windows() -> list[tuple[str, str, str]]:
                     vol_map[letter] = (v.get("FileSystemLabel") or "", v.get("Size") or 0)
 
         seen = set()
+        disks_with_letter = set()
         for p in parts:
             disk_num = str(p.get("DiskNumber", ""))
             letter = str(p.get("DriveLetter") or "").strip()
             if disk_num in usb_disk_numbers and letter and letter not in seen:
                 seen.add(letter)
+                disks_with_letter.add(disk_num)
                 label, size_bytes = vol_map.get(letter, ("", usb_disk_numbers[disk_num]))
                 size_gb = f"{int(size_bytes) // 1024 // 1024 // 1024}GB" if size_bytes else "?"
                 drives.append((f"{letter}:", size_gb, label or ""))
+
+        # USB disks with no partition at all (blank/unpartitioned) or where
+        # Windows refused to auto-assign a letter never show up above —
+        # they'd otherwise silently vanish even though Get-Disk found them.
+        for disk_num, size_bytes in usb_disk_numbers.items():
+            if disk_num and disk_num not in disks_with_letter:
+                size_gb = f"{int(size_bytes) // 1024 // 1024 // 1024}GB" if size_bytes else "?"
+                drives.append((f"RAWDISK{disk_num}", size_gb, "(raw / not yet formatted)"))
     except Exception:
         pass
     return drives
@@ -537,26 +547,31 @@ def _format_usb_windows(drive_letter: str, mount_letter: str = "Z") -> bool:
     letter = drive_letter.rstrip(':\\')
     target_letter = mount_letter.rstrip(':\\')
 
-    # diskpart needs disk number, not drive letter — resolve it via PowerShell
-    disk_num_raw = _run([
-        "powershell", "-NoProfile", "-Command",
-        f"(Get-Partition -DriveLetter {letter} | Get-Disk).Number"
-    ]).strip()
-
-    # Fallback: USB may be RAW (no partition table) — try via Get-Volume
-    if not disk_num_raw.isdigit():
+    if letter.upper().startswith("RAWDISK"):
+        # Picked from the USB list as a blank/unpartitioned disk — we already
+        # know its disk number, no drive letter to resolve it from at all.
+        disk_num_raw = letter[7:]
+    else:
+        # diskpart needs disk number, not drive letter — resolve it via PowerShell
         disk_num_raw = _run([
             "powershell", "-NoProfile", "-Command",
-            f"(Get-Volume -DriveLetter {letter} -ErrorAction SilentlyContinue | Get-Partition -ErrorAction SilentlyContinue | Get-Disk).Number"
+            f"(Get-Partition -DriveLetter {letter} | Get-Disk).Number"
         ]).strip()
 
-    if not disk_num_raw.isdigit():
-        usb_disks = _run([
-            "powershell", "-NoProfile", "-Command",
-            "(Get-Disk | Where-Object {$_.BusType -eq 'USB'}).Number"
-        ]).split()
-        if len(usb_disks) == 1 and usb_disks[0].isdigit():
-            disk_num_raw = usb_disks[0]
+        # Fallback: USB may be RAW (no partition table) — try via Get-Volume
+        if not disk_num_raw.isdigit():
+            disk_num_raw = _run([
+                "powershell", "-NoProfile", "-Command",
+                f"(Get-Volume -DriveLetter {letter} -ErrorAction SilentlyContinue | Get-Partition -ErrorAction SilentlyContinue | Get-Disk).Number"
+            ]).strip()
+
+        if not disk_num_raw.isdigit():
+            usb_disks = _run([
+                "powershell", "-NoProfile", "-Command",
+                "(Get-Disk | Where-Object {$_.BusType -eq 'USB'}).Number"
+            ]).split()
+            if len(usb_disks) == 1 and usb_disks[0].isdigit():
+                disk_num_raw = usb_disks[0]
 
     if not disk_num_raw.isdigit():
         raise RuntimeError(
@@ -711,6 +726,12 @@ def get_mount_path(device: str = "", skip_format: bool = False) -> str:
     """Get the mount path for the USB drive."""
     if IS_WINDOWS:
         if skip_format and device:
+            if device.upper().startswith("RAWDISK"):
+                raise RuntimeError(
+                    "This USB has no filesystem yet (it showed up blank/unpartitioned) — "
+                    "'Already Formatted' doesn't apply to it. Use 'Full Build' instead so "
+                    "HackMate partitions and formats it for you."
+                )
             letter = device.strip(":\\/").upper()
             if letter and letter.isalpha():
                 if not os.path.exists(f"{letter}:\\"):

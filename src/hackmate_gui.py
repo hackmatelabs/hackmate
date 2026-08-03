@@ -23,10 +23,6 @@ from compat import (
 )
 require_admin()
 
-from updater import check_and_update
-if check_and_update():
-    os.execv(sys.executable, [sys.executable] + sys.argv)
-
 from hardware import (
     scan, HardwareProfile, needs_dgpu_disable_prompt,
     CPU_OPTIONS, GPU_OPTIONS, ETHERNET_OPTIONS, WIFI_OPTIONS, CPU_META,
@@ -34,7 +30,7 @@ from hardware import (
 from kexts import select_kexts, get_alc_layout, alc_layout_is_known
 from smbios import generate as gen_smbios, SMBIOSData
 from config_gen import generate as gen_config, write_plist, _required_ssdts
-from recovery import compatible_versions, download_recovery, macrecovery_args, MacOSVersion
+from recovery import compatible_versions, download_recovery, macrecovery_args, MacOSVersion, MACOS_VERSIONS
 
 
 BG      = "#0d0d0d"
@@ -600,6 +596,7 @@ class WelcomeScreen(Screen):
             (t("welcome.build_efi"),        lambda: self.app.push_screen(ScanScreen), "primary"),
             (t("welcome.build_efi_manual"), lambda: self.app.push_screen(ManualHardwareScreen), "primary"),
             (t("welcome.restore_efi"),      lambda: self.app.push_screen(RestoreScreen), "primary"),
+            (t("welcome.download_recovery"),lambda: self.app.push_screen(RecoveryDownloadScreen), "primary"),
             (t("welcome.dual_boot"),        lambda: self.app.push_screen(DiskMapScreen), "primary"),
             (t("welcome.usb_mapping"),      lambda: self.app.push_screen(USBMappingScreen), "primary"),
             (t("welcome.edit_config"),      lambda: self.app.push_screen(ConfigEditorUSBScreen), "primary"),
@@ -2020,6 +2017,77 @@ class RestoreConfirmScreen(Screen):
             notify(f"Restore complete — EFI from {self.backup.stem} written to {self.device}")
         except Exception as e:
             notify(f"Restore failed: {e}")
+
+
+class RecoveryDownloadScreen(Screen):
+    """Fetch a macOS recoveryOS image from Apple, independent of the build
+    wizard — for replacing a corrupt recovery or troubleshooting without
+    reformatting a USB."""
+
+    def on_show(self):
+        self.dest_dir: str | None = None
+
+        wrap = tk.Frame(self, bg=BG)
+        wrap.pack(fill="both", expand=True, padx=30, pady=20)
+        title(wrap, "── Download Recovery ────────────────────────────────────").pack(anchor="w")
+        info(wrap, "").pack(anchor="w")
+        info(wrap, "  macOS version:").pack(anchor="w")
+
+        version_items = [
+            f"  {v.name}{'  (' + v.notes + ')' if v.notes else ''}" for v in MACOS_VERSIONS
+        ]
+        self.version_list = ListBox(wrap, items=version_items, height=8)
+        self.version_list.pack(fill="x", pady=(2, 8))
+        self.version_list.selection_set(0)
+
+        info(wrap, "  Save to:").pack(anchor="w")
+        dest_row = tk.Frame(wrap, bg=BG)
+        dest_row.pack(fill="x", pady=(2, 8))
+        self.dest_label = info(dest_row, "  (no folder selected)")
+        self.dest_label.pack(side="left")
+        button(dest_row, "Choose folder…", self._choose_folder, "back").pack(side="left", padx=(8, 0))
+
+        self.status_label = info(wrap, "")
+        self.status_label.pack(anchor="w", pady=(4, 0))
+
+        btn_row = tk.Frame(wrap, bg=BG)
+        btn_row.pack(fill="x", pady=(8, 0))
+        self.download_btn = button(btn_row, "Download", self._download, "primary")
+        self.download_btn.pack(side="left", padx=(0, 8))
+        button(btn_row, "← Back", self.app.pop_screen, "back").pack(side="left")
+
+    def _choose_folder(self):
+        chosen = filedialog.askdirectory(title="Select a folder to save the recovery image to")
+        if chosen:
+            self.dest_dir = chosen
+            self.dest_label.config(text=f"  {chosen}")
+
+    def _download(self):
+        if not self.dest_dir:
+            self.status_label.config(text="  Choose a destination folder first.", fg=WARN)
+            return
+        idx = self.version_list.index or 0
+        version = MACOS_VERSIONS[idx]
+        self.download_btn.config(state="disabled")
+        self.status_label.config(text=f"  Downloading {version.name}...", fg=INFOC)
+        threading.Thread(target=self._run_download, args=(version,), daemon=True).start()
+
+    def _run_download(self, version: MacOSVersion):
+        def progress(msg):
+            self.app.call_from_thread(self.status_label.config, text=f"  {msg}", fg=INFOC)
+
+        try:
+            ok, msg = download_recovery(version, Path(self.dest_dir), progress_cb=progress)
+            if ok:
+                self.app.call_from_thread(
+                    self.status_label.config, text=f"  Done — saved to {self.dest_dir}", fg=ACCENT)
+            else:
+                self.app.call_from_thread(
+                    self.status_label.config, text=f"  Failed: {msg}", fg=WARN)
+        except Exception as e:
+            self.app.call_from_thread(self.status_label.config, text=f"  Failed: {e}", fg=WARN)
+        finally:
+            self.app.call_from_thread(self.download_btn.config, state="normal")
 
 
 class ConfigEditorUSBScreen(Screen):

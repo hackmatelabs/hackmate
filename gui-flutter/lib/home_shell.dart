@@ -54,6 +54,12 @@ const homeActions = [
     subtitle: 'Roll back to a backup',
   ),
   HackMateAction(
+    id: 'download_recovery',
+    icon: Icons.cloud_download_rounded,
+    title: 'Download Recovery',
+    subtitle: 'Fetch a recoveryOS image from Apple',
+  ),
+  HackMateAction(
     id: 'disk_map',
     icon: Icons.dns_rounded,
     title: 'Dual Boot / Disk Map',

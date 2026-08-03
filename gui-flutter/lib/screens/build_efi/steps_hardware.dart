@@ -72,9 +72,9 @@ class _HardwareStepState extends State<HardwareStep> {
                 children: [
                   _row('CPU', '${profile['cpu_name']} (gen ${profile['cpu_generation']}, ${profile['platform']})'),
                   _row('GPU', profile['gpu_name']?.toString() ?? ''),
-                  _row('Audio', profile['audio_codec']?.toString() ?? ''),
-                  _row('Ethernet', profile['ethernet_chipset']?.toString() ?? ''),
-                  _row('WiFi', profile['wifi_chipset']?.toString() ?? '(none)'),
+                  _row('Audio', _deviceLabel(profile['audio_name'], profile['audio_codec'])),
+                  _row('Ethernet', _deviceLabel(profile['ethernet_name'], profile['ethernet_chipset'])),
+                  _row('WiFi', _deviceLabel(profile['wifi_name'], profile['wifi_chipset'])),
                   _row('SMBIOS target', profile['smbios_model']?.toString() ?? ''),
                 ],
               ),
@@ -104,6 +104,14 @@ class _HardwareStepState extends State<HardwareStep> {
         ],
       ),
     );
+  }
+
+  String _deviceLabel(dynamic name, dynamic chipset) {
+    final n = name?.toString().trim() ?? '';
+    final c = chipset?.toString().trim() ?? '';
+    if (n.isEmpty) return c.isEmpty ? '(none)' : c;
+    if (c.isEmpty || c.toLowerCase() == n.toLowerCase()) return n;
+    return '$n ($c)';
   }
 
   Widget _row(String label, String value) {
