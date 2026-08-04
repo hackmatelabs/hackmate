@@ -1094,10 +1094,10 @@ def hardware_warnings(profile: HardwareProfile) -> list[str]:
 
 def detect_smbios(profile: HardwareProfile):
     key = (profile.cpu_generation, profile.platform)
-    if key in SMBIOS_MAP:
-        profile.smbios_model = SMBIOS_MAP[key]
-    elif profile.cpu_vendor == "amd":
+    if profile.cpu_vendor == "amd":
         profile.smbios_model = "MacPro7,1" if profile.platform == "desktop" else "MacBookPro15,2"
+    elif key in SMBIOS_MAP:
+        profile.smbios_model = SMBIOS_MAP[key]
     else:
         profile.smbios_model = "MacBookPro15,2"
 

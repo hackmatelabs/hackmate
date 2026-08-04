@@ -560,6 +560,24 @@ class LinuxGpuFallbackNameTests(unittest.TestCase):
 
 
 class SmbiosGenerationMatchTests(unittest.TestCase):
+    def test_zen_2_laptop_uses_amd_smbios(self):
+        profile = hardware.HardwareProfile(
+            cpu_vendor="amd", cpu_generation=10, platform="laptop"
+        )
+
+        hardware.detect_smbios(profile)
+
+        self.assertEqual(profile.smbios_model, "MacBookPro15,2")
+
+    def test_zen_4_or_5_laptop_uses_amd_smbios(self):
+        profile = hardware.HardwareProfile(
+            cpu_vendor="amd", cpu_generation=12, platform="laptop"
+        )
+
+        hardware.detect_smbios(profile)
+
+        self.assertEqual(profile.smbios_model, "MacBookPro15,2")
+
     def test_kaby_lake_laptop_gets_a_genuine_kaby_lake_smbios(self):
         profile = hardware.HardwareProfile(cpu_generation=7, platform="laptop")
 
