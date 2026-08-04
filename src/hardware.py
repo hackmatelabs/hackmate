@@ -379,6 +379,14 @@ def _oc_platform_for(gen: int, platform: str, codename: str = "") -> str:
     return _OC_PLATFORM_MAP.get(gen, codename or "Unknown")
 
 
+def _detect_oc_platform(profile: HardwareProfile):
+    """Fill the OpenCore platform after the system form factor is known."""
+    if "intel" in profile.cpu_vendor and not profile.oc_platform:
+        profile.oc_platform = _oc_platform_for(
+            profile.cpu_generation, profile.platform, profile.cpu_codename
+        )
+
+
 def _detect_cpu_linux(profile: HardwareProfile):
     cpuinfo = _run(["cat", "/proc/cpuinfo"])
     for line in cpuinfo.splitlines():
@@ -420,9 +428,6 @@ def _detect_cpu_linux(profile: HardwareProfile):
         profile.cpu_vendor = "amd"
         _detect_amd_gen(profile)
 
-    if not profile.oc_platform:
-        profile.oc_platform = _oc_platform_for(profile.cpu_generation, profile.platform, profile.cpu_codename)
-
 def _detect_cpu_windows(profile: HardwareProfile):
     name = _ps("(Get-WmiObject Win32_Processor | Select-Object -First 1).Name")
     profile.cpu_name = name.strip()
@@ -446,9 +451,6 @@ def _detect_cpu_windows(profile: HardwareProfile):
             _infer_intel_gen_from_name(profile)
     elif vendor == "amd":
         _detect_amd_gen(profile)
-
-    if vendor == "intel":
-        profile.oc_platform = _oc_platform_for(profile.cpu_generation, profile.platform, profile.cpu_codename)
 
     # Core/thread count
     try:
@@ -491,7 +493,6 @@ def _infer_intel_gen_from_name(profile: HardwareProfile):
     elif "11th" in name or "tiger" in name or "rocket" in name:
         profile.cpu_generation = 11
         profile.cpu_codename = "Rocket Lake" if "rocket" in name else "Tiger Lake"
-        profile.oc_platform = "Tiger Lake"
     elif "10th" in name or "comet" in name or "ice" in name:
         profile.cpu_generation = 10
         profile.cpu_codename = "Comet Lake"
@@ -1136,7 +1137,6 @@ def _detect_cpu_macos(profile: HardwareProfile):
             if keyword in name:
                 profile.cpu_generation = gen
                 profile.cpu_codename = codename
-                profile.oc_platform = codename
                 break
 
         if not profile.cpu_generation:
@@ -1148,8 +1148,6 @@ def _detect_cpu_macos(profile: HardwareProfile):
         if not profile.cpu_generation:
             _infer_intel_gen_from_name(profile)
 
-        if not profile.oc_platform:
-            profile.oc_platform = _oc_platform_for(profile.cpu_generation, profile.platform, profile.cpu_codename)
     elif profile.cpu_vendor == "amd":
         _detect_amd_gen(profile)
 
@@ -1288,16 +1286,19 @@ def scan() -> HardwareProfile:
         _detect_audio_windows(profile)
         _detect_network_windows(profile)
         _detect_platform_windows(profile)
+        _detect_oc_platform(profile)
     elif IS_MACOS:
         _detect_cpu_macos(profile)
         _detect_gpu_macos(profile)
         _detect_audio_macos(profile)
         _detect_network_macos(profile)
         _detect_platform_macos(profile)
+        _detect_oc_platform(profile)
     else:
         profile.raw_pci = _lspci()
         _detect_cpu_linux(profile)
         _detect_platform_linux(profile)
+        _detect_oc_platform(profile)
         _detect_gpu_linux(profile)
         _detect_audio_linux(profile)
         _detect_network_linux(profile)

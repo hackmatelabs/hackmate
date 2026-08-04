@@ -10,6 +10,51 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 import hardware
 
 
+class OpenCorePlatformDetectionTests(unittest.TestCase):
+    def test_linux_11th_gen_desktop_is_rocket_lake(self):
+        profile = hardware.HardwareProfile()
+        cpuinfo = "vendor_id : GenuineIntel\nmodel name : Intel(R) Core(TM) i7-11700 CPU"
+
+        with patch.object(hardware, "_run", side_effect=[cpuinfo, "", "", "", "", ""]):
+            hardware._detect_cpu_linux(profile)
+            hardware._detect_platform_linux(profile)
+        hardware._detect_oc_platform(profile)
+
+        self.assertEqual(profile.platform, "desktop")
+        self.assertEqual(profile.oc_platform, "Rocket Lake")
+
+    def test_windows_11th_gen_laptop_is_tiger_lake(self):
+        profile = hardware.HardwareProfile()
+        responses = iter(["Intel(R) Core(TM) i7-1165G7", "4", "8", "10", "0", "0"])
+
+        with patch.object(hardware, "_ps", side_effect=lambda query: next(responses)):
+            hardware._detect_cpu_windows(profile)
+            hardware._detect_platform_windows(profile)
+        hardware._detect_oc_platform(profile)
+
+        self.assertEqual(profile.platform, "laptop")
+        self.assertEqual(profile.oc_platform, "Tiger Lake")
+
+    def test_device_id_platform_is_not_overwritten(self):
+        profile = hardware.HardwareProfile(
+            cpu_vendor="intel", cpu_generation=11, platform="desktop",
+            oc_platform="Device ID platform",
+        )
+
+        hardware._detect_oc_platform(profile)
+
+        self.assertEqual(profile.oc_platform, "Device ID platform")
+
+    def test_coffee_lake_is_unchanged(self):
+        for generation in (8, 9):
+            with self.subTest(generation=generation):
+                profile = hardware.HardwareProfile(
+                    cpu_vendor="intel", cpu_generation=generation, platform="desktop"
+                )
+                hardware._detect_oc_platform(profile)
+                self.assertEqual(profile.oc_platform, "Coffee Lake")
+
+
 class LinuxAudioDetectionTests(unittest.TestCase):
     def test_audio_controller_pci_device_and_function_are_captured(self):
         profile = hardware.HardwareProfile(raw_pci=[
