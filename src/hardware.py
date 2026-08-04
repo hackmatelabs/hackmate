@@ -1155,20 +1155,29 @@ def _detect_cpu_macos(profile: HardwareProfile):
 
 def _detect_gpu_macos(profile: HardwareProfile):
     sp = _sp("SPDisplaysDataType")
+    intel_name = ""
+    discrete_name = discrete_vendor = ""
     for line in sp.splitlines():
         line = line.strip()
         if not line:
             continue
         lower = line.lower()
+        name = line.split(":")[-1].strip() if ":" in line else line
         if "intel" in lower and ("uhd" in lower or "iris" in lower or "hd graphics" in lower):
-            profile.gpu_vendor = "intel"
-            profile.gpu_name = line.split(":")[-1].strip() if ":" in line else line
+            if not intel_name:
+                intel_name = name
         elif "amd" in lower or "radeon" in lower:
-            profile.gpu_vendor = "amd"
-            profile.gpu_name = line.split(":")[-1].strip() if ":" in line else line
+            if not discrete_name:
+                discrete_name, discrete_vendor = name, "amd"
         elif "nvidia" in lower or "geforce" in lower:
-            profile.gpu_vendor = "nvidia"
-            profile.gpu_name = line.split(":")[-1].strip() if ":" in line else line
+            if not discrete_name:
+                discrete_name, discrete_vendor = name, "nvidia"
+
+    if intel_name:
+        profile.gpu_name, profile.gpu_vendor = intel_name, "intel"
+        profile.dgpu_name, profile.dgpu_vendor = discrete_name, discrete_vendor
+    elif discrete_name:
+        profile.gpu_name, profile.gpu_vendor = discrete_name, discrete_vendor
 
 _NOT_ONBOARD_AUDIO = (
     "blackhole", "existential audio", "soundflower", "loopback",

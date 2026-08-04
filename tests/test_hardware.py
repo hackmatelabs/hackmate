@@ -434,6 +434,43 @@ class MacOSPCIDetectionTests(unittest.TestCase):
             self.assertEqual(hardware._lspci(), [])
 
 
+class MacOSGpuDetectionTests(unittest.TestCase):
+    def test_intel_igpu_remains_primary_when_amd_dgpu_is_also_present(self):
+        output = """
+Intel UHD Graphics 630:
+    Chipset Model: Intel UHD Graphics 630
+AMD Radeon RX 580:
+    Chipset Model: AMD Radeon RX 580
+"""
+        profile = hardware.HardwareProfile()
+
+        with patch.object(hardware, "_sp", return_value=output):
+            hardware._detect_gpu_macos(profile)
+
+        self.assertEqual(profile.gpu_name, "Intel UHD Graphics 630")
+        self.assertEqual(profile.gpu_vendor, "intel")
+        self.assertEqual(profile.dgpu_name, "AMD Radeon RX 580")
+        self.assertEqual(profile.dgpu_vendor, "amd")
+
+    def test_single_gpu_remains_primary(self):
+        cases = (
+            ("Chipset Model: Intel Iris Plus Graphics", "Intel Iris Plus Graphics", "intel"),
+            ("Chipset Model: AMD Radeon RX 580", "AMD Radeon RX 580", "amd"),
+            ("Chipset Model: NVIDIA GeForce GTX 1080", "NVIDIA GeForce GTX 1080", "nvidia"),
+        )
+
+        for output, expected_name, expected_vendor in cases:
+            with self.subTest(vendor=expected_vendor):
+                profile = hardware.HardwareProfile()
+                with patch.object(hardware, "_sp", return_value=output):
+                    hardware._detect_gpu_macos(profile)
+
+                self.assertEqual(profile.gpu_name, expected_name)
+                self.assertEqual(profile.gpu_vendor, expected_vendor)
+                self.assertEqual(profile.dgpu_name, "")
+                self.assertEqual(profile.dgpu_vendor, "")
+
+
 class WindowsAudioDetectionTests(unittest.TestCase):
     def test_generic_realtek_device_name_resolves_to_real_codec_via_registry(self):
         profile = hardware.HardwareProfile()
