@@ -415,14 +415,26 @@ def _device_properties(
 
     # Intel I225/I226 ethernet fix (needs device-id spoof)
     if profile.ethernet_chipset in ("i225", "i226"):
-        props["PciRoot(0x0)/Pci(0x1C,0x4)/Pci(0x0,0x0)"] = {
+        if profile.ethernet_pci_device >= 0 and profile.ethernet_pci_function >= 0:
+            i225_path = (
+                f"PciRoot(0x0)/Pci(0x{profile.ethernet_pci_device:x},"
+                f"0x{profile.ethernet_pci_function:x})"
+            )
+        else:
+            i225_path = "PciRoot(0x0)/Pci(0x1C,0x4)/Pci(0x0,0x0)"
+        props[i225_path] = {
             "device-id":     bytes([0xF2, 0x15, 0x00, 0x00]),
             "PCI-Subchannel": bytes([0x00]),
             "built-in":      bytes([0x01]),
         }
 
     if profile.ethernet_chipset and profile.ethernet_chipset not in ("none",):
-        if profile.ethernet_chipset in ("i219", "i218", "i217"):
+        if profile.ethernet_pci_device >= 0 and profile.ethernet_pci_function >= 0:
+            eth_path = (
+                f"PciRoot(0x0)/Pci(0x{profile.ethernet_pci_device:x},"
+                f"0x{profile.ethernet_pci_function:x})"
+            )
+        elif profile.ethernet_chipset in ("i219", "i218", "i217"):
             eth_path = "PciRoot(0x0)/Pci(0x1F,0x6)"
         elif profile.ethernet_chipset in ("rtl8111", "rtl8168", "rtl8125"):
             eth_path = "PciRoot(0x0)/Pci(0x1C,0x0)/Pci(0x0,0x0)"

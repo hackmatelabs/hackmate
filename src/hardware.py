@@ -31,6 +31,8 @@ class HardwareProfile:
 
     ethernet_name: str = ""
     ethernet_chipset: str = ""  # e.g. Intel I219
+    ethernet_pci_device: int = -1
+    ethernet_pci_function: int = -1
 
     wifi_name: str = ""
     wifi_chipset: str = ""
@@ -948,6 +950,10 @@ def _detect_network_linux(profile: HardwareProfile):
                     profile.ethernet_chipset = "rtl8111"
                 elif "ax88" in lower or "asix" in lower:
                     profile.ethernet_chipset = "ax88"
+                addr = _LSPCI_ADDRESS_RE.match(line)
+                if addr:
+                    profile.ethernet_pci_device = int(addr.group(1), 16)
+                    profile.ethernet_pci_function = int(addr.group(2), 16)
 
 def _detect_network_windows(profile: HardwareProfile):
     raw = _ps("""

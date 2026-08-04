@@ -88,6 +88,45 @@ class InstallerAudioSafetyTests(unittest.TestCase):
         self.assertIn("VoodooHDA cannot be injected from this installer EFI", titles)
 
 
+class EthernetDevicePropertySafetyTests(unittest.TestCase):
+    def test_detected_i225_uses_its_pci_path_for_spoof(self):
+        profile = HardwareProfile(
+            ethernet_chipset="i225",
+            ethernet_pci_device=0x06,
+            ethernet_pci_function=0x1,
+        )
+
+        properties = config_gen._device_properties(profile, 1)["Add"]
+
+        self.assertIn("PciRoot(0x0)/Pci(0x6,0x1)", properties)
+        self.assertNotIn("PciRoot(0x0)/Pci(0x1C,0x4)/Pci(0x0,0x0)", properties)
+        self.assertEqual(
+            properties["PciRoot(0x0)/Pci(0x6,0x1)"]["device-id"],
+            bytes([0xF2, 0x15, 0x00, 0x00]),
+        )
+
+    def test_unknown_i225_path_keeps_legacy_fallback(self):
+        profile = HardwareProfile(ethernet_chipset="i225")
+
+        properties = config_gen._device_properties(profile, 1)["Add"]
+
+        self.assertIn("PciRoot(0x0)/Pci(0x1C,0x4)/Pci(0x0,0x0)", properties)
+
+    def test_detected_realtek_uses_its_pci_path_for_built_in(self):
+        profile = HardwareProfile(
+            ethernet_chipset="rtl8125",
+            ethernet_pci_device=0x07,
+            ethernet_pci_function=0x2,
+        )
+
+        properties = config_gen._device_properties(profile, 1)["Add"]
+
+        self.assertEqual(
+            properties["PciRoot(0x0)/Pci(0x7,0x2)"]["built-in"], bytes([0x01])
+        )
+        self.assertNotIn("PciRoot(0x0)/Pci(0x1C,0x0)/Pci(0x0,0x0)", properties)
+
+
 class RequiredSsdtSafetyTests(unittest.TestCase):
     def test_skylake_plus_desktop_gets_standalone_usbx(self):
         profile = HardwareProfile(cpu_generation=8, platform="desktop")

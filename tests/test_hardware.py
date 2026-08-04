@@ -27,13 +27,15 @@ class LinuxAudioDetectionTests(unittest.TestCase):
 class LinuxNetworkDetectionTests(unittest.TestCase):
     def test_i225_ethernet_is_identified(self):
         profile = hardware.HardwareProfile(raw_pci=[
-            "0000:04:00.0 Ethernet controller: Intel Corporation "
+            "04:06.1 Ethernet controller: Intel Corporation "
             "Ethernet Controller I225-V (rev 03)",
         ])
 
         hardware._detect_network_linux(profile)
 
         self.assertEqual(profile.ethernet_chipset, "i225")
+        self.assertEqual(profile.ethernet_pci_device, 0x06)
+        self.assertEqual(profile.ethernet_pci_function, 0x1)
 
     def test_i226_ethernet_is_identified(self):
         profile = hardware.HardwareProfile(raw_pci=[
