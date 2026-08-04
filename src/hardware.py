@@ -22,6 +22,7 @@ class HardwareProfile:
 
     dgpu_name: str = ""
     dgpu_vendor: str = ""     # nvidia / amd — only set when discrete GPU alongside Intel iGPU
+    dgpu_device_id: str = ""
 
     audio_name: str = ""
     audio_codec: str = ""     # e.g. ALC295
@@ -709,6 +710,7 @@ def _detect_gpu_linux(profile: HardwareProfile):
         profile.gpu_name, profile.gpu_vendor = igpu_name, igpu_vendor
         profile.gpu_device_id = ids_by_name.get(igpu_name, "")
         profile.dgpu_name, profile.dgpu_vendor = dgpu_name, dgpu_vendor
+        profile.dgpu_device_id = ids_by_name.get(dgpu_name, "")
     elif dgpu_name:
         profile.gpu_name, profile.gpu_vendor = dgpu_name, dgpu_vendor
         profile.gpu_device_id = ids_by_name.get(dgpu_name, "")
@@ -817,6 +819,7 @@ def _detect_gpu_windows(profile: HardwareProfile):
         profile.gpu_name, profile.gpu_vendor = igpu_name, igpu_vendor
         profile.gpu_device_id = ids_by_name.get(igpu_name, "")
         profile.dgpu_name, profile.dgpu_vendor = dgpu_name, dgpu_vendor
+        profile.dgpu_device_id = ids_by_name.get(dgpu_name, "")
     elif dgpu_name:
         profile.gpu_name, profile.gpu_vendor = dgpu_name, dgpu_vendor
         profile.gpu_device_id = ids_by_name.get(dgpu_name, "")

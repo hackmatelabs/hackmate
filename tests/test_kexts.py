@@ -34,6 +34,74 @@ class CpuTopologyRebuildSelectionTests(unittest.TestCase):
         self.assertNotIn("CpuTopologyRebuild", names)
 
 
+class AmdGpuKextSelectionTests(unittest.TestCase):
+    def _selected_names(self, profile: HardwareProfile) -> set[str]:
+        with (
+            patch.object(kexts, "_dmi", return_value=""),
+            patch.object(kexts, "_has_card_reader", return_value=False),
+        ):
+            return {entry.name for entry in kexts.select_kexts(profile)}
+
+    def test_intel_igpu_with_navi2x_dgpu_gets_navi_and_sensor_kexts(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=9,
+            platform="desktop",
+            gpu_vendor="intel",
+            gpu_name="Intel UHD Graphics 630",
+            dgpu_vendor="amd",
+            dgpu_name="AMD Radeon RX 6600",
+        )
+
+        names = self._selected_names(profile)
+
+        self.assertIn("NootRX", names)
+        self.assertIn("RadeonSensor", names)
+        self.assertIn("SMCRadeonGPU", names)
+
+    def test_navi2x_dgpu_device_id_is_recognized(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=9,
+            platform="desktop",
+            gpu_vendor="intel",
+            gpu_name="Intel UHD Graphics 630",
+            dgpu_vendor="amd",
+            dgpu_name="AMD Radeon GPU",
+            dgpu_device_id="1002:73ff",
+        )
+
+        self.assertIn("NootRX", self._selected_names(profile))
+
+    def test_amd_primary_navi2x_behavior_is_preserved(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel",
+            platform="desktop",
+            gpu_vendor="amd",
+            gpu_name="AMD Radeon RX 6800",
+        )
+
+        names = self._selected_names(profile)
+
+        self.assertIn("NootRX", names)
+        self.assertIn("RadeonSensor", names)
+        self.assertIn("SMCRadeonGPU", names)
+
+    def test_amd_apu_only_gets_neither_navi_nor_sensor_kexts(self):
+        profile = HardwareProfile(
+            cpu_vendor="amd",
+            platform="desktop",
+            gpu_vendor="amd",
+            gpu_name="AMD Radeon Graphics",
+        )
+
+        names = self._selected_names(profile)
+
+        self.assertNotIn("NootRX", names)
+        self.assertNotIn("RadeonSensor", names)
+        self.assertNotIn("SMCRadeonGPU", names)
+
+
 class AirportItlwmSourceCheckTests(unittest.TestCase):
     def _check(self, macos_version: str) -> str:
         with patch("kexts._get_latest_release", return_value={"assets": _AIRPORTITLWM_ASSETS}):

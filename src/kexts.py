@@ -289,14 +289,23 @@ _NAVI2X_DEVICE_IDS = {
     "73E0", "73E1", "73E3", "73E4", "73EF", "73FF",
 }
 
+def _amd_gpu(profile: HardwareProfile) -> tuple[str, str] | None:
+    if profile.gpu_vendor == "amd":
+        return profile.gpu_name, profile.gpu_device_id
+    if profile.dgpu_vendor == "amd":
+        return profile.dgpu_name, profile.dgpu_device_id
+    return None
+
 def _is_navi2x(profile: HardwareProfile) -> bool:
-    if profile.gpu_vendor != "amd":
+    amd_gpu = _amd_gpu(profile)
+    if amd_gpu is None:
         return False
-    name = profile.gpu_name.lower()
+    name, device_id = amd_gpu
+    name = name.lower()
     if any(x in name for x in [
         "rx 6600", "rx 6700", "rx 6800", "rx 6900", "navi 21", "navi 22", "navi 23", "navi 24"]):
         return True
-    return profile.gpu_device_id.upper() in _NAVI2X_DEVICE_IDS
+    return device_id.upper().rsplit(":", 1)[-1] in _NAVI2X_DEVICE_IDS
 
 def _is_hedt(profile: HardwareProfile) -> bool:
     name = profile.cpu_name.lower()
@@ -388,7 +397,7 @@ def select_kexts(profile: HardwareProfile, wifi_kext_mode: str = "itlwm") -> lis
             add("SMCSuperIO")
         if "dell" in vendor:
             add("SMCDellSensors")
-        if profile.gpu_vendor == "amd" and not _is_amd_apu(profile):
+        if profile.dgpu_vendor == "amd" or (profile.gpu_vendor == "amd" and not _is_amd_apu(profile)):
             add("SMCRadeonGPU")
         if profile.cpu_vendor == "amd":
             add("SMCAMDProcessor")
@@ -457,7 +466,7 @@ def select_kexts(profile: HardwareProfile, wifi_kext_mode: str = "itlwm") -> lis
 
     if _is_navi2x(profile):
         add("NootRX")
-    if profile.gpu_vendor == "amd" and not _is_amd_apu(profile):
+    if profile.dgpu_vendor == "amd" or (profile.gpu_vendor == "amd" and not _is_amd_apu(profile)):
         add("RadeonSensor")
 
     if legacy:
