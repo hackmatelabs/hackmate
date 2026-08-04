@@ -127,6 +127,31 @@ class EthernetDevicePropertySafetyTests(unittest.TestCase):
         self.assertNotIn("PciRoot(0x0)/Pci(0x1C,0x0)/Pci(0x0,0x0)", properties)
 
 
+class NvmeDevicePropertySafetyTests(unittest.TestCase):
+    def test_detected_nvme_uses_its_pci_path_for_built_in(self):
+        profile = HardwareProfile(
+            nvme_present=True,
+            nvme_pci_device=0x08,
+            nvme_pci_function=0x1,
+        )
+
+        properties = config_gen._device_properties(profile, 1)["Add"]
+
+        self.assertEqual(
+            properties["PciRoot(0x0)/Pci(0x8,0x1)"]["built-in"], bytes([0x01])
+        )
+        self.assertNotIn("PciRoot(0x0)/Pci(0x1D,0x0)", properties)
+
+    def test_unknown_nvme_path_keeps_legacy_fallback(self):
+        profile = HardwareProfile(nvme_present=True)
+
+        properties = config_gen._device_properties(profile, 1)["Add"]
+
+        self.assertEqual(
+            properties["PciRoot(0x0)/Pci(0x1D,0x0)"]["built-in"], bytes([0x01])
+        )
+
+
 class RequiredSsdtSafetyTests(unittest.TestCase):
     def test_skylake_plus_desktop_gets_standalone_usbx(self):
         profile = HardwareProfile(cpu_generation=8, platform="desktop")

@@ -44,6 +44,8 @@ class HardwareProfile:
     touchpad_type: str = "ps2"
     has_thunderbolt: bool = False
     nvme_present: bool = False
+    nvme_pci_device: int = -1
+    nvme_pci_function: int = -1
 
     smbios_model: str = ""    # e.g. MacBookPro15,2
     oc_platform: str = ""     # e.g. Kaby Lake-R
@@ -915,6 +917,16 @@ def _detect_audio_windows(profile: HardwareProfile):
 _LSPCI_ADDRESS_RE = re.compile(r'^[0-9a-f]{2,4}:([0-9a-f]{2})\.([0-9a-f])')
 
 
+def _detect_nvme_linux(profile: HardwareProfile):
+    for line in profile.raw_pci:
+        if "non-volatile memory controller" in line.lower():
+            addr = _LSPCI_ADDRESS_RE.match(line)
+            if addr:
+                profile.nvme_pci_device = int(addr.group(1), 16)
+                profile.nvme_pci_function = int(addr.group(2), 16)
+            break
+
+
 def _detect_network_linux(profile: HardwareProfile):
     for line in profile.raw_pci:
         lower = line.lower()
@@ -1277,6 +1289,7 @@ def scan() -> HardwareProfile:
         _detect_gpu_linux(profile)
         _detect_audio_linux(profile)
         _detect_network_linux(profile)
+        _detect_nvme_linux(profile)
 
     detect_smbios(profile)
     _set_cpu_brand(profile)

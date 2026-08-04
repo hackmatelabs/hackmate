@@ -48,6 +48,19 @@ class LinuxNetworkDetectionTests(unittest.TestCase):
         self.assertEqual(profile.ethernet_chipset, "i226")
 
 
+class LinuxNvmeDetectionTests(unittest.TestCase):
+    def test_nvme_controller_pci_device_and_function_are_captured(self):
+        profile = hardware.HardwareProfile(raw_pci=[
+            "09:05.1 Non-Volatile memory controller: Samsung Electronics Co Ltd "
+            "NVMe SSD Controller",
+        ])
+
+        hardware._detect_nvme_linux(profile)
+
+        self.assertEqual(profile.nvme_pci_device, 0x05)
+        self.assertEqual(profile.nvme_pci_function, 0x1)
+
+
 class DiscreteGpuPromptTests(unittest.TestCase):
     def test_optimus_laptop_gets_disable_choice(self):
         profile = hardware.HardwareProfile(

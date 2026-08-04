@@ -446,7 +446,13 @@ def _device_properties(
             props[eth_path]["built-in"] = bytes([0x01])
 
     if profile.nvme_present:
-        nvme_path = "PciRoot(0x0)/Pci(0x1D,0x0)"
+        if profile.nvme_pci_device >= 0 and profile.nvme_pci_function >= 0:
+            nvme_path = (
+                f"PciRoot(0x0)/Pci(0x{profile.nvme_pci_device:x},"
+                f"0x{profile.nvme_pci_function:x})"
+            )
+        else:
+            nvme_path = "PciRoot(0x0)/Pci(0x1D,0x0)"
         if nvme_path not in props:
             props[nvme_path] = {}
         props[nvme_path]["built-in"] = bytes([0x01])
