@@ -57,6 +57,24 @@ class InstallerAudioSafetyTests(unittest.TestCase):
         self.assertNotIn("PciRoot(0x0)/Pci(0x1f,0x3)", properties["Add"])
         self.assertNotIn("alcid=", boot_args)
 
+    def test_detected_amd_audio_controller_uses_its_pci_path(self):
+        profile = HardwareProfile(
+            audio_pci_device=0x14,
+            audio_pci_function=0x3,
+        )
+
+        properties = config_gen._device_properties(profile, 7)
+
+        self.assertIn("PciRoot(0x0)/Pci(0x14,0x3)", properties["Add"])
+        self.assertNotIn("PciRoot(0x0)/Pci(0x1f,0x3)", properties["Add"])
+
+    def test_unknown_audio_controller_keeps_intel_pch_fallback(self):
+        profile = HardwareProfile()
+
+        properties = config_gen._device_properties(profile, 7)
+
+        self.assertIn("PciRoot(0x0)/Pci(0x1f,0x3)", properties["Add"])
+
     def test_log_checker_recognizes_voodoohda_prelink_failure(self):
         log = (
             "OpenCore 1.0.7\n"

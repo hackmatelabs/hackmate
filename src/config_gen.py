@@ -402,7 +402,14 @@ def _device_properties(
 
     if audio_enabled:
         layout_bytes = layout_id.to_bytes(4, "little")
-        props["PciRoot(0x0)/Pci(0x1f,0x3)"] = {
+        if profile.audio_pci_device >= 0 and profile.audio_pci_function >= 0:
+            audio_path = (
+                f"PciRoot(0x0)/Pci(0x{profile.audio_pci_device:x},"
+                f"0x{profile.audio_pci_function:x})"
+            )
+        else:
+            audio_path = "PciRoot(0x0)/Pci(0x1f,0x3)"
+        props[audio_path] = {
             "layout-id": layout_bytes,
         }
 

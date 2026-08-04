@@ -10,6 +10,20 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 import hardware
 
 
+class LinuxAudioDetectionTests(unittest.TestCase):
+    def test_audio_controller_pci_device_and_function_are_captured(self):
+        profile = hardware.HardwareProfile(raw_pci=[
+            "0000:14.3 Audio device [0403]: Advanced Micro Devices, Inc. "
+            "Family 17h HD Audio Controller [1022:1457]",
+        ])
+
+        with patch.object(hardware, "_get_hda_codec_linux", return_value="ALC1220"):
+            hardware._detect_audio_linux(profile)
+
+        self.assertEqual(profile.audio_pci_device, 0x14)
+        self.assertEqual(profile.audio_pci_function, 0x3)
+
+
 class DiscreteGpuPromptTests(unittest.TestCase):
     def test_optimus_laptop_gets_disable_choice(self):
         profile = hardware.HardwareProfile(

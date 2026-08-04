@@ -25,6 +25,8 @@ class HardwareProfile:
 
     audio_name: str = ""
     audio_codec: str = ""     # e.g. ALC295
+    audio_pci_device: int = -1
+    audio_pci_function: int = -1
 
     ethernet_name: str = ""
     ethernet_chipset: str = ""  # e.g. Intel I219
@@ -835,6 +837,10 @@ def _get_hda_codec_linux() -> str:
 def _detect_audio_linux(profile: HardwareProfile):
     for line in profile.raw_pci:
         if "audio" in line.lower() or "multimedia" in line.lower():
+            addr = _LSPCI_ADDRESS_RE.match(line)
+            if addr:
+                profile.audio_pci_device = int(addr.group(1), 16)
+                profile.audio_pci_function = int(addr.group(2), 16)
             m = re.search(r'\[([0-9a-f]{4}:[0-9a-f]{4})\]', line)
             if m:
                 ids = m.group(1).lower()
