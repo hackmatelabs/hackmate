@@ -3052,7 +3052,12 @@ class BIOSChecklistScreen(Screen):
     def on_show(self):
         profile: HardwareProfile = self.app.profile
         is_amd = getattr(profile, "cpu_vendor", "") == "amd"
-        has_nvidia = getattr(profile, "gpu_vendor", "") == "nvidia"
+        # Only the true dual-GPU case (Nvidia sitting alongside a real
+        # iGPU/dGPU pair) should suggest disabling it — on a system where
+        # Nvidia is the ONLY GPU (profile.gpu_vendor == "nvidia" with no
+        # dgpu_vendor), disabling it removes all video output, including
+        # BIOS POST and the GOP-passthrough fallback this build relies on.
+        has_dual_gpu_nvidia = getattr(profile, "dgpu_vendor", "") == "nvidia"
 
         items = [
             ("Disable Secure Boot",       "Security > Secure Boot → Disabled"),
@@ -3064,8 +3069,9 @@ class BIOSChecklistScreen(Screen):
         ]
         if is_amd:
             items.append(("Disable Above 4G Decoding", "Advanced > PCI > Above 4G Decoding → Disabled  (AMD boot fix)"))
-        if has_nvidia:
-            items.append(("Disable dGPU (if dual GPU)", "Advanced > GPU → Discrete GPU Disabled  (Nvidia unsupported)"))
+            items.append(("Disable IOMMU / AMD-Vi", "AMD CBS > NBIO Common Options > IOMMU → Disabled  (macOS can't read AMD's IVRS table — leaving this on is a common hang/panic cause)"))
+        if has_dual_gpu_nvidia:
+            items.append(("Disable dGPU (dual GPU only)", "Advanced > GPU → Discrete GPU Disabled  (Nvidia unsupported — only do this if you also have a working iGPU/other GPU for display)"))
 
         wrap = tk.Frame(self, bg=BG)
         wrap.pack(fill="both", expand=True, padx=24, pady=16)
