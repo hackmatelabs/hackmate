@@ -854,22 +854,40 @@ def _get_hda_codec_linux() -> str:
         pass
     return ""
 
+_NOT_ONBOARD_AUDIO_LINUX = (
+    "nvidia", "hdmi", "displayport", "display audio", "dp audio", "radeon",
+)
+
 def _detect_audio_linux(profile: HardwareProfile):
+    fallback = ""
+    selected = ""
     for line in profile.raw_pci:
-        if "audio" in line.lower() or "multimedia" in line.lower():
-            addr = _LSPCI_ADDRESS_RE.match(line)
-            if addr:
-                profile.audio_pci_device = int(addr.group(1), 16)
-                profile.audio_pci_function = int(addr.group(2), 16)
-            m = re.search(r'\[([0-9a-f]{4}:[0-9a-f]{4})\]', line)
-            if m:
-                ids = m.group(1).lower()
-                profile.audio_name = _extract_device_name(line)
-                if ids in AUDIO_CODEC_IDS:
-                    profile.audio_codec = AUDIO_CODEC_IDS[ids]
-                else:
-                    codec = _get_hda_codec_linux()
-                    profile.audio_codec = codec if codec else ids
+        lower = line.lower()
+        if "audio" not in lower and "multimedia" not in lower:
+            continue
+        if not fallback:
+            fallback = line
+        if not any(k in lower for k in _NOT_ONBOARD_AUDIO_LINUX):
+            selected = line
+            break
+
+    selected = selected or fallback
+    if not selected:
+        return
+
+    addr = _LSPCI_ADDRESS_RE.match(selected)
+    if addr:
+        profile.audio_pci_device = int(addr.group(1), 16)
+        profile.audio_pci_function = int(addr.group(2), 16)
+    m = re.search(r'\[([0-9a-f]{4}:[0-9a-f]{4})\]', selected)
+    if m:
+        ids = m.group(1).lower()
+        profile.audio_name = _extract_device_name(selected)
+        if ids in AUDIO_CODEC_IDS:
+            profile.audio_codec = AUDIO_CODEC_IDS[ids]
+        else:
+            codec = _get_hda_codec_linux()
+            profile.audio_codec = codec if codec else ids
 
 def _get_hda_codec_windows() -> str:
     try:

@@ -68,6 +68,22 @@ class LinuxAudioDetectionTests(unittest.TestCase):
         self.assertEqual(profile.audio_pci_device, 0x14)
         self.assertEqual(profile.audio_pci_function, 0x3)
 
+    def test_onboard_audio_is_preferred_over_later_nvidia_hdmi_audio(self):
+        profile = hardware.HardwareProfile(raw_pci=[
+            "00:1f.3 Audio device [0403]: Intel Corporation "
+            "HD Audio Controller [8086:a348]",
+            "01:00.1 Audio device [0403]: NVIDIA Corporation "
+            "HDMI Audio Controller [10de:10f9]",
+        ])
+
+        with patch.object(hardware, "_get_hda_codec_linux", return_value="ALC1220"):
+            hardware._detect_audio_linux(profile)
+
+        self.assertIn("Intel Corporation", profile.audio_name)
+        self.assertNotIn("NVIDIA", profile.audio_name)
+        self.assertEqual(profile.audio_pci_device, 0x1f)
+        self.assertEqual(profile.audio_pci_function, 0x3)
+
 
 class LinuxNetworkDetectionTests(unittest.TestCase):
     def test_i225_ethernet_is_identified(self):
