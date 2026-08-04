@@ -61,6 +61,27 @@ class DiscreteGpuPromptTests(unittest.TestCase):
 
         self.assertTrue(hardware.needs_dgpu_disable_prompt(profile))
 
+
+class IntelGenerationInferenceTests(unittest.TestCase):
+    def test_core_ultra_100_series_is_meteor_lake(self):
+        profile = hardware.HardwareProfile(cpu_name="Intel Core Ultra 7 155H")
+
+        hardware._infer_intel_gen_from_name(profile)
+
+        self.assertGreaterEqual(profile.cpu_generation, 11)
+        self.assertEqual(profile.cpu_codename, "Meteor Lake")
+        self.assertEqual(profile.oc_platform, "Meteor Lake")
+
+    def test_core_ultra_200_series_remains_arrow_lake(self):
+        profile = hardware.HardwareProfile(cpu_name="Intel Core Ultra 9 285K")
+
+        hardware._infer_intel_gen_from_name(profile)
+
+        self.assertEqual(profile.cpu_generation, 15)
+        self.assertEqual(profile.cpu_codename, "Arrow Lake")
+        self.assertEqual(profile.oc_platform, "Arrow Lake")
+
+
 class HardwareWarningTests(unittest.TestCase):
     def test_realtek_wifi_warns_no_macos_driver(self):
         profile = hardware.HardwareProfile(wifi_chipset="realtek")
@@ -80,6 +101,22 @@ class HardwareWarningTests(unittest.TestCase):
 
         warnings = hardware.hardware_warnings(profile)
 
+        self.assertTrue(any("no macOS driver" in warning for warning in warnings))
+        self.assertTrue(any("laptop internal displays" in warning for warning in warnings))
+
+    def test_meteor_lake_laptop_warns_that_internal_graphics_are_unusable(self):
+        profile = hardware.HardwareProfile(
+            cpu_name="Intel Core Ultra 7 155H",
+            cpu_vendor="intel",
+            gpu_vendor="intel",
+            gpu_name="Intel Arc Graphics",
+            platform="laptop",
+        )
+        hardware._infer_intel_gen_from_name(profile)
+
+        warnings = hardware.hardware_warnings(profile)
+
+        self.assertGreaterEqual(profile.cpu_generation, 11)
         self.assertTrue(any("no macOS driver" in warning for warning in warnings))
         self.assertTrue(any("laptop internal displays" in warning for warning in warnings))
 

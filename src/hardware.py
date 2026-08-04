@@ -459,10 +459,19 @@ def _detect_cpu_windows(profile: HardwareProfile):
 
 def _infer_intel_gen_from_name(profile: HardwareProfile):
     name = profile.cpu_name.lower()
-    if "15th" in name or "arrow" in name or "core ultra 200" in name:
+    if (
+        "15th" in name
+        or "arrow" in name
+        or "core ultra 200" in name
+        or re.search(r"core ultra\s+\d\s+2\d{2}", name)
+    ):
         profile.cpu_generation = 15
         profile.cpu_codename = "Arrow Lake"
         profile.oc_platform = "Arrow Lake"
+    elif "core ultra" in name:
+        profile.cpu_generation = 14
+        profile.cpu_codename = "Meteor Lake"
+        profile.oc_platform = "Meteor Lake"
     elif "14th" in name or "raptor lake refresh" in name:
         profile.cpu_generation = 14
         profile.cpu_codename = "Raptor Lake Refresh"
