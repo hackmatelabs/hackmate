@@ -192,6 +192,26 @@ class IntelGenerationInferenceTests(unittest.TestCase):
         self.assertEqual(profile.oc_platform, "Arrow Lake")
 
 
+class AmdGenerationInferenceTests(unittest.TestCase):
+    def test_2000_and_3000_series_apu_generations(self):
+        cases = (
+            ("AMD Ryzen 5 2400G", 8, "Zen"),
+            ("AMD Ryzen 5 3400G", 8, "Zen+"),
+            ("AMD Ryzen 5 3500U", 8, "Zen+"),
+            ("AMD Ryzen 5 2600", 8, "Zen+"),
+            ("AMD Ryzen 5 3600", 10, "Zen 2"),
+        )
+
+        for cpu_name, generation, codename in cases:
+            with self.subTest(cpu_name=cpu_name):
+                profile = hardware.HardwareProfile(cpu_name=cpu_name)
+
+                hardware._detect_amd_gen(profile)
+
+                self.assertEqual(profile.cpu_generation, generation)
+                self.assertEqual(profile.cpu_codename, codename)
+
+
 class HardwareWarningTests(unittest.TestCase):
     def test_realtek_wifi_warns_no_macos_driver(self):
         profile = hardware.HardwareProfile(wifi_chipset="realtek")

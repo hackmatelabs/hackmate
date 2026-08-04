@@ -554,6 +554,7 @@ def _detect_amd_gen(profile: HardwareProfile):
             model = int(m.group(1))
             sfx = re.search(rf'{model}([a-z]+)', name.replace(" ", ""))
             u_series = bool(sfx) and sfx.group(1).startswith("u")  # 5700U vs 5700/5700X
+            g_series = bool(sfx) and sfx.group(1).startswith("g")  # 2400G vs 2400/2400X
             hundreds = (model // 100) % 10
             if model >= 9000:
                 profile.cpu_generation = 12
@@ -583,11 +584,15 @@ def _detect_amd_gen(profile: HardwareProfile):
                     profile.cpu_generation = 11
                     profile.cpu_codename = "Zen 3"
             elif model >= 3000:
-                profile.cpu_generation = 10
-                profile.cpu_codename = "Zen 2"
+                if g_series or u_series:
+                    profile.cpu_generation = 8
+                    profile.cpu_codename = "Zen+"
+                else:
+                    profile.cpu_generation = 10
+                    profile.cpu_codename = "Zen 2"
             elif model >= 2000:
                 profile.cpu_generation = 8
-                profile.cpu_codename = "Zen+"
+                profile.cpu_codename = "Zen" if g_series else "Zen+"
             else:
                 profile.cpu_generation = 8
                 profile.cpu_codename = "Zen"
