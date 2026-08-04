@@ -96,14 +96,26 @@ class RecoveryCompatibilityTests(unittest.TestCase):
         self.assertIn("10.13", versions)
         self.assertNotIn("10.14", versions)
 
-    def test_modern_nvidia_has_no_accelerated_macos_release(self):
+    def test_zen_3_with_unsupported_nvidia_uses_cpu_compatibility(self):
         versions = self._versions(
-            12,
+            5,
+            cpu_vendor="amd",
+            cpu_codename="Zen 3",
             gpu_vendor="nvidia",
-            gpu_name="NVIDIA GeForce RTX 3060",
+            gpu_name="NVIDIA GeForce RTX 3050",
         )
 
-        self.assertEqual([], versions)
+        self.assertTrue(versions)
+        self.assertIn("11", versions)
+        self.assertNotIn("10.15", versions)
+
+    def test_modern_amd_and_intel_gpus_use_the_same_cpu_filtering(self):
+        amd_versions = self._versions(10, gpu_vendor="amd")
+        intel_versions = self._versions(10, gpu_vendor="intel")
+
+        self.assertEqual(amd_versions, intel_versions)
+        self.assertIn("10.15", amd_versions)
+        self.assertNotIn("10.14", amd_versions)
 
 
 class RecoveryCommandTests(unittest.TestCase):

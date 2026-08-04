@@ -166,9 +166,6 @@ def compatible_versions(
         if gpu_vendor == "nvidia"
         else None
     )
-    if gpu_vendor == "nvidia" and nvidia_maximum is None:
-        return []
-
     result = []
     for v in MACOS_VERSIONS:
         if _version_key(v.version) < _version_key(minimum_version):
