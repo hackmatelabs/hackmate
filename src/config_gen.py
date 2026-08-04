@@ -279,11 +279,11 @@ def _required_ssdts(profile: HardwareProfile, kexts: list[KextEntry]) -> list[st
         ssdts.append("SSDT-PNLF")
 
     # AWAC clock fix — Z390/B460+ desktops (gen 9+); laptops never have AWAC
-    if gen >= 9 and profile.platform == "desktop":
+    if gen >= 9 and profile.platform == "desktop" and profile.cpu_vendor == "intel":
         ssdts.append("SSDT-AWAC")
 
     # PMC fix — Coffee Lake (gen 8) desktop
-    if gen >= 8 and profile.platform == "desktop":
+    if gen >= 8 and profile.platform == "desktop" and profile.cpu_vendor == "intel":
         ssdts.append("SSDT-PMC")
 
     # I2C GPIO — needed for I2C trackpad

@@ -107,6 +107,34 @@ class RequiredSsdtSafetyTests(unittest.TestCase):
         self.assertIn("SSDT-EC-USBX", ssdts)
         self.assertNotIn("SSDT-USBX", ssdts)
 
+    def test_modern_amd_desktop_does_not_get_intel_chipset_ssdts(self):
+        for generation in (11, 12):
+            with self.subTest(generation=generation):
+                profile = HardwareProfile(
+                    cpu_vendor="amd",
+                    cpu_generation=generation,
+                    platform="desktop",
+                )
+
+                ssdts = config_gen._required_ssdts(profile, [])
+
+                self.assertNotIn("SSDT-AWAC", ssdts)
+                self.assertNotIn("SSDT-PMC", ssdts)
+
+    def test_modern_intel_desktop_still_gets_intel_chipset_ssdts(self):
+        for generation in (11, 12):
+            with self.subTest(generation=generation):
+                profile = HardwareProfile(
+                    cpu_vendor="intel",
+                    cpu_generation=generation,
+                    platform="desktop",
+                )
+
+                ssdts = config_gen._required_ssdts(profile, [])
+
+                self.assertIn("SSDT-AWAC", ssdts)
+                self.assertIn("SSDT-PMC", ssdts)
+
 
 class XhciUnsupportedChipsetTests(unittest.TestCase):
     def _selected_names(self, board_name: str, cpu_generation: int = 8) -> set[str]:
