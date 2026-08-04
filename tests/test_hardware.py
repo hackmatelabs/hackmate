@@ -99,6 +99,18 @@ class DiscreteGpuPromptTests(unittest.TestCase):
         self.assertTrue(hardware.needs_dgpu_disable_prompt(profile))
 
 
+class GpuClassificationTests(unittest.TestCase):
+    def test_rx_vega_10_is_classified_as_integrated(self):
+        name = "AMD Radeon(TM) RX Vega 10 Graphics"
+
+        self.assertEqual(hardware._classify_gpus([name]), (name, "amd", "", ""))
+
+    def test_rx_series_cards_remain_discrete(self):
+        for name in ("AMD Radeon RX 580", "AMD Radeon RX 5700 XT", "AMD Radeon RX 6600"):
+            with self.subTest(name=name):
+                self.assertEqual(hardware._classify_gpus([name]), ("", "", name, "amd"))
+
+
 class IntelGenerationInferenceTests(unittest.TestCase):
     def test_core_ultra_100_series_is_meteor_lake(self):
         profile = hardware.HardwareProfile(cpu_name="Intel Core Ultra 7 155H")

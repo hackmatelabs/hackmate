@@ -101,6 +101,15 @@ class AmdGpuKextSelectionTests(unittest.TestCase):
         self.assertNotIn("RadeonSensor", names)
         self.assertNotIn("SMCRadeonGPU", names)
 
+    def test_modern_780m_graphics_is_recognized_as_amd_apu(self):
+        profile = HardwareProfile(
+            cpu_vendor="amd",
+            gpu_vendor="amd",
+            gpu_name="AMD Radeon 780M Graphics",
+        )
+
+        self.assertTrue(kexts._is_amd_apu(profile))
+
 
 class AirportItlwmSourceCheckTests(unittest.TestCase):
     def _check(self, macos_version: str) -> str:

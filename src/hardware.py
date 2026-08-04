@@ -758,7 +758,10 @@ def _classify_gpus(gpus: list[str]) -> tuple[str, str, str, str]:
             if not nvidia_name:
                 nvidia_name = name
         elif "amd" in lower or "radeon" in lower or "ati " in lower:
-            discrete = bool(re.search(r"\brx[\s\d]|\br[579] \d{3}\b|firepro|radeon pro|\bxt\b|\bvega (56|64)\b", lower))
+            if "vega" in lower:
+                discrete = bool(re.search(r"\bvega (?:56|64|vii)\b", lower))
+            else:
+                discrete = bool(re.search(r"\brx[\s\d]|\br[579] \d{3}\b|firepro|radeon pro|\bxt\b", lower))
             if discrete:
                 if not amd_discrete_name:
                     amd_discrete_name = name

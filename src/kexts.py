@@ -1,4 +1,5 @@
 import os
+import re
 import urllib.request
 import json
 import zipfile
@@ -281,7 +282,8 @@ def _is_legacy(profile: HardwareProfile) -> bool:
 def _is_amd_apu(profile: HardwareProfile) -> bool:
     return (profile.cpu_vendor == "amd"
             and profile.gpu_vendor in ("amd", "")
-            and any(x in profile.gpu_name.lower() for x in ["vega", "radeon graphics", "renoir", "cezanne", "rembrandt", "phoenix", "navi"]))
+            and (any(x in profile.gpu_name.lower() for x in ["vega", "radeon graphics", "renoir", "cezanne", "rembrandt", "phoenix", "navi"])
+                 or re.search(r"\b\d{3}m\b", profile.gpu_name.lower()) is not None))
 
 _NAVI2X_DEVICE_IDS = {
     "73A1", "73A2", "73A3", "73A4", "73A5", "73AB", "73AE", "73AF", "73BF",
