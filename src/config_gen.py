@@ -579,7 +579,7 @@ def _nvram_section(
     if profile.cpu_vendor == "amd":
         boot_args.append("npci=0x2000")   # AMD PCI fix
 
-    if profile.gpu_vendor == "nvidia":
+    if profile.gpu_vendor == "nvidia" or profile.dgpu_vendor == "nvidia":
         boot_args.append("nv_disable=1")  # disable NVIDIA (unsupported on modern macOS)
 
     if profile.platform == "laptop" and profile.gpu_vendor == "intel":

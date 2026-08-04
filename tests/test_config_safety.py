@@ -793,6 +793,29 @@ class IntelGraphicsSafetyTests(unittest.TestCase):
         self.assertEqual(igpu["AAPL,ig-platform-id"], bytes.fromhex("00001B59"))
         self.assertNotIn("disable-external-gpu", igpu)
 
+    def test_optimus_laptop_disables_nvidia_via_boot_arg(self):
+        profile = HardwareProfile(
+            gpu_vendor="intel",
+            dgpu_vendor="nvidia",
+            platform="laptop",
+        )
+
+        nvram = config_gen._nvram_section(profile, 1)
+        boot_args = nvram["Add"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"]["boot-args"]
+
+        self.assertIn("nv_disable=1", boot_args.split())
+
+    def test_intel_only_laptop_does_not_get_nvidia_disable_boot_arg(self):
+        profile = HardwareProfile(
+            gpu_vendor="intel",
+            platform="laptop",
+        )
+
+        nvram = config_gen._nvram_section(profile, 1)
+        boot_args = nvram["Add"]["7C436110-AB2A-4BBB-A880-FE41995C9F82"]["boot-args"]
+
+        self.assertNotIn("nv_disable=1", boot_args.split())
+
     def test_dgpu_choice_uses_stable_igpu_property_and_can_be_reversed(self):
         config = {
             "DeviceProperties": {
