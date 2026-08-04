@@ -621,16 +621,23 @@ def _detect_platform_windows(profile: HardwareProfile):
         "(Get-WmiObject Win32_SystemEnclosure).ChassisTypes | ForEach-Object { $_ }"
     )
     laptop_types = {"8", "9", "10", "11", "12", "14"}
-    for t in re.findall(r"\d+", chassis):
-        if t in laptop_types:
-            profile.platform = "laptop"
-            break
+    desktop_types = {"3", "4", "5", "6", "7", "13", "15", "16", "17", "23"}
+    chassis_ids = re.findall(r"\d+", chassis)
+    if any(t in laptop_types for t in chassis_ids):
+        profile.platform = "laptop"
+    elif any(t in desktop_types for t in chassis_ids):
+        # Trust an explicit desktop chassis type over the battery fallback below —
+        # UPS software (APC, CyberPower) registers its own Win32_Battery entry,
+        # which used to misclassify UPS-equipped desktops as laptops.
+        profile.platform = "desktop"
     else:
-        battery = _ps("(Get-WmiObject Win32_Battery | Measure-Object).Count")
-        if battery.strip() not in ("", "0"):
-            profile.platform = "laptop"
-        else:
-            profile.platform = "desktop"
+        battery_names = _ps(
+            "(Get-WmiObject Win32_Battery | Select-Object -ExpandProperty Name) -join '|'"
+        )
+        real_battery = bool(battery_names.strip()) and not re.search(
+            r"\bups\b", battery_names, re.IGNORECASE
+        )
+        profile.platform = "laptop" if real_battery else "desktop"
 
     # NVMe
     out = _ps("Get-PhysicalDisk | Where-Object {$_.BusType -eq 'NVMe'} | Measure-Object | Select-Object -ExpandProperty Count")

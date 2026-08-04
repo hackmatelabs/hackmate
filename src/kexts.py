@@ -464,7 +464,7 @@ def select_kexts(profile: HardwareProfile, wifi_kext_mode: str = "itlwm") -> lis
         add("NullCPUPowerManagement")
     else:
         add("CPUFriend")
-        if profile.cpu_generation >= 12:
+        if profile.cpu_vendor == "intel" and profile.cpu_generation >= 12:
             add("CpuTopologyRebuild")
     if profile.cpu_vendor == "amd":
         add("AMDRyzenCPUPowerManagement", "AmdTSCSync", "CryptexFixup")

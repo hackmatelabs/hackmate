@@ -8,12 +8,30 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import kexts
 from kexts import DB, check_kext_sources, alc_layout_is_known, get_alc_layout, fetch_opencore, OPENCORE_FALLBACK_URL
+from hardware import HardwareProfile
 
 _AIRPORTITLWM_ASSETS = [
     {"name": "AirportItlwm_v2.3.0_stable_Sonoma14.4.kext.zip"},
     {"name": "AirportItlwm_v2.3.0_stable_Ventura.kext.zip"},
     {"name": "itlwm_v2.3.0_stable.kext.zip"},
 ]
+
+
+class CpuTopologyRebuildSelectionTests(unittest.TestCase):
+    def test_amd_zen4_does_not_get_intel_topology_kext(self):
+        profile = HardwareProfile(
+            cpu_vendor="amd",
+            cpu_generation=12,
+            cpu_codename="Zen 4",
+            platform="desktop",
+        )
+        with (
+            patch.object(kexts, "_dmi", return_value=""),
+            patch.object(kexts, "_has_card_reader", return_value=False),
+        ):
+            names = {entry.name for entry in kexts.select_kexts(profile)}
+
+        self.assertNotIn("CpuTopologyRebuild", names)
 
 
 class AirportItlwmSourceCheckTests(unittest.TestCase):
