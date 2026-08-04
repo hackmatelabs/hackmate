@@ -278,6 +278,44 @@ class HardwareWarningTests(unittest.TestCase):
 
         self.assertTrue(any("disable it in BIOS" in warning for warning in warnings))
 
+    def test_gpu_less_amd_desktop_warns_about_gop_and_headless_setup(self):
+        profile = hardware.HardwareProfile(
+            cpu_vendor="amd",
+            platform="desktop",
+            gpu_vendor="",
+            dgpu_vendor="nvidia",
+        )
+
+        warnings = hardware.hardware_warnings(profile)
+
+        self.assertTrue(any("GOP passthrough" in warning for warning in warnings))
+        self.assertTrue(any("Screen Sharing" in warning for warning in warnings))
+
+    def test_supported_amd_dgpu_does_not_get_gpu_less_warning(self):
+        profile = hardware.HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=12,
+            platform="desktop",
+            gpu_vendor="intel",
+            dgpu_vendor="amd",
+        )
+
+        warnings = hardware.hardware_warnings(profile)
+
+        self.assertFalse(any("GOP passthrough" in warning for warning in warnings))
+
+    def test_supported_intel_igpu_does_not_get_gpu_less_warning(self):
+        profile = hardware.HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=10,
+            platform="desktop",
+            gpu_vendor="intel",
+        )
+
+        warnings = hardware.hardware_warnings(profile)
+
+        self.assertFalse(any("GOP passthrough" in warning for warning in warnings))
+
 
 class IntelWifiWarningTests(unittest.TestCase):
     def test_intel_wifi_warning_notes_broadcom_also_needs_a_root_patch(self):

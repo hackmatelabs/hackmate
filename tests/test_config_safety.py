@@ -88,6 +88,45 @@ class InstallerAudioSafetyTests(unittest.TestCase):
         self.assertIn("VoodooHDA cannot be injected from this installer EFI", titles)
 
 
+class UefiOutputSafetyTests(unittest.TestCase):
+    def test_gpu_less_amd_desktop_enables_gop_passthrough(self):
+        profile = HardwareProfile(
+            cpu_vendor="amd",
+            platform="desktop",
+            gpu_vendor="",
+            dgpu_vendor="nvidia",
+        )
+
+        output = config_gen._uefi_section(profile)["Output"]
+
+        self.assertEqual(output["GopPassThrough"], "Enabled")
+
+    def test_supported_amd_dgpu_keeps_gop_passthrough_disabled(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=12,
+            platform="desktop",
+            gpu_vendor="intel",
+            dgpu_vendor="amd",
+        )
+
+        output = config_gen._uefi_section(profile)["Output"]
+
+        self.assertEqual(output["GopPassThrough"], "Disabled")
+
+    def test_supported_intel_igpu_keeps_gop_passthrough_disabled(self):
+        profile = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=10,
+            platform="desktop",
+            gpu_vendor="intel",
+        )
+
+        output = config_gen._uefi_section(profile)["Output"]
+
+        self.assertEqual(output["GopPassThrough"], "Disabled")
+
+
 class EthernetDevicePropertySafetyTests(unittest.TestCase):
     def test_detected_i225_uses_its_pci_path_for_spoof(self):
         profile = HardwareProfile(

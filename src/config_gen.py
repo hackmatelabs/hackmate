@@ -1,6 +1,6 @@
 import plistlib
 from pathlib import Path
-from hardware import HardwareProfile
+from hardware import HardwareProfile, has_macos_supported_gpu
 from kexts import KextEntry, select_kexts, get_alc_layout
 from smbios import SMBIOSData
 from compat import IS_WINDOWS, dmi_field, dmi_vendor, cpu_core_count
@@ -714,7 +714,9 @@ def _uefi_section(profile: HardwareProfile, dual_boot: str = "") -> dict:
             "DirectGopRendering": False,
             "ForceResolution": False,
             "GopBurstMode":  False,
-            "GopPassThrough": "Disabled",
+            "GopPassThrough": (
+                "Disabled" if has_macos_supported_gpu(profile) else "Enabled"
+            ),
             "IgnoreTextInGraphics": False,
             "InitialMode":   "Text",
             "ProvideConsoleGop": True,

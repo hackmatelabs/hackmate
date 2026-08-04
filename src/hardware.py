@@ -61,6 +61,14 @@ def needs_dgpu_disable_prompt(profile: HardwareProfile) -> bool:
         and (profile.platform == "laptop" or profile.dgpu_vendor == "nvidia")
     )
 
+def has_macos_supported_gpu(profile: HardwareProfile) -> bool:
+    """Whether at least one detected GPU has native macOS acceleration."""
+    has_supported_intel_igpu = (
+        profile.gpu_vendor == "intel" and profile.cpu_generation < 11
+    )
+    has_amd_gpu = "amd" in (profile.gpu_vendor, profile.dgpu_vendor)
+    return has_supported_intel_igpu or has_amd_gpu
+
 def _run(cmd: list[str]) -> str:
     try:
         return subprocess.run(cmd, capture_output=True, text=True, timeout=10).stdout.strip()
@@ -1086,6 +1094,16 @@ def hardware_warnings(profile: HardwareProfile) -> list[str]:
                 "left unconfigured — disable it in BIOS and use the supported "
                 "AMD discrete GPU for every display."
             )
+
+    if not has_macos_supported_gpu(profile):
+        warnings.append(
+            "This system has no macOS-supported GPU for accelerated display. "
+            "HackMate enables GOP passthrough for basic, unaccelerated firmware-"
+            "framebuffer output during installation; use it to finish Setup "
+            "Assistant, then enable Screen Sharing in System Settings > General "
+            "> Sharing > Screen Sharing (or Remote Login for SSH) for headless "
+            "operation, which does not require display acceleration once enabled."
+        )
 
     if profile.wifi_chipset == "atheros":
         warnings.append(
