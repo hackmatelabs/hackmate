@@ -934,7 +934,11 @@ def _detect_network_linux(profile: HardwareProfile):
                     profile.wifi_pci_function = int(addr.group(2), 16)
             else:
                 profile.ethernet_name = name
-                if "i219" in lower or "i218" in lower:
+                if "i225" in lower:
+                    profile.ethernet_chipset = "i225"
+                elif "i226" in lower:
+                    profile.ethernet_chipset = "i226"
+                elif "i219" in lower or "i218" in lower:
                     profile.ethernet_chipset = "i219"
                 elif "i211" in lower or "i210" in lower:
                     profile.ethernet_chipset = "i211"

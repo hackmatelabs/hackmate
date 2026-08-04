@@ -24,6 +24,28 @@ class LinuxAudioDetectionTests(unittest.TestCase):
         self.assertEqual(profile.audio_pci_function, 0x3)
 
 
+class LinuxNetworkDetectionTests(unittest.TestCase):
+    def test_i225_ethernet_is_identified(self):
+        profile = hardware.HardwareProfile(raw_pci=[
+            "0000:04:00.0 Ethernet controller: Intel Corporation "
+            "Ethernet Controller I225-V (rev 03)",
+        ])
+
+        hardware._detect_network_linux(profile)
+
+        self.assertEqual(profile.ethernet_chipset, "i225")
+
+    def test_i226_ethernet_is_identified(self):
+        profile = hardware.HardwareProfile(raw_pci=[
+            "0000:04:00.0 Ethernet controller: Intel Corporation "
+            "Ethernet Controller I226-V (rev 04)",
+        ])
+
+        hardware._detect_network_linux(profile)
+
+        self.assertEqual(profile.ethernet_chipset, "i226")
+
+
 class DiscreteGpuPromptTests(unittest.TestCase):
     def test_optimus_laptop_gets_disable_choice(self):
         profile = hardware.HardwareProfile(
