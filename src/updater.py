@@ -10,7 +10,7 @@ import urllib.request
 import json
 from pathlib import Path
 
-REPO         = "riftaway7-code/hackmate"
+REPO         = "hackmatelabs/hackmate"
 BRANCH       = "main"
 API_URL      = f"https://api.github.com/repos/{REPO}/commits/{BRANCH}"
 COMPARE_URL  = f"https://api.github.com/repos/{REPO}/compare/{{base}}...{{head}}"

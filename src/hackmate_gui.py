@@ -478,7 +478,7 @@ class HwdbConsentScreen(Screen):
         title(wrap, "── Help Improve HackMate? ───────────────────────────────").pack(anchor="w")
         lines = [
             "  HackMate can optionally send a short hardware log after",
-            "  each build to github.com/riftaway7-code/hackmate-hwdb —",
+            "  each build to github.com/hackmatelabs/hackmate-hwdb —",
             "  a public, browsable database used to improve compatibility",
             "  checks and kext selection for real hardware over time.",
             "",

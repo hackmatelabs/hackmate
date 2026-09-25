@@ -12,11 +12,11 @@
 thank you so much GaM1ngN0tDev for making the flutter ui for hackmate!
 the doom and despair of the forgetton souls who have passed.
 
-[![Stars](https://img.shields.io/github/stars/riftaway7-code/hackmate?style=flat&color=gold)](https://github.com/riftaway7-code/hackmate/stargazers)
-[![Downloads](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Friftaway7-code.github.io%2Fhackmate%2Fstats.json&query=total_downloads&label=downloads&color=brightgreen&style=flat&cacheSeconds=3600)](https://github.com/riftaway7-code/hackmate/releases)
-[![Issues](https://img.shields.io/github/issues/riftaway7-code/hackmate?style=flat&color=red)](https://github.com/riftaway7-code/hackmate/issues)
-[![License](https://img.shields.io/github/license/riftaway7-code/hackmate?style=flat&color=blue)](LICENSE)
-[![Version](https://img.shields.io/github/v/release/riftaway7-code/hackmate?style=flat&color=green)](https://github.com/riftaway7-code/hackmate/releases)
+[![Stars](https://img.shields.io/github/stars/hackmatelabs/hackmate?style=flat&color=gold)](https://github.com/hackmatelabs/hackmate/stargazers)
+[![Downloads](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fhackmatelabs.github.io%2Fhackmate%2Fstats.json&query=total_downloads&label=downloads&color=brightgreen&style=flat&cacheSeconds=3600)](https://github.com/hackmatelabs/hackmate/releases)
+[![Issues](https://img.shields.io/github/issues/hackmatelabs/hackmate?style=flat&color=red)](https://github.com/hackmatelabs/hackmate/issues)
+[![License](https://img.shields.io/github/license/hackmatelabs/hackmate?style=flat&color=blue)](LICENSE)
+[![Version](https://img.shields.io/github/v/release/hackmatelabs/hackmate?style=flat&color=green)](https://github.com/hackmatelabs/hackmate/releases)
 
 hackmate automates the whole process of making a bootable opencore hackintosh usb. no manual config.plist editing, no hunting down kexts urself, no macrecovery commands, none of that.
 
@@ -41,7 +41,7 @@ read-only, no root needed, safe to run on a booted system.
 
 **new — kext sources get checked before your usb even gets formatted,** so a dead download source shows up as a warning u can actually do something about instead of a kext just silently going missing.
 
-**v1.3.0** — windows users can just download one `HackMate.exe` from the [releases page](https://github.com/riftaway7-code/hackmate/releases), no python, no venv, no setup.py needed. also fixed the amd config.plist crash, windows ssl error, macos lspci error. config.plist editor added to welcome screen too.
+**v1.3.0** — windows users can just download one `HackMate.exe` from the [releases page](https://github.com/hackmatelabs/hackmate/releases), no python, no venv, no setup.py needed. also fixed the amd config.plist crash, windows ssl error, macos lspci error. config.plist editor added to welcome screen too.
 
 **if u cloned before june 25th (running from `hackmate-linux/`):**
 just run ur usual command, hackmate auto-migrates itself to the new `src/` layout and relaunches. no manual steps.
@@ -65,7 +65,7 @@ tahoe shows up as an option for ur hardware now. pull latest and rerun.
 ### linux / macos
 
 ```bash
-git clone https://github.com/riftaway7-code/hackmate.git
+git clone https://github.com/hackmatelabs/hackmate.git
 cd hackmate
 python3 setup.py
 sudo .venv/bin/python3 src/hackmate.py
@@ -75,16 +75,16 @@ sudo .venv/bin/python3 src/hackmate.py
 
 ### windows (exe)
 
-download `HackMate.exe` from the [latest release](https://github.com/riftaway7-code/hackmate/releases/latest) and run it as administrator.
+download `HackMate.exe` from the [latest release](https://github.com/hackmatelabs/hackmate/releases/latest) and run it as administrator.
 
-> **antivirus false positives:** some avs (bkav, gridinsoft, zillya) flag the exe as malware. it's a known false positive w/ pyinstaller-built executables — every major av (defender, kaspersky, eset, crowdstrike, sophos) reports it clean. the exe is built transparently from source on github actions if u wanna check: [build logs](https://github.com/riftaway7-code/hackmate/actions/workflows/build-exe.yml).
+> **antivirus false positives:** some avs (bkav, gridinsoft, zillya) flag the exe as malware. it's a known false positive w/ pyinstaller-built executables — every major av (defender, kaspersky, eset, crowdstrike, sophos) reports it clean. the exe is built transparently from source on github actions if u wanna check: [build logs](https://github.com/hackmatelabs/hackmate/actions/workflows/build-exe.yml).
 
 ### windows (from source)
 
 > **has to be run as administrator.** right-click powershell → run as administrator before any of this.
 
 ```powershell
-git clone https://github.com/riftaway7-code/hackmate.git
+git clone https://github.com/hackmatelabs/hackmate.git
 cd hackmate
 python setup.py
 .venv\Scripts\python.exe src\hackmate.py
@@ -108,7 +108,7 @@ a separate windowed frontend built in flutter (shoutout GaM1ngN0tDev again) — 
 needs the [flutter sdk](https://docs.flutter.dev/get-started/install) + platform build tools (visual studio build tools w/ the "desktop development w/ c++" workload on windows, xcode on macos, gtk3/clang/cmake/ninja on linux — see [flutter's linux setup docs](https://docs.flutter.dev/platform-integration/linux/building)).
 
 ```bash
-git clone https://github.com/riftaway7-code/hackmate.git
+git clone https://github.com/hackmatelabs/hackmate.git
 cd hackmate/gui-flutter
 flutter pub get
 flutter run                # dev mode, picks up connected/desktop targets automatically
@@ -195,7 +195,7 @@ not currently. hackmate downloads apple's recovery image (about 600 mb), which s
 not with the onboard intel chip — opensource's AirportItlwm (the kext that makes intel wifi appear as real apple wifi in the menu bar) hasn't had a build past sonoma since mid-2024, so sequoia and tahoe are stuck with itlwm + heliport, which works for internet access but isn't apple-native (no menu bar icon, no airdrop/handoff over wifi). if u want actual native wifi on tahoe — menu bar, airdrop, handoff, all of it — swap in a genuine apple-supported broadcom card (bcm94360cd, dw1560, etc). those use macos's built-in airport driver, same as a real mac, so there's no version-pinned kext to break on any future macos release. hackmate will warn u about this and offer the broadcom-card path when it detects intel-only wifi.
 
 **my antivirus is flagging hackmate.exe**
-known false positive w/ pyinstaller-built exes. every major av (defender, kaspersky, eset) reports it clean. built from source on github actions if u wanna verify — [build logs](https://github.com/riftaway7-code/hackmate/actions/workflows/build-exe.yml).
+known false positive w/ pyinstaller-built exes. every major av (defender, kaspersky, eset) reports it clean. built from source on github actions if u wanna verify — [build logs](https://github.com/hackmatelabs/hackmate/actions/workflows/build-exe.yml).
 
 ## support
 

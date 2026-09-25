@@ -1,5 +1,5 @@
 """
-Opt-in hardware log submission to github.com/riftaway7-code/hackmate-hwdb.
+Opt-in hardware log submission to github.com/hackmatelabs/hackmate-hwdb.
 
 Consent is asked once, on first launch, with a real working "no" — declining
 never blocks any feature of HackMate. Nothing here ever raises into the
@@ -68,7 +68,7 @@ def set_consent(consent: bool) -> None:
     _CONSENT_PATH.write_text(json.dumps({"consent": consent}))
 
 
-# --- folder resolution, mirrors github.com/riftaway7-code/hackmate-hwdb ---
+# --- folder resolution, mirrors github.com/hackmatelabs/hackmate-hwdb ---
 
 _AMD_CODENAME_TO_FOLDER = {
     "Zen 5":  "amd-zen5",

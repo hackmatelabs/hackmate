@@ -5,8 +5,8 @@ import ssl
 import urllib.request
 import urllib.error
 
-REPO = "riftaway7-code/hackmate"
-STATS_URL = "https://riftaway7-code.github.io/hackmate/stats.json"
+REPO = "hackmatelabs/hackmate"
+STATS_URL = "https://hackmatelabs.github.io/hackmate/stats.json"
 API_ROOT = f"https://api.github.com/repos/{REPO}"
 
 

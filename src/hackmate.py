@@ -655,7 +655,7 @@ class HwdbConsentScreen(Screen):
                 Static("── Help Improve HackMate? ───────────────────────────────", classes="title"),
                 Static(""),
                 Static("  HackMate can optionally send a short hardware log after", classes="info"),
-                Static("  each build to github.com/riftaway7-code/hackmate-hwdb —", classes="info"),
+                Static("  each build to github.com/hackmatelabs/hackmate-hwdb —", classes="info"),
                 Static("  a public, browsable database used to improve compatibility", classes="info"),
                 Static("  checks and kext selection for real hardware over time.", classes="info"),
                 Static(""),

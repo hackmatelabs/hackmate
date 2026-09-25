@@ -31,7 +31,7 @@ jobs:
                   return json.loads(r.read())
 
           # EXE download count across all releases
-          releases = fetch("https://api.github.com/repos/riftaway7-code/hackmate/releases")
+          releases = fetch("https://api.github.com/repos/hackmatelabs/hackmate/releases")
           exe_downloads = sum(
               a.get("download_count", 0)
               for r in releases
@@ -40,7 +40,7 @@ jobs:
           )
 
           # stars
-          repo = fetch("https://api.github.com/repos/riftaway7-code/hackmate")
+          repo = fetch("https://api.github.com/repos/hackmatelabs/hackmate")
           stars = repo.get("stargazers_count", 0)
 
           # load existing stats (clone count accumulated locally, don't overwrite)
