@@ -8,10 +8,6 @@
 ```
 
 
-# shoutout
-thank you so much GaM1ngN0tDev for making the flutter ui for hackmate!
-the doom and despair of the forgetton souls who have passed.
-
 [![Stars](https://img.shields.io/github/stars/hackmatelabs/hackmate?style=flat&color=gold)](https://github.com/hackmatelabs/hackmate/stargazers)
 [![Downloads](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fhackmatelabs.github.io%2Fhackmate%2Fstats.json&query=total_downloads&label=downloads&color=brightgreen&style=flat&cacheSeconds=3600)](https://github.com/hackmatelabs/hackmate/releases)
 [![Issues](https://img.shields.io/github/issues/hackmatelabs/hackmate?style=flat&color=red)](https://github.com/hackmatelabs/hackmate/issues)
@@ -27,6 +23,11 @@ works on linux, windows, and macos as the host os — doesn't matter what ur run
 ---
 
 ## 📢 announcements
+
+
+# JOIN THE DISCORD: https://discord.gg/QZ7z9yQnmt
+
+
 
 full release notes moved to [CHANGELOG.md](CHANGELOG.md) so this section doesn't keep growing forever — check there for the "what changed recently" rundown. quick version: recent work fixed rocket lake getting mislabeled as tiger lake, audited the whole kext db against live github data (fixed ~11 silently-broken kexts, added 6, yanked 3 dead ones), and squashed a batch of quietly-broken-but-still-booted EFI generation bugs in v2.0.0.
 
