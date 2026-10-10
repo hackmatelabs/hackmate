@@ -1706,6 +1706,7 @@ class USBScreen(Screen):
                 Static(""),
                 Button("Build & Install EFI", id="install", classes="primary"),
                 Button("Don't have USB",      id="no-usb",  classes="primary"),
+                Button("Build for VirtualBox", id="vbox",   classes="primary"),
                 Button("← Back",              id="back",    classes="back"),
                 classes="screen-inner"
             )
@@ -1721,6 +1722,8 @@ class USBScreen(Screen):
                 self.app.push_screen(BuildModeScreen(selected))
         elif event.button.id == "no-usb":
             self.app.push_screen(NoUSBPathScreen())
+        elif event.button.id == "vbox":
+            self.app.push_screen(VirtualBoxPathScreen())
         elif event.button.id == "back":
             self.app.pop_screen()
 
@@ -1781,6 +1784,61 @@ class NoUSBPathScreen(Screen):
                 root.withdraw()
                 root.attributes("-topmost", True)
                 chosen = _fd.askdirectory(parent=root, title="Choose folder to save EFI")
+                root.destroy()
+                if chosen:
+                    self.query_one("#path-input", Input).value = str(chosen)
+            except Exception:
+                pass
+        elif event.button.id == "continue":
+            path = self.query_one("#path-input", Input).value.strip()
+            if path:
+                self._next(path)
+        elif event.button.id == "back":
+            self.app.pop_screen()
+
+class VirtualBoxPathScreen(Screen):
+    """Let the user pick a folder to build an EFI + Recovery VHD for VirtualBox into."""
+
+    def compose(self) -> ComposeResult:
+        yield Header()
+        yield Container(
+            Vertical(
+                Static("── Build for VirtualBox ────────────────────────────────", classes="title"),
+                Static(""),
+                Static("  HackMate will generate the EFI folder, download macOS", classes="info"),
+                Static("  Recovery, and package both into a single attachable", classes="info"),
+                Static("  .vhd — ready to add as a disk in a VirtualBox VM.", classes="info"),
+                Static(""),
+                Static("  Output folder:", classes="info"),
+                Input(placeholder="e.g. C:\\Users\\You\\Desktop  or  /home/user/Desktop", id="path-input"),
+                Static(""),
+                Button("Browse…",   id="browse",   classes="primary"),
+                Button("Continue →", id="continue", classes="primary"),
+                Button("← Back",    id="back",     classes="back"),
+                classes="screen-inner"
+            )
+        )
+        yield Footer()
+
+    def _next(self, path: str) -> None:
+        self.app.efi_output_path = _expand_user_path(path)
+        profile: HardwareProfile = self.app.profile
+        if getattr(profile, "wifi_chipset", ""):
+            self.app.push_screen(WiFiKextScreen("virtualbox", repair=False, skip_format=True))
+        elif needs_dgpu_disable_prompt(profile):
+            self.app.push_screen(GPUChoiceScreen("virtualbox", repair=False, skip_format=True))
+        else:
+            self.app.push_screen(DualBootScreen("virtualbox", repair=False, skip_format=True))
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "browse":
+            try:
+                import tkinter as _tk
+                from tkinter import filedialog as _fd
+                root = _tk.Tk()
+                root.withdraw()
+                root.attributes("-topmost", True)
+                chosen = _fd.askdirectory(parent=root, title="Choose folder to save the VirtualBox VHD")
                 root.destroy()
                 if chosen:
                     self.query_one("#path-input", Input).value = str(chosen)
@@ -2573,7 +2631,17 @@ class InstallScreen(Screen):
         skip_format: bool           = self.skip_format
         tmp = Path(get_tmp_dir())
         tmp.mkdir(parents=True, exist_ok=True)
-        mount = get_mount_path(device, skip_format=(skip_format or repair))
+
+        vbox_mode = (device == "virtualbox")
+        local_mode = (device == "local" or vbox_mode)
+        if local_mode:
+            mount = self.app.efi_output_path
+        else:
+            mount = get_mount_path(device, skip_format=(skip_format or repair))
+
+        if vbox_mode:
+            import dataclasses
+            profile = dataclasses.replace(profile, virtual_machine="virtualbox")
 
         log_lines: list[str] = []
 
@@ -2601,10 +2669,6 @@ class InstallScreen(Screen):
         import urllib.request
         import urllib.error
         import zipfile
-
-        local_mode = (device == "local")
-        if local_mode:
-            mount = self.app.efi_output_path
 
         try:
             ui(1, "Checking kext sources...")
@@ -2686,7 +2750,7 @@ class InstallScreen(Screen):
                 d.mkdir(parents=True, exist_ok=True)
             log("EFI folder structure ready.", "ok")
 
-            if not repair and not local_mode:
+            if not repair and (not local_mode or vbox_mode):
                 ui(10, f"Downloading {version.name} recovery from Apple...")
                 log(f"── Fetching {version.name} from Apple CDN...", "header")
                 recovery_dest = tmp / "recovery"
@@ -3055,7 +3119,21 @@ class InstallScreen(Screen):
                 unmount_usb(mount)
             shutil.rmtree(str(tmp), ignore_errors=True)
 
-            if local_mode:
+            if vbox_mode:
+                ui(99, "Packaging VirtualBox boot disk...")
+                log("", "info")
+                log("── Packaging EFI + Recovery into a VirtualBox VHD...", "header")
+                import virtualbox_media
+                vhd_path = virtualbox_media.create_boot_vhd(Path(mount), log=lambda m: log(f"  {m}", "info"))
+                ui(100, "VirtualBox boot disk ready!")
+                log("══════════════════════════════════════════════════", "header")
+                log("  VirtualBox boot disk generated!", "ok")
+                log(f"  Saved to: {vhd_path}", "info")
+                if truly_manual:
+                    log("  ! Some SSDTs need manual install (see README_MANUAL_SSDTS.txt)", "warn")
+                log("  Attach this VHD to a VirtualBox VM (SATA/IDE, EFI enabled) and boot it.", "info")
+                log("══════════════════════════════════════════════════", "header")
+            elif local_mode:
                 ui(100, "EFI folder ready!")
                 log("", "info")
                 log("══════════════════════════════════════════════════", "header")
@@ -3083,7 +3161,7 @@ class InstallScreen(Screen):
 
             try:
                 import hwdb_submit
-                feature = "no_usb" if local_mode else ("repair" if repair else ("skip_format" if skip_format else "full"))
+                feature = "virtualbox" if vbox_mode else ("no_usb" if local_mode else ("repair" if repair else ("skip_format" if skip_format else "full")))
                 log_text = hwdb_submit.build_log(
                     profile, feature, version.name if version else "unknown",
                     worked="build completed", issues="none", dual_boot=dual_boot,
@@ -3118,9 +3196,10 @@ class InstallScreen(Screen):
 
             try:
                 import hwdb_submit
-                feature = "no_usb" if locals().get("local_mode") else (
+                feature = "virtualbox" if locals().get("vbox_mode") else (
+                    "no_usb" if locals().get("local_mode") else (
                     "repair" if locals().get("repair") else (
-                        "skip_format" if locals().get("skip_format") else "full"))
+                        "skip_format" if locals().get("skip_format") else "full")))
                 v = locals().get("version")
                 issues = str(e)
                 tb = traceback.extract_tb(e.__traceback__)

@@ -60,6 +60,8 @@ class HardwareProfile:
     board_name: str = ""
     chipset: str = ""
 
+    virtual_machine: str = ""  # e.g. "virtualbox" — unset for real hardware
+
     raw_pci: list = field(default_factory=list)
 
 def needs_dgpu_disable_prompt(profile: HardwareProfile) -> bool:

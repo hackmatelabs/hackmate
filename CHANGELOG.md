@@ -6,6 +6,14 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [5.0.0] - 2026-10-09
+
+### Added
+- VirtualBox support: a "Build for VirtualBox" option generates the EFI, downloads macOS Recovery, and packages both into a single attachable `.vhd` — just add it as a disk to a VirtualBox VM and boot. VM builds skip all the physical-hardware ACPI SSDTs (EC, PLUG, AWAC, PMC, etc.) since VirtualBox's own firmware doesn't have the quirks those exist to patch around.
+
+### Fixed
+- "Don't have USB" (local EFI-folder) builds crashed immediately with `RuntimeError: LOCAL: isn't accessible` — the code resolved the device as a real mount path before checking whether it was local-only mode, so "local" got treated as a literal drive letter.
+
 ## [4.0.0] - 2026-09-09
 
 The biggest correctness pass since 2.0.0. Most of it is hardware detection: whole families of CPUs, GPUs, and NICs were being misidentified, and the wrong identification quietly produced an EFI that booted but had the wrong SMBIOS, the wrong framebuffer, or a NIC/audio device that never came up. Also ships HackMate-Core (a branded graphical boot picker) and a "why" explanation for every choice the generator makes.

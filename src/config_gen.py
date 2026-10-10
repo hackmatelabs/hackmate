@@ -264,6 +264,12 @@ _CPUR_CHIPSETS = {"B550", "A520", "A620", "B650", "X670", "B840", "B850", "X870"
 
 
 def _required_ssdts(profile: HardwareProfile, kexts: list[KextEntry]) -> list[str]:
+    if profile.virtual_machine:
+        # VM firmware (VirtualBox, QEMU/OVMF, ...) presents synthetic ACPI tables —
+        # none of the physical-hardware EC/PLUG/AWAC/PMC/etc. quirks these SSDTs
+        # patch around actually apply.
+        return []
+
     ssdts = []
     gen = profile.cpu_generation
     intel = profile.cpu_vendor == "intel"

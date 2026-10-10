@@ -106,6 +106,9 @@ class RequiredSsdtsTests(unittest.TestCase):
         self.assertIn("SSDT-EC-USBX", ssdts)
         self.assertNotIn("SSDT-EC", ssdts)
 
+    def test_virtualbox_uses_no_physical_machine_ssdts(self):
+        self.assertEqual(self._ssdts(virtual_machine="virtualbox"), [])
+
 
 class AcpiAddTests(unittest.TestCase):
     def test_builds_one_entry_per_ssdt_all_enabled(self):
