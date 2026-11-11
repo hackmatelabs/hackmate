@@ -4,6 +4,7 @@ import re
 import urllib.request
 import subprocess
 import sys
+import traceback
 from pathlib import Path
 from dataclasses import dataclass
 
@@ -28,6 +29,14 @@ MACRECOVERY_PATH = _macrecovery_path()
 # worker thread (still running after we've given up and returned) knows not to
 # clobber sys.argv/sys.stdout out from under a newer attempt when it finally exits.
 _download_generation = [0]
+
+
+def describe_error(error: BaseException) -> str:
+    frames = traceback.extract_tb(error.__traceback__)
+    if not frames:
+        return str(error)
+    last = frames[-1]
+    return f"{error} [{type(error).__name__} at {Path(last.filename).name}:{last.lineno} in {last.name}]"
 
 
 @dataclass
@@ -376,7 +385,7 @@ def _download_recovery_once(version: MacOSVersion, dest: Path, progress_cb=None)
                 except SystemExit as e:
                     result["exit_code"] = e.code if isinstance(e.code, int) else 0
                 except Exception as e:
-                    result["error"] = str(e)
+                    result["error"] = describe_error(e)
                 finally:
                     # Only restore globals if we're still the current attempt —
                     # a stalled thread that's since been abandoned must not
@@ -443,7 +452,7 @@ def _download_recovery_once(version: MacOSVersion, dest: Path, progress_cb=None)
                 detail = " | ".join(last_lines) if last_lines else "no output captured"
                 return False, f"macrecovery exited with code {proc.returncode}: {detail}"
     except Exception as e:
-        return False, f"Download failed: {e}"
+        return False, f"Download failed: {describe_error(e)}"
 
     files = list(dest.glob("*.dmg")) + list(dest.glob("*.chunklist")) + list(dest.glob("com.apple.*"))
     if not files:
