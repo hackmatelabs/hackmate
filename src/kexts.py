@@ -370,7 +370,14 @@ def _has_card_reader() -> bool:
     except Exception:
         return False
 
-def select_kexts(profile: HardwareProfile, wifi_kext_mode: str = "itlwm") -> list[KextEntry]:
+# AirportItlwm ships one binary per macOS release and stoped at Sonoma 14.
+# Sequoia (15) and later have no build, so the airport mode silently produced
+# a broken EFI: the kext download failed and the user only saw an ERROR line.
+AIRPORTITLWM_MACOS_MAJORS = frozenset({10, 11, 12, 13, 14})
+
+
+def select_kexts(profile: HardwareProfile, wifi_kext_mode: str = "itlwm",
+                 macos_major: int = 0) -> list[KextEntry]:
     selected: list[KextEntry] = []
     seen: set[str] = set()
 
@@ -465,6 +472,10 @@ def select_kexts(profile: HardwareProfile, wifi_kext_mode: str = "itlwm") -> lis
         pass  # user opted to leave onboard WiFi/BT untouched — no kexts injected
     elif wchip == "intel":
         chosen = "AirportItlwm" if wifi_kext_mode == "AirportItlwm" else "itlwm"
+        if (chosen == "AirportItlwm" and macos_major
+                and macos_major not in AIRPORTITLWM_MACOS_MAJORS):
+            # No AirportItlwm build for this release — itlwm + HeliPort still works
+            chosen = "itlwm"
         add(chosen, "IntelBluetoothFirmware", "IntelBTPatcher", "BlueToolFixup")
     elif wchip == "broadcom":
         add("AirportBrcmFixup", "BrcmPatchRAM3", "BrcmFirmwareData", "BrcmBluetoothInjector", "BlueToolFixup")

@@ -881,7 +881,7 @@ def _booter_section(profile: HardwareProfile, resizable_bar: bool = False) -> di
     }
 
 def generate(profile: HardwareProfile, smbios: SMBIOSData, macos_major: int = 0, wifi_kext_mode: str = "itlwm", dual_boot: str = "", hackmate_core: bool = False) -> dict:
-    kexts = select_kexts(profile, wifi_kext_mode=wifi_kext_mode)
+    kexts = select_kexts(profile, wifi_kext_mode=wifi_kext_mode, macos_major=macos_major)
     layout_id = get_alc_layout(profile.audio_codec)
     audio_enabled = any(kext.name == "AppleALC" for kext in kexts)
     ssdts = _required_ssdts(profile, kexts)
