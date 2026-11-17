@@ -230,7 +230,7 @@ def run(params: dict, emit) -> dict:
 
         ui(45, "Selecting kexts...")
         log("── Selecting kexts...", "header")
-        kexts = select_kexts(profile, wifi_kext_mode=wifi_kext_mode)
+        kexts = select_kexts(profile, wifi_kext_mode=wifi_kext_mode, macos_major=macos_major)
         log(f"  {len(kexts)} kexts selected for this hardware", "ok")
 
         ui(50, f"{'Verifying' if repair else 'Downloading'} {len(kexts)} kexts...")

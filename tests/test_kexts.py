@@ -370,3 +370,43 @@ class ReleaseMetaCacheTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AirportItlwmFallbackTests(unittest.TestCase):
+    """AirportItlwm has no build after Sonoma 14 — itlwm must be picked instead."""
+
+    def _names(self, macos_major: int, mode: str = "AirportItlwm") -> set[str]:
+        profile = HardwareProfile(
+            cpu_vendor="intel",
+            cpu_generation=8,
+            cpu_codename="Kaby Lake-R",
+            platform="laptop",
+        )
+        profile.wifi_chipset = "intel"
+        with (
+            patch.object(kexts, "_dmi", return_value=""),
+            patch.object(kexts, "_has_card_reader", return_value=False),
+        ):
+            return {
+                entry.name
+                for entry in kexts.select_kexts(
+                    profile, wifi_kext_mode=mode, macos_major=macos_major
+                )
+            }
+
+    def test_sonoma_keeps_airportitlwm(self):
+        self.assertIn("AirportItlwm", self._names(14))
+
+    def test_ventura_keeps_airportitlwm(self):
+        self.assertIn("AirportItlwm", self._names(13))
+
+    def test_sequoia_falls_back_to_itlwm(self):
+        names = self._names(15)
+        self.assertIn("itlwm", names)
+        self.assertNotIn("AirportItlwm", names)
+
+    def test_tahoe_falls_back_to_itlwm(self):
+        self.assertNotIn("AirportItlwm", self._names(26))
+
+    def test_unknown_version_keeps_requested_mode(self):
+        self.assertIn("AirportItlwm", self._names(0))
